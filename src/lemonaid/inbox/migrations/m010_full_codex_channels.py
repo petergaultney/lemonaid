@@ -26,7 +26,6 @@ import sqlite3
 from collections import abc
 from pathlib import Path
 
-from ...codex import utils
 from ...log import get_logger
 
 VERSION = 10
@@ -51,21 +50,41 @@ def _thread_id(channel: str, fields: dict) -> str:
     return ""
 
 
+def _sessions_root() -> Path:
+    return Path.home() / ".codex" / "sessions"
+
+
 def _rollouts(sessions: Path) -> dict[str, Path]:
     if not sessions.exists():
         return {}
 
     return {
-        thread: path
+        match.group(0): path
         for path in sessions.rglob("*.jsonl")
-        if (thread := utils.extract_session_id_from_filename(path.name))
+        if (match := _UUID.search(path.name))
     }
+
+
+def _session_meta(path: Path) -> dict:
+    """The first `session_meta` payload in a rollout's first 20 lines."""
+    try:
+        with path.open() as f:
+            for _, line in zip(range(20), f, strict=False):
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if entry.get("type") == "session_meta":
+                    return entry.get("payload") or {}
+    except OSError:
+        pass
+    return {}
 
 
 def _root(thread: str, rollouts: abc.Mapping[str, Path]) -> str:
     """The thread a subagent or approval reviewer runs inside, else *thread*."""
-    meta = utils.read_session_meta(rollouts[thread]) if thread in rollouts else None
-    if not meta or not utils.is_spawned_thread(meta):
+    meta = _session_meta(rollouts[thread]) if thread in rollouts else {}
+    if not meta.get("parent_thread_id"):
         return thread
 
     root = meta.get("session_id") or meta.get("parent_thread_id")
@@ -87,7 +106,7 @@ def migrate(conn: sqlite3.Connection) -> None:
         " WHERE channel LIKE 'codex:%' AND length(channel) = ? ORDER BY created_at, id",
         (_SHORT,),
     ).fetchall()
-    rollouts = _rollouts(utils.get_sessions_root()) if rows else {}
+    rollouts = _rollouts(_sessions_root()) if rows else {}
     newest: dict[str, str] = {}
     moved: set[str] = set()
     for row_id, channel, metadata in rows:

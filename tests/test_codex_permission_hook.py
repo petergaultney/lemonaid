@@ -4,24 +4,18 @@ import json
 
 import pytest
 
-from lemonaid.codex import notify, utils, watcher
+from lemonaid.codex import notify
 from lemonaid.inbox import db
+from tests import codex_fakes
 
 _THREAD = "01999a7c-2f10-7a3e-9c41-5b2d8e0f1a11"
 
 
 @pytest.fixture(autouse=True)
-def _notification_rollouts(monkeypatch, tmp_path):
-    monkeypatch.setattr(notify, "find_latest_session_for_cwd", lambda cwd: None)
-
-    def rollout(session_id):
-        path = tmp_path / f"rollout-{session_id}.jsonl"
-        path.write_text(json.dumps({"type": "session_meta", "payload": {"id": session_id}}) + "\n")
-        return path
-
-    monkeypatch.setattr(notify, "find_session_path", rollout)
-    monkeypatch.setattr(watcher, "get_sessions_root", lambda: tmp_path / "no-sessions")
-    monkeypatch.setattr(utils, "get_sessions_root", lambda: tmp_path / "sessions")
+def _notification_rollouts(monkeypatch, tmp_path, codex_records):
+    codex_records.everything = lambda thread: codex_fakes.thread(
+        thread, path=str(tmp_path / f"rollout-{thread}.jsonl")
+    )
     monkeypatch.delenv("TMUX_PANE", raising=False)
 
 

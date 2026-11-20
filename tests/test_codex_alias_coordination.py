@@ -140,15 +140,13 @@ def test_stop_self_finds_waiter_registered_before_alias_fix(alias):
         assert registry.mine("codex:unrelated") == []
 
 
-def test_handoff_reads_alias_owner_transcript(alias, setup, monkeypatch):
+def test_handoff_reads_alias_owner_turns(alias, monkeypatch):
     from lemonaid.brief.handoff import codex as handoff_codex
 
     channel, _, _ = alias
     looked_up = []
     monkeypatch.setattr(
-        handoff_codex.codex_watcher,
-        "get_session_path",
-        lambda thread, cwd: looked_up.append(thread) or setup,
+        handoff_codex.threads, "latest_turns", lambda thread, count: looked_up.append(thread) or []
     )
     with db.connect() as conn:
         assert not handoff_codex.has_ready_marker(conn, {"source": channel, "token": "token"})

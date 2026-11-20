@@ -5,17 +5,13 @@ tty, and the watcher archives the older of two sessions on one tty: the parent.
 """
 
 import json
-import os
-from datetime import UTC, datetime
-from pathlib import Path
-from uuid import UUID
 
 import pytest
 
 from lemonaid.codex import notify as codex_notify
-from lemonaid.codex import utils
 from lemonaid.inbox import db
 from lemonaid.lemon_watchers import watcher
+from tests import codex_fakes
 
 _CWD = "/work/project"
 _TTY = "/dev/ttys054"
@@ -24,42 +20,15 @@ _SUBAGENT = "02b0e8ca-9e01-74d1-99f6-5f302c6cfd7c"
 _GUARDIAN = "03c0e8ca-e160-75d2-8612-69cbd966da4d"
 
 
-def _write_session(root: Path, thread_id: str, **meta: object) -> Path:
-    day = datetime.fromtimestamp((UUID(thread_id).int >> 80) / 1000, UTC)
-    directory = root / day.strftime("%Y/%m/%d")
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"rollout-2026-09-28T12-00-00-{thread_id}.jsonl"
-    payload = {"id": thread_id, "session_id": _PARENT, "cwd": _CWD, **meta}
-    path.write_text(json.dumps({"type": "session_meta", "payload": payload}) + "\n")
-    return path
-
-
 @pytest.fixture
-def sessions(tmp_path, monkeypatch) -> Path:
-    root = tmp_path / "sessions"
-    root.mkdir()
-    monkeypatch.setattr(utils, "get_sessions_root", lambda: root)
+def sessions(monkeypatch, codex_records) -> None:
     monkeypatch.setattr(codex_notify.location, "get_tty", lambda: _TTY)
     monkeypatch.setattr(codex_notify.location.hosting, "under_app_server", lambda: False)
     monkeypatch.setattr(codex_notify, "detect_terminal_switch_source", lambda: "tmux")
     monkeypatch.setattr(codex_notify, "get_git_branch", lambda cwd: None)
-
-    _write_session(root, _PARENT, source="cli", thread_source="user")
-    _write_session(
-        root,
-        _SUBAGENT,
-        source={"subagent": {"thread_spawn": {"parent_thread_id": _PARENT, "depth": 1}}},
-        thread_source="subagent",
-        parent_thread_id=_PARENT,
-    )
-    _write_session(
-        root,
-        _GUARDIAN,
-        source={"subagent": {"other": "guardian"}},
-        thread_source="guardian_review",
-        parent_thread_id=_SUBAGENT,
-    )
-    return root
+    codex_records[_PARENT] = codex_fakes.thread(_PARENT, _CWD)
+    codex_records[_SUBAGENT] = codex_fakes.thread(_SUBAGENT, _CWD, parent=_PARENT)
+    codex_records[_GUARDIAN] = codex_fakes.thread(_GUARDIAN, _CWD, parent=_SUBAGENT)
 
 
 def _turn_complete(thread_id: str) -> None:
@@ -102,21 +71,11 @@ def test_spawned_threads_leave_the_open_parent_in_the_inbox(sessions, monkeypatc
     assert archived == []
 
 
-def test_the_cwd_fallback_skips_a_newer_spawned_thread(sessions):
-    """A notification without a thread id is resolved by cwd, to the newest rollout there."""
-    parent = next(sessions.rglob(f"*{_PARENT}.jsonl"))
-    for path in sessions.rglob("*.jsonl"):
-        mtime = 1000.0 if path == parent else 2000.0
-        os.utime(path, (mtime, mtime))
-
-    assert utils.find_latest_session_for_cwd(_CWD) == parent
-
-
-def test_a_rollout_without_session_meta_gets_no_row(sessions):
+def test_a_thread_codex_does_not_know_gets_no_row(sessions, codex_records):
     """It could be a subagent's, and a row of its own would displace the parent."""
     _turn_complete(_PARENT)
     unreadable = "04d0e8ca-0000-7000-8000-000000000000"
-    (sessions / f"rollout-2026-09-28T12-00-00-{unreadable}.jsonl").write_text("")
+    codex_records[unreadable] = None
 
     _turn_complete(unreadable)
 

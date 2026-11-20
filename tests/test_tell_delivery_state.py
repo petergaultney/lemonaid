@@ -14,10 +14,10 @@ from lemonaid.brief import store as brief_store
 from lemonaid.claude import session_socket
 from lemonaid.codex import processes as codex_processes
 from lemonaid.codex import queued
-from lemonaid.codex import utils as codex_utils
 from lemonaid.inbox import db
 from lemonaid.messages import autoresume, cli, recipient, store, tell_delivery, waiter
 from lemonaid.watch import scout_failures, scout_roster
+from tests import codex_fakes
 
 
 @pytest.fixture(autouse=True)
@@ -316,7 +316,7 @@ def _codex_holds(monkeypatch, tmp_path, thread: str, queued_at: float, *events: 
     rollout = tmp_path / f"rollout-{thread}.jsonl"
     rollout.write_text("".join(json.dumps(event) + "\n" for event in events))
     monkeypatch.setattr(queued, "held", lambda home: {thread: queued.Held(1, queued_at)})
-    monkeypatch.setattr(codex_utils, "find_session_path", lambda found: rollout)
+    codex_fakes.answer(monkeypatch, lambda found: codex_fakes.thread(found, path=str(rollout)))
     monkeypatch.setattr(codex_processes, "open_threads", lambda max_age=0.0: {thread})
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish", "codex"])
 

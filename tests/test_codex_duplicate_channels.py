@@ -3,8 +3,9 @@ import json
 import pytest
 
 from lemonaid.brief import attached, store
-from lemonaid.codex import channels, notify, utils
+from lemonaid.codex import channels, notify
 from lemonaid.inbox import db
+from tests import codex_fakes
 
 _ROOT = "01999a7c-2f10-7a3e-9c41-5b2d8e0f1a11"
 _TRANSIENT = "01999a7c-3b84-7d02-8e67-0c9f4a1b2c22"
@@ -18,17 +19,12 @@ _LOCATION = {
 
 
 @pytest.fixture
-def setup(monkeypatch, tmp_path):
+def setup(monkeypatch, tmp_path, codex_records):
     rollout = tmp_path / f"rollout-2026-10-20-{_ROOT}.jsonl"
-    rollout.write_text(
-        json.dumps({"type": "session_meta", "payload": {"id": _ROOT, "cwd": "/work/shared"}}) + "\n"
-    )
-    monkeypatch.setattr(notify, "find_session_path", lambda sid: rollout if sid == _ROOT else None)
+    codex_records.everything = lambda thread: None
+    codex_records[_ROOT] = codex_fakes.thread(_ROOT, "/work/shared", path=str(rollout))
     monkeypatch.setattr(
-        utils, "find_session_path", lambda sid, compressed=False: rollout if sid == _ROOT else None
-    )
-    monkeypatch.setattr(
-        notify, "find_latest_session_for_cwd", lambda cwd: pytest.fail("directory is not identity")
+        notify.threads, "latest_in", lambda cwd: pytest.fail("directory is not identity")
     )
     monkeypatch.setattr(notify.location.hosting, "under_app_server", lambda: False)
     monkeypatch.setattr(notify.location, "get_tty", lambda: "/dev/author")
@@ -84,17 +80,10 @@ def test_attached_transient_channel_stays_attached_when_owner_notifies(setup):
         assert briefs == [tuple(r) for r in conn.execute("select * from session_briefs")]
 
 
-def test_real_restart_with_a_rollout_keeps_its_new_channel(setup, monkeypatch, tmp_path):
+def test_real_restart_with_a_rollout_keeps_its_new_channel(setup, codex_records, tmp_path):
     real = tmp_path / f"rollout-2026-10-20-{_TRANSIENT}.jsonl"
-    real.write_text(json.dumps({"type": "session_meta", "payload": {"id": _TRANSIENT}}) + "\n")
-    monkeypatch.setattr(
-        notify, "find_session_path", lambda sid: real if sid == _TRANSIENT else setup
-    )
-    monkeypatch.setattr(
-        utils,
-        "find_session_path",
-        lambda sid, compressed=False: real if sid == _TRANSIENT else setup,
-    )
+    codex_records.everything = lambda thread: codex_fakes.thread(thread, path=str(setup))
+    codex_records[_TRANSIENT] = codex_fakes.thread(_TRANSIENT, path=str(real))
     with db.connect() as conn:
         _row(conn, _ROOT, _LOCATION, attach=True)
     notify.handle_notification(json.dumps({"thread-id": _TRANSIENT, "cwd": "/work/shared"}))
@@ -128,14 +117,10 @@ def test_ambiguous_attachment_is_not_reconciled(setup):
         assert channels.repair_duplicates(conn, {_ROOT: [_LOCATION]}) == 0
 
 
-def test_real_new_thread_is_not_archived_as_duplicate(setup, monkeypatch, tmp_path):
+def test_real_new_thread_is_not_archived_as_duplicate(setup, codex_records, tmp_path):
     real = tmp_path / f"rollout-2026-10-20-{_TRANSIENT}.jsonl"
-    real.write_text("{}\n")
-    monkeypatch.setattr(
-        utils,
-        "find_session_path",
-        lambda sid, compressed=False: real if sid == _TRANSIENT else setup,
-    )
+    codex_records.everything = lambda thread: codex_fakes.thread(thread, path=str(setup))
+    codex_records[_TRANSIENT] = codex_fakes.thread(_TRANSIENT, path=str(real))
     with db.connect() as conn:
         _row(conn, _ROOT, _LOCATION, attach=True)
         newcomer = _row(conn, _TRANSIENT, _LOCATION)
@@ -197,15 +182,9 @@ def test_recovered_rollout_still_filters_automatic_approval(setup, monkeypatch):
 
 
 @pytest.mark.parametrize("operation", ["notify", "repair"])
-def test_real_restart_does_not_take_a_reconciled_alias(setup, monkeypatch, tmp_path, operation):
+def test_real_restart_does_not_take_a_reconciled_alias(setup, codex_records, tmp_path, operation):
     real = tmp_path / f"rollout-2026-10-20-{_REVIEWER}.jsonl"
-    real.write_text(json.dumps({"type": "session_meta", "payload": {"id": _REVIEWER}}) + "\n")
-
-    def lookup(sid):
-        return real if sid == _REVIEWER else setup if sid == _ROOT else None
-
-    monkeypatch.setattr(notify, "find_session_path", lookup)
-    monkeypatch.setattr(utils, "find_session_path", lambda sid, compressed=False: lookup(sid))
+    codex_records[_REVIEWER] = codex_fakes.thread(_REVIEWER, path=str(real))
     with db.connect() as conn:
         alias = _row(conn, _TRANSIENT, _LOCATION, attach=True)
         db.repair_location(conn, alias, {"session_id": _ROOT, "session_path": str(setup)})
@@ -275,7 +254,7 @@ def test_no_rollout_drops_before_db_or_terminal_inspection(setup, monkeypatch, s
     with monkeypatch.context() as gate:
         gate.setattr(db, "connect", forbidden)
         gate.setattr(notify.location, "get_tty", forbidden)
-        gate.setattr(notify, "find_latest_session_for_cwd", forbidden)
+        gate.setattr(notify.threads, "latest_in", forbidden)
         notify.handle_notification(
             json.dumps({"type": "agent-turn-complete", "thread-id": thread, "cwd": "/work/shared"})
         )
@@ -301,13 +280,10 @@ def test_persistent_thread_keeps_its_row_after_terminal_move(setup, monkeypatch,
         assert attachments == [tuple(r) for r in conn.execute("SELECT * FROM session_briefs")]
 
 
-def test_an_old_thread_whose_rollout_codex_compressed_keeps_its_channel(tmp_path, monkeypatch):
-    """A compressed rollout is still a real conversation, so a new thread on its pane
+def test_an_old_thread_codex_still_has_keeps_its_channel(codex_records):
+    """A thread Codex can resume is a real conversation, so a new thread on its pane
     doesn't take over its channel."""
-    monkeypatch.setattr(utils, "get_sessions_root", lambda: tmp_path)
-    day = tmp_path / "2025/09/30"
-    day.mkdir(parents=True)
-    (day / f"rollout-2025-09-30T07-58-27-{_REVIEWER}.jsonl.zst").write_bytes(b"compressed")
+    codex_records[_REVIEWER] = codex_fakes.thread(_REVIEWER, path="rollout.jsonl.zst")
     old = db.Notification(
         id=1,
         channel=f"codex:{_REVIEWER}",

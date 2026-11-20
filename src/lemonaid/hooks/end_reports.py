@@ -2,7 +2,7 @@
 
 Claude reports through lemonaid's SessionEnd hook once it is in its user settings and no
 settings file it reads for the session sets `disableAllHooks`. Codex runs the hook only
-once it is trusted at its current hash and enabled, and reports a quit only with its
+once it is trusted at its current hash and enabled, which Codex itself answers, and reports a quit only with its
 shared app-server daemon off: a session in the daemon reports nothing when quit.
 Anything that can't be read counts as not reporting, so a stop is archived as before.
 """
@@ -66,7 +66,7 @@ def reported(harness: str, cwd: str) -> bool:
     if harness == "codex":
         home = daemon_setup.codex_home()
         return hook_trust.session_end_runs(
-            home, install.settings_path("codex"), install.SESSION_END_CODEX
+            home, install.settings_path("codex"), install.status_message("session-end")
         ) and not daemon_setup.daemon_auto_start_warning(home)
 
     return False

@@ -5,6 +5,7 @@ import subprocess
 import pytest
 
 from lemonaid.codex import processes
+from tests import codex_fakes
 
 _thread_ttys = processes.thread_ttys
 _open_threads = processes.open_threads
@@ -16,10 +17,15 @@ def _rollout(tmp_path, name, **meta):
     return path
 
 
-def test_open_rollouts_distinguish_author_and_reviewer_and_skip_guardian(tmp_path, monkeypatch):
-    author = _rollout(tmp_path, "author")
-    reviewer = _rollout(tmp_path, "reviewer")
-    guardian = _rollout(tmp_path, "guardian", parent_thread_id="author")
+def test_open_rollouts_distinguish_author_and_reviewer_and_skip_guardian(
+    tmp_path, monkeypatch, codex_records
+):
+    ids = {
+        name: f"01a1f6f1-0000-7000-8000-00000000000{n}"
+        for n, name in enumerate(("author", "reviewer", "guardian"))
+    }
+    author, reviewer, guardian = (_rollout(tmp_path, ids[name]) for name in ids)
+    codex_records[ids["guardian"]] = codex_fakes.thread(ids["guardian"], parent=ids["author"])
 
     def run(argv, **kwargs):
         output = (
@@ -30,7 +36,10 @@ def test_open_rollouts_distinguish_author_and_reviewer_and_skip_guardian(tmp_pat
         return subprocess.CompletedProcess(argv, 0, stdout=output, stderr="")
 
     monkeypatch.setattr(subprocess, "run", run)
-    assert _thread_ttys() == {"author": {"/dev/ttys001"}, "reviewer": {"/dev/ttys002"}}
+    assert _thread_ttys() == {
+        ids["author"]: {"/dev/ttys001"},
+        ids["reviewer"]: {"/dev/ttys002"},
+    }
 
 
 @pytest.mark.parametrize(

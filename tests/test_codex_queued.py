@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 
 from lemonaid.codex import processes, queued
-from lemonaid.codex import utils as codex_utils
 from lemonaid.inbox import db
 from lemonaid.messages import recipient
+from tests import codex_fakes
 
 _HELD = queued.held  # conftest stubs it for every other test
 _THREAD = "019a5a00-1111-7222-8333-444455556666"
@@ -211,7 +211,7 @@ def _codex(monkeypatch, tmp_path, events: list[str], queued_at: float, open_thre
     """A Codex thread whose rollout has *events*, with a message Codex took at *queued_at*."""
     rollout = _rollout(tmp_path / f"rollout-{_THREAD}.jsonl", *events)
     monkeypatch.setattr(queued, "held", lambda home: {_THREAD: queued.Held(1, queued_at)})
-    monkeypatch.setattr(codex_utils, "find_session_path", lambda thread: rollout)
+    codex_fakes.answer(monkeypatch, lambda thread: codex_fakes.thread(thread, path=str(rollout)))
     monkeypatch.setattr(
         processes,
         "open_threads",

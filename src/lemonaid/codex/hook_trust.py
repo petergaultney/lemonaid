@@ -1,66 +1,57 @@
-"""Whether Codex runs a hooks.json handler: enabled, and trusted at its current hash.
+"""Whether Codex runs one of lemonaid's hooks.json handlers, as Codex itself answers it.
 
-Codex 0.166 keys each handler's state by `<hooks.json>:<event>:<group>:<handler>` in its
-`config.toml` (`[hooks.state]`), and runs it only when it isn't `enabled = false` and its
-`trusted_hash` is the hash of the handler as Codex normalizes it: SHA-256 over compact,
-key-sorted JSON of the event name and the one handler, with its timeout filled in
-(codex-rs/hooks/src/engine/discovery.rs, `hook_hash`). A SessionEnd handler has no
-matcher or context limit, and its timeout defaults to one second.
+Codex runs a handler only while it is enabled and trusted at its current hash. Trust
+changes only when the hooks file or Codex's config does, so an answer is kept until
+one of them changes.
 """
 
-import hashlib
-import json
-import tomllib
-import typing as ty
-from collections import abc
+import functools
+import os
 from pathlib import Path
 
-from ..log import get_logger
+from . import app_server
 
-_log = get_logger("codex.hook_trust")
-
-_SESSION_END_DEFAULT_TIMEOUT = 1
-_SESSION_END_MAX_TIMEOUT = 3
+_TIMEOUT = 5.0
+_RUNS = ("trusted", "managed")
 
 
-def _session_end_hash(handler: abc.Mapping[str, ty.Any]) -> str:
-    normalized = {
-        "type": "command",
-        "command": handler["command"],
-        "timeout": min(
-            max(int(handler.get("timeout") or _SESSION_END_DEFAULT_TIMEOUT), 1),
-            _SESSION_END_MAX_TIMEOUT,
-        ),
-        "async": bool(handler.get("async", False)),
-        **({"statusMessage": handler["statusMessage"]} if "statusMessage" in handler else {}),
-    }
-    identity = json.dumps(
-        {"event_name": "session_end", "hooks": [normalized]}, sort_keys=True, separators=(",", ":")
-    )
-    return f"sha256:{hashlib.sha256(identity.encode()).hexdigest()}"
-
-
-def _read(path: Path, parse: abc.Callable[[str], dict]) -> dict:
+def _mtime(path: Path) -> int:
     try:
-        return parse(path.read_text())
-    except FileNotFoundError:
-        return {}
-    except (ValueError, OSError) as exc:  # JSONDecodeError and TOMLDecodeError are ValueErrors
-        _log.warning("cannot read %s: %s", path, exc)
-        return {}
+        return os.stat(path).st_mtime_ns
+    except OSError:
+        return 0
 
 
-def session_end_runs(home: Path, hooks_json: Path, command: str) -> bool:
-    """Whether Codex runs the SessionEnd handler in *hooks_json* whose command is *command*."""
-    groups = _read(hooks_json, json.loads).get("hooks", {}).get("SessionEnd", [])
-    states = _read(home / "config.toml", tomllib.loads).get("hooks", {}).get("state", {})
-    return any(
-        isinstance(handler, dict)
-        and handler.get("command") == command
-        and isinstance(state := states.get(f"{hooks_json}:session_end:{group}:{index}"), dict)
-        and state.get("enabled") is not False
-        and state.get("trusted_hash") == _session_end_hash(handler)
-        for group, entry in enumerate(groups)
-        if isinstance(entry, dict)
-        for index, handler in enumerate(entry.get("hooks", []))
-    )
+@functools.lru_cache(
+    maxsize=64
+)  # an exception isn't kept, so an unanswered question is asked again
+def _runs(hooks_json: Path, event: str, status_message: str, _changed: tuple) -> bool:
+    def ask(server: app_server.Server) -> bool:
+        [reply] = server.ask([("hooks/list", {"cwds": [str(Path.home())]})], _TIMEOUT)
+        if "error" in reply:
+            raise app_server.NoAnswer(str(reply["error"]))
+
+        return any(
+            hook.get("eventName") == event
+            and hook.get("sourcePath") == str(hooks_json)
+            and hook.get("statusMessage") == status_message
+            and hook.get("enabled") is not False
+            and hook.get("trustStatus") in _RUNS
+            for entry in reply["result"]["data"]
+            for hook in entry.get("hooks", [])
+        )
+
+    if (answer := app_server.once(ask, f"{event} hooks", None, _TIMEOUT)) is None:
+        raise app_server.NoAnswer("codex app-server did not answer")
+
+    return answer
+
+
+def session_end_runs(home: Path, hooks_json: Path, status_message: str) -> bool:
+    """Whether Codex runs the user-level SessionEnd handler in *hooks_json* titled
+    *status_message*. Codex that can't be asked counts as not running it."""
+    changed = (_mtime(hooks_json), _mtime(home / "config.toml"))
+    try:
+        return _runs(hooks_json, "sessionEnd", status_message, changed)
+    except app_server.NoAnswer:
+        return False

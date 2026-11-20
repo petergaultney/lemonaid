@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ..lemon_watchers import untracked
 from ..log import get_logger
-from . import utils
+from . import threads, utils
 
 _log = get_logger("codex.processes")
 _TIMEOUT = 1
@@ -138,6 +138,13 @@ def thread_ttys() -> dict[str, set[str]] | None:
 
 def _owners(paths: dict[str, set[str]], listing: str) -> dict[str, set[str]]:
     result: dict[str, set[str]] = defaultdict(set)
+    opened = {
+        thread
+        for found in paths.values()
+        for path in found
+        if (thread := utils.extract_session_id_from_filename(Path(path).name))
+    }
+    records = threads.get(opened, running=True)
     for line in listing.splitlines():
         fields = line.split(maxsplit=2)
         if len(fields) != 3:
@@ -148,11 +155,12 @@ def _owners(paths: dict[str, set[str]], listing: str) -> dict[str, set[str]]:
         if tty in {"?", "??", "-"} or untracked.is_app_server(args):
             continue
         for path in paths.get(pid, ()):
-            meta = utils.read_session_meta(Path(path))
-            if not meta or utils.is_spawned_thread(meta):
+            thread = utils.extract_session_id_from_filename(Path(path).name)
+            if not thread or (
+                thread in records and (records[thread] is None or records[thread].parent)
+            ):
                 continue
-            if thread := meta.get("id"):
-                result[thread].add(tty if tty.startswith("/dev/") else f"/dev/{tty}")
+            result[thread].add(tty if tty.startswith("/dev/") else f"/dev/{tty}")
     return dict(result)
 
 
