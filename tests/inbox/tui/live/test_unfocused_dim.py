@@ -1,6 +1,8 @@
 import asyncio
+import math
 import os
 import threading
+from collections import abc
 from pathlib import Path
 
 from rich.color import Color as RichColor
@@ -91,6 +93,14 @@ def test_a_pane_switch_undims_without_waiting_for_a_refresh(monkeypatch):
     asyncio.run(check())
 
 
+async def _until(condition: abc.Callable[[], bool]) -> None:
+    for _ in range(100):
+        if condition():
+            return
+        await asyncio.sleep(0.02)
+    raise AssertionError("timed out")
+
+
 def test_a_superseded_probe_finishing_last_does_not_overwrite_the_newer_answer(monkeypatch):
     Path(os.environ["LEMONAID_CONFIG"]).write_text('[tui]\nunfocused_dim = "dim"\n')
     monkeypatch.setenv("TMUX_PANE", "%9")
@@ -108,28 +118,57 @@ def test_a_superseded_probe_finishing_last_does_not_overwrite_the_newer_answer(m
 
     monkeypatch.setattr(focus, "pane_receives_keys", lambda pane: True)
 
-    async def until(condition):
-        for _ in range(100):
-            if condition():
-                return
-            await asyncio.sleep(0.02)
-        raise AssertionError("timed out")
-
     async def check():
         app = LemonaidApp(scratch_mode=True)
         async with app.run_test(size=(50, 20)) as pilot:
             await pilot.pause()
             monkeypatch.setattr(focus, "pane_receives_keys", probe)
             app._recheck_pane_focus()  # blur: held until released, then answers False
-            await until(first_started.is_set)
+            await _until(first_started.is_set)
             app._recheck_pane_focus()  # focus: answers True at once
-            await until(lambda: len(calls) == 2)
-            await until(lambda: app.has_class("-input-active"))
+            await _until(lambda: len(calls) == 2)
+            await _until(lambda: app.has_class("-input-active"))
             release_first.set()
             await app.workers.wait_for_complete()
             await pilot.pause()
             assert not app._dim.enabled
             assert app.has_class("-input-active")
+
+    asyncio.run(check())
+
+
+def test_a_probe_asked_before_a_refresh_and_finishing_after_it_keeps_the_refresh_answer(
+    monkeypatch,
+):
+    Path(os.environ["LEMONAID_CONFIG"]).write_text('[tui]\nunfocused_dim = "dim"\n')
+    monkeypatch.setenv("TMUX_PANE", "%9")
+    probe_asked, release_probe = threading.Event(), threading.Event()
+
+    def held_probe(pane):
+        probe_asked.set()
+        release_probe.wait(5)
+        return True
+
+    monkeypatch.setattr(focus, "pane_receives_keys", lambda pane: True)
+
+    async def check():
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(50, 20)) as pilot:
+            await pilot.pause()
+            app._attention.input_at = math.inf  # no refresh asks tmux until the one below
+            monkeypatch.setattr(focus, "pane_receives_keys", held_probe)
+            app._recheck_pane_focus()  # asked while the pane is selected, answers last
+            await _until(probe_asked.is_set)
+            monkeypatch.setattr(focus, "pane_receives_keys", lambda pane: False)
+            app._attention.input_at = 0
+            app._refresh_inbox()  # asked after the pane was left
+            app._attention.input_at = math.inf
+            assert app._dim.enabled
+            release_probe.set()
+            await app.workers.wait_for_complete(w for w in app.workers if w.group == "pane-focus")
+            await pilot.pause()
+            assert app._dim.enabled
+            assert app.has_class("-input-inactive")
 
     asyncio.run(check())
 
