@@ -183,3 +183,20 @@ test("a jump that works goes back to the whole grove; one that fails stays to sa
   assert.equal(whole.length, 1);
   assert.equal(msg.textContent, "Can't jump");
 });
+
+test("each lemon's key in a tree's list takes its status's color, as the terminal grove's does", () => {
+  const painted = [];
+  const context = {
+    CW: 8, RH: 16, BG: "#0d1117", TEXT: "#e6ebf2", STATUS: {done: "#6f9fe0"}, ASKS: [], flipped: false, listMarks: [],
+    ctx: {fillRect: () => {}}, listHeight: () => 52, listPad: () => 2, mix: a => a, frame: () => {}, drawTag: () => {},
+    txt: (text, _x, _y, color) => painted.push([text, color]),
+  };
+  vm.createContext(context);
+  vm.runInContext(source("drawList"), context);
+  const lemons = [{status: "", age: "8m", name: "browser grove"}, {status: "done", age: "22h", name: "Review"}];
+
+  context.drawList({color: ""}, {key: "grove/richer-rendering", letter: "r", lemons}, 0, 0, 480, {key: " r ", body: ""});
+  const color = key => painted.find(([text]) => text === key)[1];
+  assert.equal(color(".r1"), "#6f9fe0");
+  assert.equal(color("r"), "#c9d1d9");
+});
