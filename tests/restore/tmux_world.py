@@ -227,6 +227,8 @@ def crash(world: World) -> None:
     old = world.start("OLD", "work:2")["pid"]
     world.end_turn("OLD")
     os.kill(old, signal.SIGKILL)
+    # Until its shell reaps it, a thread of OLD's can still read the line typed for B.
+    wait("OLD's shell to reap it", lambda: not alive(old))
     world.start("B", "work:2")
     tmux("new-session", "-d", "-s", "side")
     tmux("new-window", "-t", "side:3")
