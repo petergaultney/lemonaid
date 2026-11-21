@@ -708,7 +708,7 @@ function drawList(b, t, x, y, w, parts) {
     const ly = y + RH + pad + RH * j, c = STATUS[l.status] || "#8b949e", key = j ? `.${t.letter}${j}` : t.letter, age = l.age.replace(" ago", "");
     listMarks.push({x: left - CW, y: ly, w: right - left + 2 * CW, h: RH, lemon: l});
     if (l.pinned) { ctx.fillStyle = "#c9d1d9"; ctx.fillRect(x + CW * 0.25, ly + RH * 0.15, CW * 0.5, RH * 0.7); }  // in the left border, as the terminal marks a pin
-    txt(key, left + CW * (3 - key.length), ly, j ? "#c9d1d9" : c, null, 800);
+    txt(key, left + CW * (3 - key.length), ly, STATUS[l.status] || "#c9d1d9", null, 800);  // as the terminal grove colors it
     txt(l.status === "done" ? "∘" : "●", left + CW * 4, ly, c, null, 800);
     if (flipped) return otherPage(l, left + CW * 6, right, ly);
 
