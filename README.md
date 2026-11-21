@@ -9,13 +9,17 @@ running in the terminal.
 
 Press `Space` in `lma` and your lemons become a map. Each group is a block of ground, each terminal session a tree, and each lemon a dot hanging on its tree, colored by brief status. Nothing moves once it is placed, so you find a lemon by where it lives instead of scanning a list whose order changes with every status. A digit zooms into a block and a letter jumps to a tree's lemon (`2c`).
 
+<img width="900" alt="The grove in its native window on macOS: four blocks of trees around a packhouse, each tree tagged with its session and a status color" src="docs/images/grove-window.png" />
+
+In a terminal the same map is drawn in cells:
+
 <img width="900" alt="The grove: four blocks of trees around a packhouse, each tree tagged with its session and a status color" src="docs/images/grove-overview.png" />
 
 Zoomed into a block, each tree lists its lemons with their Brief-ID, status, model and context use:
 
 <img width="900" alt="One block of the grove zoomed in, each tree beside a card for its lemons" src="docs/images/grove-block.png" />
 
-The grove is in beta. Keys, gardening and the command line are in [docs/grove.md](docs/grove.md). On macOS it can also open in a native window that a tmux key summons over your terminal, drawn in pixels rather than cells ([the grove window](docs/grove.md#the-grove-window-beta-macos)).
+The grove is in beta. Keys, gardening and the command line are in [docs/grove.md](docs/grove.md). On macOS it can also open in the native window above, which a tmux key summons over your terminal ([the grove window](docs/grove.md#the-grove-window-beta-macos)).
 
 ## An inbox that stays in view
 
@@ -62,6 +66,11 @@ The grove screenshots come from `uv run scripts/demo-grove.py` and then
 `uv run scripts/demo-screenshot.py docs/images/grove-overview.png --columns 232 --rows 62`;
 for the zoomed block, `uv run scripts/demo-grove.py --keys 3 --columns 180 --rows 46` and the same
 command with `grove-block.png`, `--columns 180 --rows 46`.
+
+The grove window screenshot comes from `uv run --extra web scripts/demo-grove-window.py docs/images/grove-window.png`
+(macOS), which stages the same grove and has the window write out its own picture, so no
+other part of your screen is captured. The brief image in `docs/places.md` is
+`uv run scripts/demo-inbox.py --no-attach --width 50 --brief` rendered at `--columns 140 --rows 38`.
 
 Full setup, keybindings, and behaviour: [docs/tmux.md](docs/tmux.md).
 

@@ -21,7 +21,6 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 import tomllib
 from pathlib import Path
@@ -29,7 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 SERVER = "lemonaid-demo"
-ROOT = Path(tempfile.gettempdir()) / "lemonaid-demo"
+ROOT = Path("/tmp/lemonaid-demo")  # not tempfile.gettempdir(): the brief view shows this path
 # Read once, for `transparent`, before `LEMONAID_CONFIG` points at the demo's.
 USER_CONFIG = Path(os.environ.get("LEMONAID_CONFIG", "~/.config/lemonaid/config.toml")).expanduser()
 DB = ROOT / "demo.db"
@@ -56,7 +55,7 @@ os.environ.pop("TMUX_PANE", None)
 # worktrees under it, so a brief card leads with it; `pantry` is under no root.
 _CONFIG = """\
 [[places.roots]]
-path = "~/src/kitchen"
+path = "{kitchen}"
 
 [tui]
 brief_status = true
@@ -70,11 +69,14 @@ def _config() -> str:
     it a screenshot shows a different palette from the one you see.
     """
     if os.environ.get("LEMONAID_DEMO_NO_CONFIG") or not USER_CONFIG.exists():
-        return _CONFIG
+        return _CONFIG.format(kitchen=_DIRS["breadbox"].parent)
 
     with USER_CONFIG.open("rb") as f:
         transparent = tomllib.load(f).get("tui", {}).get("transparent", False)
-    return _CONFIG + f"transparent = {str(bool(transparent)).lower()}\n"
+    return (
+        _CONFIG.format(kitchen=_DIRS["breadbox"].parent)
+        + f"transparent = {str(bool(transparent)).lower()}\n"
+    )
 
 
 # Ages, not timestamps: the inbox sorts unread first and then by recency, and a
@@ -262,6 +264,35 @@ def _brief(name: str, status: str, modified: float) -> Path:
     return path
 
 
+# The demo sessions that sit in a window of the demo server, by window name; the rest are not
+# anywhere, as most of a real inbox's are not in the one you are looking at.
+_WINDOWS = {"sourdough-hydration-calc": "breadbox"}
+# The demo session starts here, since a card's project comes from its session's directory, and the
+# demo has no real `~/src/kitchen`; the `kitchen` root in the config is this directory's parent.
+_DIRS = {"breadbox": ROOT / "src" / "kitchen" / "baker-percentage"}
+
+
+def _locations() -> dict[str, dict[str, object]]:
+    """Where each session in `_WINDOWS` is, as a hook would record it, so that switching to it works."""
+    socket = _tmux("display-message", "-p", "#{socket_path}").stdout.strip()
+    listing = _tmux(
+        "list-panes", "-a", "-F",
+        "#{window_name}|#{pane_id}|#{pane_tty}|#{session_name}|#{session_created}|#{start_time}|#{session_id}",
+    ).stdout  # fmt: skip
+    found: dict[str, dict[str, object]] = {}
+    for line in listing.splitlines():
+        window, pane, tty, session, created, started, session_id = line.split("|")
+        found[window] = {
+            "tty": tty,
+            "tmux_session": session,
+            "tmux_window": window,
+            "tmux_pane_identity": [pane, int(started)],
+            "tmux_session_order": [int(created), int(started), int(session_id.lstrip("$"))],
+            "tmux_socket": socket,
+        }
+    return found
+
+
 def _seed(card_fields: str = "") -> None:
     from lemonaid.brief import attached
     from lemonaid.inbox import db
@@ -276,6 +307,7 @@ def _seed(card_fields: str = "") -> None:
         _config() + (f"card_fields = [{fields}]\n" if fields else "")
     )
     now = time.time()
+    locations = _locations()
     with db.connect() as conn:
         for i, (name, status, age, backend, cwd, branch, message, brief) in enumerate(SESSIONS):
             channel = f"{backend}:demo-{i}"
@@ -289,8 +321,9 @@ def _seed(card_fields: str = "") -> None:
                     # `$HOME` to `~` and leaves an unexpanded `~/...` string as
                     # the unrecognisable `/s/pantry`.
                     "tty": f"/dev/ttys{900 + i}",  # far from the ptys the demo panes get
-                    "cwd": str(Path.home() / cwd),
+                    "cwd": str(_DIRS[_WINDOWS[name]] if name in _WINDOWS else Path.home() / cwd),
                     "git_branch": branch,
+                    **(locations[_WINDOWS[name]] if name in _WINDOWS else {}),
                     **(
                         {"model_provider": _MODELS[name][0], "model": _MODELS[name][1]}
                         if name in _MODELS
@@ -346,12 +379,15 @@ def _kill() -> None:
     print(f"killed {SERVER}, removed {ROOT}")
 
 
-def _stage(position: str, attach: bool = True, width: int = 0, card_fields: str = "") -> None:
+def _stage(
+    position: str, attach: bool = True, width: int = 0, card_fields: str = "", brief: bool = False
+) -> None:
     # A previous run's `lma` would otherwise watch the new rows as they are
     # seeded, and the layout is decided when the pane is built, so a leftover
     # pane would render the previous position. Everything is torn down first.
     _tmux("kill-server")
-    _seed(card_fields)
+    for directory in _DIRS.values():
+        directory.mkdir(parents=True, exist_ok=True)
     _position_state(position, width)
 
     _tmux(
@@ -363,7 +399,7 @@ def _stage(position: str, attach: bool = True, width: int = 0, card_fields: str 
         "-n",
         "pantry",
         "-c",
-        str(Path.home()),
+        str(_DIRS["breadbox"]),
         "-x",
         "200",
         "-y",
@@ -398,11 +434,12 @@ def _stage(position: str, attach: bool = True, width: int = 0, card_fields: str 
         "-n",
         "breadbox",
         "-c",
-        str(Path.home()),
+        str(_DIRS["breadbox"]),
         *_show(_CLAUDE_BREADBOX, "breadbox"),
     )
     _tmux("set-window-option", "-t", "demo:breadbox", "automatic-rename", "off")
     _tmux("select-window", "-t", "demo:pantry")
+    _seed(card_fields)
 
     # Created through the CLI so the demo exercises the real path - position,
     # sizing, and the follow hooks all come from the code under review.
@@ -425,6 +462,9 @@ def _stage(position: str, attach: bool = True, width: int = 0, card_fields: str 
     scratch_pane = _tmux("show-options", "-gqv", "@lemonaid_scratch_pane").stdout.strip()
     _tmux("send-keys", "-t", scratch_pane, "Down", "Down")
     time.sleep(1)
+    if brief:  # the sourdough lemon, first in the inbox, has questions for you
+        _tmux("send-keys", "-t", scratch_pane, "Up", "Up", "b")
+        time.sleep(2)
     print(f"staged on tmux -L {SERVER} ({position}).")
     if attach:
         print("attaching; Ctrl-b d to detach.")
@@ -442,13 +482,18 @@ def main() -> None:
         default="",
         help="`[tui] card_fields`, comma-separated, e.g. project,branch",
     )
+    parser.add_argument(
+        "--brief", action="store_true", help="open the sourdough brief in the sidebar"
+    )
     args = parser.parse_args()
 
     if args.kill:
         _kill()
         return
 
-    _stage("top" if args.top else "left", not args.no_attach, args.width, args.card_fields)
+    _stage(
+        "top" if args.top else "left", not args.no_attach, args.width, args.card_fields, args.brief
+    )
 
 
 if __name__ == "__main__":

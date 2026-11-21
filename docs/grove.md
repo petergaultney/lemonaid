@@ -107,6 +107,8 @@ The layout is saved in `grove.json` in lemonaid's state directory (`~/.local/sta
 
 The grove can also open in a native window that covers your terminal's window, drawn in pixels rather than terminal cells: finer trees, smaller text, smooth zoom, and the grove's layout from the same `grove.json`. It is a second view of the grove, and the inbox and the terminal grove keep working as before.
 
+![The grove window: the same four blocks drawn in pixels, with finer trees and smaller text](images/grove-window.png)
+
 ### Setting it up
 
 A lemon can do this with you: ask it to set up the grove window, and it follows [for-lemons.md](for-lemons.md#setting-up-a-persons-tmux-keys). By hand:
