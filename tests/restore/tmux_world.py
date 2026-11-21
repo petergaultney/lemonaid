@@ -212,7 +212,10 @@ def world(tmp_path, monkeypatch) -> abc.Iterator[World]:
     try:
         yield World(evidence)
     finally:
-        subprocess.run(["tmux", "kill-server"], capture_output=True)
+        subprocess.run(
+            ["tmux", "-S", str(short / f"tmux-{os.getuid()}" / "default"), "kill-server"],
+            capture_output=True,
+        )  # its own server, whatever TMUX the test left behind
         for found in evidence.glob("*-*.json"):
             with contextlib.suppress(ProcessLookupError, ValueError, OSError):
                 os.kill(json.loads(found.read_text())["pid"], signal.SIGKILL)
