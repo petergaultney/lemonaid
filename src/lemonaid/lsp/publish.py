@@ -4,6 +4,7 @@ and format error, and the `lemonaid/threads` notification clients draw threads f
 
 import dataclasses
 import typing as ty
+from collections import abc
 
 from lsprotocol import types
 
@@ -33,7 +34,12 @@ def threads_key(doc: model.Document) -> ThreadsKey:
 
 
 def threads_params(
-    uri: str, version: int | None, text: str, doc: model.Document, codec: positions.Codec
+    uri: str,
+    version: int | None,
+    text: str,
+    doc: model.Document,
+    codec: positions.Codec,
+    unread: abc.Sequence[str] = (),
 ) -> dict[str, ty.Any]:
     """The `lemonaid/threads` parameters. Each thread's comments come in tree order, each
     with its `depth` below the root, so the tree needs no nesting (a long chain of replies
@@ -44,6 +50,7 @@ def threads_params(
     return {
         "uri": uri,
         "version": version,
+        "unread": list(unread),  # comments the person hasn't seen, from the file's inbox row
         "threads": [
             {
                 "anchor": _range(codec, thread.anchor.start, thread.anchor.end)
@@ -118,6 +125,7 @@ def _comments_in_tree_order(root: model.Node) -> list[dict[str, ty.Any]]:
                 "re": comment.re,
                 "span": list(comment.span) if comment.span else None,
                 "author": comment.author,
+                "by": "lemon" if comment.by_lemon else "person",
                 "at": comment.at,
                 "body": comment.body,
                 "resolved": node.resolved,

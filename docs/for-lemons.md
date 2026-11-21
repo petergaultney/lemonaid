@@ -1425,16 +1425,19 @@ a second one for the same doc and name refuses to start (exit 3). OpenClaw sessi
 `lemonaid watch openclaw start <doc> --session-key <key> --me <name>`. Details: [watch.md](watch.md).
 
 A Python or Markdown file can also hold comment threads of its own, in a section at its
-end ([comments.md](comments.md)). For such a file, `watch doc` wakes you for each new
-unanswered comment instead of Relay threads. Read them with `lemonaid comments list <path>
---unanswered --me <your name>` and answer each with `lemonaid comments reply <path> --re
-<id> --as <your name> <body>`; never edit the section by hand. When the user's editor has
+end ([comments.md](comments.md)). `watch doc` wakes you for each new one waiting on you,
+alongside any Relay or plain CriticMarkup comments in the same file. Read them with
+`lemonaid comments list <path> --unanswered --self` and answer each with `lemonaid
+comments reply <path> --re <id> --self <body>`, which signs with the name your watcher
+counts as yours; never edit the section by hand, and never remove a record (ask the user,
+who can delete one in the editor). If someone answered first, `reply` refuses and shows
+what they said; add only what they didn't, with the `--after` it names. When the user's editor has
 the file open with unsaved changes, your reply goes into their buffer and reaches the
 file when they save; `list` reads the buffer, so it shows your reply either way.
 
 To show the user a file, run `lemonaid editor open <path> [--line <n>]`, which opens it
-in the editor running `lemonaid lsp` in your tmux session, without moving their cursor
-(`--focus` moves it). `lemonaid editor notify <message>` shows a message there. Both exit
+in the editor running `lemonaid lsp` in your terminal workspace (a tmux session or a
+WezTerm workspace), without moving their cursor (`--focus` moves it). `lemonaid editor notify <message>` shows a message there. Both exit
 1 when no editor server is running; then tell the user the path in chat.
 
 Your own edits to the doc's body don't wake your own waiter, as long as they're recorded,
@@ -1614,7 +1617,7 @@ in `## Now`:
 | Document | Purpose | Watch |
 |---|---|---|
 | `/path/to/design.md` | Discuss the design | All edits |
-| `/path/to/results.md` | Questions about results | Relay comments |
+| `/path/to/results.md` | Questions about results | Comments |
 
 ## Watching
 
@@ -1638,8 +1641,8 @@ explicit row for a child replaces its defaults. Every watched lemon, child or no
 reported once when its harness exits, its session or place is gone, or it is deaf; a lemon
 whose brief is `done` is not. Details in [Watching other lemons](watch.md#watching-other-lemons).
 
-Watch is an enum: `Relay comments` watches unanswered comments; `All edits`
-also watches body edits. No boolean Edits column is accepted. Docs remain subscribed
+Watch is an enum: `Comments` watches unanswered comments of every kind (`Relay comments`,
+its old name, still reads); `All edits` also watches body edits. No boolean Edits column is accepted. Docs remain subscribed
 at Status done. `Output-Doc:` supplies a document subscription; starting `watch doc`
 records a row. Legacy `## Waiters` and `brief waiter` remain readable.
 

@@ -140,13 +140,14 @@ vim.ui.select = function(items, opts, on_choice) on_choice(items[1]) end
 -- 7. a lemon writes the saved file: nvim reloads it on its own
 vim.cmd("write")
 local before = #errors
-local res = lemonaid("comments", "reply", code, "--re", "SleepRib", "--as", "BraveFig (Author)", "lemon reply")
+-- each lemon reply answers one that has no replies yet, so none needs --after
+local res = lemonaid("comments", "reply", code, "--re", "TinOwl", "--as", "BraveFig (Author)", "lemon reply")
 check("lemon reply exits 0", res.code == 0, res.stderr)
 check("buffer reloads by itself", wait(5000, function() return text(buf):find("lemon reply", 1, true) ~= nil end))
 check("still unmodified", not vim.bo[buf].modified)
 
 -- 8. a comment sent before the reload: refused, reloaded, sent again
-local res2 = lemonaid("comments", "reply", code, "--re", "SleepRib", "--as", "BraveFig (Author)", "second lemon reply")
+local res2 = lemonaid("comments", "reply", code, "--re", vim.trim(res.stdout), "--as", "BraveFig (Author)", "second lemon reply")
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
 vim.api.nvim_feedkeys(vim.keycode(" ccafter a lemon<Esc>:w<CR>"), "x", false)
 check("comment lands after the reload", wait(8000, function() return text(buf):find("after a lemon", 1, true) ~= nil end), { notes = notes, errors = errors })
@@ -154,7 +155,7 @@ check("and the lemon's reply too", text(buf):find("second lemon reply", 1, true)
 
 -- 8b. a resolve sent before nvim hears of the lemon's write: refused, reloaded, sent again
 vim.cmd("write")
-local cli = table.concat({ "lemonaid", "comments", "reply", vim.fn.shellescape(code), "--re", "SleepRib", "--as", "'BraveFig (Author)'", "third", ">/dev/null 2>&1" }, " ")
+local cli = table.concat({ "lemonaid", "comments", "reply", vim.fn.shellescape(code), "--re", vim.trim(res2.stdout), "--as", "'BraveFig (Author)'", "third", ">/dev/null 2>&1" }, " ")
 local before_8b = #errors
 os.execute(cli) -- blocks without running nvim's event loop, so the watcher can't reload first
 local why_return = state.find_comment(buf, (text(buf):match('"id": "(%w+)", "author": "Caleb Gregory", "at": "[^"]+", "body": "why return 1%?"')))
@@ -191,6 +192,20 @@ local md_conceal = vim.api.nvim_buf_get_extmarks(mdbuf, vim.api.nvim_get_namespa
 check("two inline markers concealed in place", #md_conceal == 2 and md_conceal[1][4].conceal == "" and md_conceal[2][4].conceal == "", md_conceal)
 local sr2, sc2, er2, ec2 = state.anchor_range(mdbuf, state.get(mdbuf).threads[1])
 check("markdown anchor is 'words'", table.concat(vim.api.nvim_buf_get_text(mdbuf, sr2, sc2, er2, ec2, {}), "") == "words")
+
+-- a lemon's write reloads the buffer (:checktime), which sets the filetype again, and the
+-- ftplugin maps its key over ours while the client stays attached; ours comes back on top
+vim.b[mdbuf].other_comments = true
+local md_lines = vim.fn.readfile(md)
+md_lines[1] = "# Notes, written by a lemon"
+vim.fn.writefile(md_lines, md)
+check("a lemon's write reloads the buffer", wait(8000, function()
+  vim.cmd("checktime")
+  return vim.api.nvim_buf_get_lines(mdbuf, 0, 1, false)[1] == "# Notes, written by a lemon"
+end))
+local after_reload = vim.fn.maparg(" cc", "n", false, true)
+check("a reload keeps our comment key over the ftplugin's", (after_reload.desc or ""):sub(1, 4) == "lma:", after_reload)
+vim.b[mdbuf].other_comments = nil
 
 local vault = work .. "/vault.md"
 vim.fn.writefile({ "# Vault", "", "a {==claim==}{>>really?<<} here" }, vault)
@@ -570,6 +585,171 @@ end
 drafts.confirmed(confirming)
 vim.uv.fs_close = real_close
 check("the lock goes only after the draft", #closes > 0 and not vim.tbl_contains(closes, true), closes)
+
+-- 27. a lemon's reply is announced and unread until you visit its thread
+local fresh = work .. "/fresh.md"
+vim.fn.writefile({ "# Fresh", "", "a claim here", "" }, fresh)
+vim.cmd("edit " .. fresh)
+local fbuf = vim.api.nvim_get_current_buf()
+check("fresh threads arrive", wait(8000, function() return state.get(fbuf) ~= nil end))
+vim.api.nvim_win_set_cursor(0, { 3, 0 })
+vim.api.nvim_feedkeys(vim.keycode(" ccis this true?<Esc>:w<CR>"), "x", false)
+check("a comment on the fresh file", wait(8000, function() return #state.get(fbuf).threads == 1 end))
+vim.cmd("write")
+local fresh_root = state.get(fbuf).threads[1].root.id
+local notes_before = #notes
+local lemon_said = lemonaid("comments", "reply", fresh, "--re", fresh_root, "--as", "BraveFig (Author)", "yes, it is")
+check("the lemon's reply exits 0", lemon_said.code == 0, lemon_said.stderr)
+local function announced()
+  for i = notes_before + 1, #notes do
+    if notes[i]:find("BraveFig (Author) replied in fresh.md: yes, it is", 1, true) then return true end
+  end
+end
+check("a lemon's reply is announced", wait(8000, announced), vim.list_slice(notes, notes_before + 1))
+check("and its thread is unread", state.has_unread(fbuf))
+local fresh_thread = state.find_comment(fbuf, fresh_root)
+local fsr, fsc = state.anchor_range(fbuf, fresh_thread)
+vim.api.nvim_win_set_cursor(0, { fsr + 1, fsc })
+vim.api.nvim_exec_autocmds("CursorMoved", { buffer = fbuf })
+check("visiting the thread reads it", not state.has_unread(fbuf))
+
+-- 28. with saving turned on, a comment saves the file, so the lemon hears of it at once
+vim.api.nvim_feedkeys(vim.keycode(" cw"), "x", false)
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+vim.api.nvim_feedkeys(vim.keycode(" ccsaved at once<Esc>:w<CR>"), "x", false)
+check("a comment saves the file when saving is on", wait(8000, function()
+  return table.concat(vim.fn.readfile(fresh), "\n"):find("saved at once", 1, true) ~= nil
+end))
+check("and leaves the buffer unmodified", not vim.bo[fbuf].modified)
+vim.api.nvim_feedkeys(vim.keycode(" cw"), "x", false)
+
+-- 29. <leader>cx deletes the thread under the cursor, after asking
+local real_confirm = vim.fn.confirm
+vim.fn.confirm = function() return 1 end
+fresh_thread = state.find_comment(fbuf, fresh_root)
+fsr, fsc = state.anchor_range(fbuf, fresh_thread)
+vim.api.nvim_win_set_cursor(0, { fsr + 1, fsc })
+vim.api.nvim_feedkeys(vim.keycode(" cx"), "x", false)
+check("<leader>cx deletes the thread here", wait(8000, function() return state.find_comment(fbuf, fresh_root) == nil end))
+vim.fn.confirm = real_confirm
+
+-- 30. <leader>cm moves the one thread left to the selected text
+vim.cmd("write")
+local claim_row
+for i, l in ipairs(vim.api.nvim_buf_get_lines(fbuf, 0, -1, false)) do
+  if l:find("a claim here", 1, true) then claim_row = i end
+end
+local claim_col = vim.api.nvim_buf_get_lines(fbuf, claim_row - 1, claim_row, false)[1]:find("claim", 1, true) - 1
+vim.api.nvim_win_set_cursor(0, { claim_row, claim_col })
+vim.api.nvim_feedkeys(vim.keycode("vllll cm"), "x", false)
+local function anchored_text()
+  local thread = state.get(fbuf).threads[1]
+  local sr, sc, er, ec = state.anchor_range(fbuf, thread)
+  return sr and table.concat(vim.api.nvim_buf_get_text(fbuf, sr, sc, er, ec, {}), "\n")
+end
+check("<leader>cm moves the thread to the selection", wait(8000, function() return anchored_text() == "claim" end), anchored_text())
+
+-- 31. moving a marker by hand: the client asks again, and the anchor follows the marker
+vim.cmd("write")
+local moved_id = state.get(fbuf).threads[1].root.id
+local opening = ("<!-- [lma:%s] -->"):format(moved_id)
+local line = vim.api.nvim_buf_get_lines(fbuf, claim_row - 1, claim_row, false)[1]
+local hand_moved = opening .. line:gsub(vim.pesc(opening), "", 1)
+vim.api.nvim_buf_set_lines(fbuf, claim_row - 1, claim_row, false, { hand_moved })
+check("the anchor follows a marker moved by hand", wait(8000, function() return anchored_text() == "a claim" end),
+  { anchored_text(), markers = #(state.get(fbuf).markers or {}), errors = vim.list_slice(errors, #errors - 2), line = vim.api.nvim_buf_get_lines(fbuf, claim_row - 1, claim_row, false)[1], hand = hand_moved })
+
+-- 32. on a line that wraps, the first comment gets a line of its own below
+vim.cmd("write")
+local long = work .. "/long.md"
+vim.fn.writefile({ "# Long", "", string.rep("word ", 30), "" }, long)
+vim.cmd("edit " .. long)
+local lbuf = vim.api.nvim_get_current_buf()
+wait(8000, function() return state.get(lbuf) ~= nil end)
+vim.api.nvim_win_set_cursor(0, { 3, 0 })
+vim.api.nvim_feedkeys(vim.keycode(" cca hint for a long line<Esc>:w<CR>"), "x", false)
+check("a comment on the long line", wait(8000, function() return #state.get(lbuf).threads == 1 end))
+local below = vim.tbl_filter(function(m) return m[4].virt_lines ~= nil end,
+  vim.api.nvim_buf_get_extmarks(lbuf, state.ns, 0, -1, { details = true }))
+check("its first comment is a line of its own", #below == 1, below)
+vim.cmd("write")
+
+-- 33. a reply written while the file was closed, listed by its inbox row, is unread on open
+local closed = work .. "/closed.md"
+vim.fn.writefile({ "# Closed", "", "a point", "" }, closed)
+vim.cmd("edit " .. closed)
+local cbuf = vim.api.nvim_get_current_buf()
+wait(8000, function() return state.get(cbuf) ~= nil end)
+vim.api.nvim_win_set_cursor(0, { 3, 0 })
+vim.api.nvim_feedkeys(vim.keycode(" ccwhy?<Esc>:w<CR>"), "x", false)
+wait(8000, function() return #state.get(cbuf).threads == 1 end)
+vim.cmd("write")
+local closed_root = state.get(cbuf).threads[1].root.id
+vim.cmd("bwipeout! " .. cbuf)
+local answer = lemonaid("comments", "reply", closed, "--re", closed_root, "--as", "BraveFig (Author)", "while you were away")
+local answer_id = vim.trim(answer.stdout)
+local resolved_closed = vim.uv.fs_realpath(closed)
+local row = lemonaid("inbox", "add", "comments:" .. resolved_closed, "BraveFig (Author) in closed.md",
+  "--metadata", vim.json.encode({ path = resolved_closed, comments = { answer_id } }))
+check("the inbox row is written", row.code == 0, row.stderr)
+local notes_before_open = #notes
+vim.cmd("edit " .. closed)
+cbuf = vim.api.nvim_get_current_buf()
+check("the reply from while it was closed is unread on open", wait(8000, function()
+  return state.get(cbuf) ~= nil and state.has_unread(cbuf)
+end))
+check("and announced", #notes > notes_before_open, vim.list_slice(notes, notes_before_open + 1))
+local away = state.find_comment(cbuf, closed_root)
+local asr, asc = state.anchor_range(cbuf, away)
+vim.api.nvim_win_set_cursor(0, { asr + 1, asc })
+vim.api.nvim_exec_autocmds("CursorMoved", { buffer = cbuf })
+check("visiting it reads it", not state.has_unread(cbuf))
+check("and the inbox row is marked read", wait(8000, function()
+  local listed = lemonaid("inbox", "list", "--json")
+  local ok, rows = pcall(vim.json.decode, listed.stdout)
+  if not ok then return false end
+  for _, r in ipairs(rows) do
+    if r.channel == "comments:" .. resolved_closed then return false end
+  end
+  return true
+end))
+
+-- 34. threads for an older version of the buffer leave the threads alone
+local held = vim.deepcopy(state.get(cbuf).threads)
+require("lma").on_threads(nil, { uri = vim.uri_from_bufnr(cbuf), version = -1, threads = {} },
+  { client_id = vim.lsp.get_clients({ bufnr = cbuf, name = "lemonaid" })[1].id })
+check("an older notification doesn't replace the threads", #state.get(cbuf).threads == #held)
+state.forget(cbuf)
+require("lma").on_threads(nil, { uri = vim.uri_from_bufnr(cbuf), version = -1, threads = held },
+  { client_id = vim.lsp.get_clients({ bufnr = cbuf, name = "lemonaid" })[1].id })
+check("nor installs threads on a buffer that has none yet", state.get(cbuf) == nil)
+vim.api.nvim_exec_autocmds("TextChanged", { buffer = cbuf })
+check("and the buffer gets current threads", wait(8000, function() return state.get(cbuf) ~= nil end))
+
+-- 35. a selection that changed before you chose the thread to move is not used
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+vim.api.nvim_feedkeys(vim.keycode(" ccsecond thread<Esc>:w<CR>"), "x", false)
+wait(8000, function() return #state.get(cbuf).threads == 2 end)
+vim.cmd("write")
+local before_move = table.concat(vim.api.nvim_buf_get_lines(cbuf, 0, -1, false), "\n")
+local real_select = vim.ui.select
+vim.ui.select = function(items, _, on_choice)
+  vim.api.nvim_buf_set_lines(cbuf, 0, 0, false, { "a line typed meanwhile" })
+  on_choice(items[1])
+end
+local point_row
+for i, l in ipairs(vim.api.nvim_buf_get_lines(cbuf, 0, -1, false)) do
+  if l:find("a point", 1, true) then point_row = i end
+end
+local notes_before_move = #notes
+vim.api.nvim_win_set_cursor(0, { point_row, (vim.api.nvim_buf_get_lines(cbuf, point_row - 1, point_row, false)[1]:find("point", 1, true)) - 1 })
+vim.api.nvim_feedkeys(vim.keycode("vllll cm"), "x", false)
+vim.ui.select = real_select
+wait(500)
+local after_move = table.concat(vim.api.nvim_buf_get_lines(cbuf, 1, -1, false), "\n")
+check("a changed selection is not used to move a thread", after_move == before_move,
+  { notes = vim.list_slice(notes, notes_before_move + 1) })
+vim.cmd("write")
 end
 
 -- a script error must still write the results and quit, or nvim waits for input

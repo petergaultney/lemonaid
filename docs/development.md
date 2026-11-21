@@ -77,6 +77,12 @@ The tool environment named `lemonaid` from before the rename has to be
 removed once (`uv tool uninstall lemonaid`) before installing
 `lemonaid-inbox`, from a checkout or from PyPI.
 
+## The nvim client's test
+
+CI installs no nvim, so `tests/lsp/test_nvim_client.py`, which drives the nvim client
+(`src/lemonaid/lsp/nvim/`) headless against a real `lemonaid lsp`, skips there. Run it
+locally with nvim 0.12 before changing the client's Lua.
+
 ## Nothing is specific to one person
 
 Lemonaid's code, help text, docs and defaults name no particular user.

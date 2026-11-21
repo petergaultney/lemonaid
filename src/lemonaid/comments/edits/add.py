@@ -15,6 +15,7 @@ def add_comment(
     body: str,
     at: str | None = None,
     comment_id: str | None = None,
+    by_lemon: bool = False,
 ) -> Added:
     """Anchor a new thread on `text[start:end]` and append its first comment.
 
@@ -34,6 +35,8 @@ def add_comment(
     comment_id = comment_id or _write.new_id(doc)
     anchor_edits = kinds.get(kind).place_anchor(text, start, end, doc, comment_id)
     record = {"id": comment_id, "author": author, "at": at or _write.now(), "body": body}
+    if by_lemon:
+        record["by"] = "lemon"
     added = Added(comment_id, [*anchor_edits, _write.append_record(text, doc, record)])
     _write.check_readable(
         doc, text, added.edits, comment_id=comment_id, new_markers=len(anchor_edits)

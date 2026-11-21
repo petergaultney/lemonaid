@@ -1,6 +1,6 @@
 import pytest
 
-from lemonaid.comments import edits, operations
+from lemonaid.comments import edits, operations, parse
 
 
 @pytest.mark.parametrize(
@@ -50,7 +50,12 @@ def test_an_operation_survives_its_json(operation) -> None:
 
 @pytest.mark.parametrize(
     "data",
-    [{"op": "reply", "re": "SleepRib"}, {"op": "drop"}, {"op": "resolve", "id": 1, "author": "x"}],
+    [
+        {"op": "reply", "re": "SleepRib"},
+        {"op": "drop"},
+        {"op": "resolve", "id": 1, "author": "x"},
+        {"op": "delete", "id": "SleepRib"},  # deleting is the editor's alone, never a lemon's
+    ],
 )
 def test_anything_else_is_not_an_operation(data) -> None:
     with pytest.raises(ValueError):
@@ -81,3 +86,25 @@ def test_the_same_reply_tried_again_with_its_id_is_refused_rather_than_written_t
 
     with pytest.raises(ValueError):
         operations.edits_for(reply, edits.apply(_FILE, planned), "python", comment_id=comment_id)
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        operations.Add("1", "MotorHoe (Author)", "why?"),
+        operations.Reply("Root", "MotorHoe (Author)", "because"),
+    ],
+)
+def test_a_comment_an_operation_writes_is_marked_as_a_lemon_s(operation) -> None:
+    text = edits.apply(
+        "x = 1\n",
+        edits.add_comment(
+            "x = 1\n", "python", 0, 0, author="Sam", body="hi", comment_id="Root"
+        ).edits,
+    )
+
+    planned, comment_id = operations.edits_for(operation, text, "python")
+
+    written = parse.parse(edits.apply(text, planned), "python").comment(comment_id)
+    assert written.by_lemon is True
+    assert parse.parse(text, "python").comment("Root").by_lemon is False

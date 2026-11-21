@@ -248,11 +248,58 @@ def test_adding_an_in_file_comment_is_not_a_body_edit(code, state_dir):
     assert sent == []
 
 
-def test_relay_blocks_in_a_file_with_a_threads_section_are_not_read(tmp_path, state_dir):
+def test_a_relay_thread_in_a_file_with_a_threads_section_is_reported(tmp_path, state_dir):
     doc = tmp_path / "review.md"
     doc.write_text("# Review\n")
     _in_file_comment(doc, author="MotorHoe (Author)", comment_id="Mine")
     doc.write_text(doc.read_text().replace("# Review\n", "# Review\n" + _ASK + "\n", 1))
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+
+    assert len(sent) == 1 and "is this true?" in sent[0]
+
+
+@pytest.mark.parametrize("with_section", [False, True])
+def test_a_plain_criticmarkup_comment_is_reported(tmp_path, state_dir, with_section):
+    doc = tmp_path / "review.md"
+    doc.write_text("# Review\n")
+    if with_section:
+        _in_file_comment(doc, author="MotorHoe (Author)", comment_id="Mine")
+    doc.write_text(
+        doc.read_text().replace("# Review\n", "# Review\n\n{==a claim==}{>>save it?<<}\n", 1)
+    )
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+
+    assert len(sent) == 1 and "save it?" in sent[0]
+
+
+def test_a_plain_comment_answered_with_a_signed_block_is_not_reported(doc, state_dir):
+    doc.write_text('# Review\n\n{>>save it?<<}{{author="Author (MotorHoe)">>yes<<}}\n')
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
+
+
+def test_comment_markup_quoted_in_code_or_a_record_is_not_reported(tmp_path, state_dir):
+    doc = tmp_path / "review.md"
+    doc.write_text("# Review\n\nPlain CriticMarkup is `{>>...<<}`.\n\n```\n{>>in a fence<<}\n```\n")
+    text = doc.read_text()
+    quoting = edits.add_comment(
+        text,
+        "markdown",
+        0,
+        0,
+        author="MotorHoe (Author)",
+        body="a {>>like this<<} comment",
+        comment_id="Quote",
+    )
+    doc.write_text(edits.apply(text, quoting.edits))
     w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
     sent: list[str] = []
 
@@ -409,3 +456,46 @@ def test_a_link_with_another_extension_is_watched_as_the_file_it_names(code, tmp
 
     assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED
     assert "Ids: Asked." in sent[0]
+
+
+def test_a_relay_comment_quoting_code_keeps_its_text(doc, state_dir):
+    doc.write_text('# Review\n\n{{author="Sam">>check `alpha()` please<<}}\n')
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+
+    assert "check `alpha()` please" in sent[0]
+
+
+def test_editing_comment_markup_in_a_fenced_example_is_a_body_edit(doc, state_dir):
+    doc.write_text("# Review\n\n```\n{>>old<<}\n```\n")
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    doc_events.poll(w, _collect([]))
+    doc.write_text("# Review\n\n```\n{>>new<<}\n```\n")
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+    doc_events.poll(w, _collect(sent))
+
+    assert len(sent) == 1 and "changed" in sent[0] and "new" in sent[0]
+
+
+def test_a_plain_comment_with_a_plain_follow_up_is_answered_by_a_signed_block(doc, state_dir):
+    doc.write_text(
+        '# Review\n\n{==x==}{>>question<<}{>>follow-up<<}{{author="Author (MotorHoe)">>answer<<}}\n'
+    )
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
+
+
+def test_an_unfinished_example_in_a_fence_does_not_hide_a_comment_after_it(doc, state_dir):
+    doc.write_text("# Review\n\n```\nwrite {>> to start one\n```\n\nA claim.{>>is it true?<<}\n")
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+
+    assert len(sent) == 1 and "is it true?" in sent[0]

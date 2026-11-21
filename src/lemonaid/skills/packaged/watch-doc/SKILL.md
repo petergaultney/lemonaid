@@ -27,7 +27,9 @@ If `--me` and the `author` of your reply blocks differ, the waiter sees your own
 
 ## Comments kept in the file
 
-A Python or Markdown file may hold its comments in a threads section at its end instead of Relay blocks (`<!-- [lma:threads]` or `# [lma:threads]`). For such a file the wake lists each unanswered comment with its id. Run `lemonaid comments list <path> --unanswered --me <name>` to see them with their code, and answer with `lemonaid comments reply <path> --re <id> --as <name> <body>`, signed with the same name you pass as `--me` (`SleepRib (Author)`). Never edit the section by hand.
+A Python or Markdown file may also hold comments in a threads section at its end (`<!-- [lma:threads]` or `# [lma:threads]`). The wake lists each unanswered one with its id. Run `lemonaid comments list <path> --unanswered --self` to see them with their code, and answer with `lemonaid comments reply <path> --re <id> --self <body>`; `--self` signs with the name your watcher counts as yours for that file. Without a brief, sign with `--as <name>` and read with `--me <name>`, the name you pass the waiter. Never edit the section by hand. If someone answered while you wrote, `reply` refuses and shows what they said: add only what they didn't, with the `--after` it names, or nothing.
+
+Relay blocks and plain CriticMarkup comments (`{>>...<<}`, which an editor writes with no author) in the same Markdown file wake you too. A plain comment waits until a signed reply block follows it.
 
 ## Watching in your brief
 

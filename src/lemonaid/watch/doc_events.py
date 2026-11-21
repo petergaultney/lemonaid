@@ -64,44 +64,57 @@ class _Unanswered(ty.NamedTuple):
 
 
 class _Found(ty.NamedTuple):
-    in_file: bool  # read from the file's threads section, not Relay blocks
-    unanswered: dict[str, _Unanswered]  # by cursor key
+    read_in_file: bool  # the file has a threads section, so its comments were read
+    in_file: dict[str, _Unanswered]  # comments kept in the file, by cursor key
+    relay: dict[str, _Unanswered]  # Relay and plain CriticMarkup threads, by cursor key
+
+    @property
+    def unanswered(self) -> dict[str, _Unanswered]:
+        return self.in_file | self.relay
 
 
 def _unanswered(w: DocWatch, text: str) -> _Found:
-    """What waits on the watcher: comments kept in the file when it has a threads section
-    (see file_comments), Relay threads otherwise. `text` has its line endings as they are;
+    """What waits on the watcher: comments kept in the file (see file_comments) and Relay or
+    plain CriticMarkup threads in its body, both at once, so a person can comment either
+    way in a file that has a threads section. `text` has its line endings as they are;
     Relay threads are keyed on LF text, as they always were."""
     parsed = file_comments.document(w.doc, text)
-    if parsed is not None:
-        return _Found(
-            True,
-            {
-                file_comments.key(c): _Unanswered(
-                    file_comments.comment_text(c), file_comments.comment_gist(c)
-                )
-                for c in file_comments.unanswered(parsed, w.mine)
-            },
-        )
-    lf_text = text.replace("\r\n", "\n").replace("\r", "\n")
-    return _Found(
-        False,
+    in_file = (
+        {
+            file_comments.key(c): _Unanswered(
+                file_comments.comment_text(c), file_comments.comment_gist(c)
+            )
+            for c in file_comments.unanswered(parsed, w.mine)
+        }
+        if parsed is not None
+        else {}
+    )
+    read = file_comments.relay_text(w.doc, text)
+    relay = (
         {
             _thread_key(t): _Unanswered(
                 relay_comments.thread_text(t), relay_comments.thread_gist(t)
             )
-            for t in relay_comments.unanswered_threads(lf_text, w.mine)
-        },
+            for t in relay_comments.unanswered_threads(read[0], w.mine, read[1])
+        }
+        if read is not None
+        else {}
     )
+    return _Found(parsed is not None, in_file, relay)
 
 
 def _still_reported(reported: set[str], found: _Found) -> set[str]:
-    """What stays reported after this poll. A key of the format this poll did not read stays,
-    so a section that disappears for one poll and comes back, or a Relay thread hidden while
-    a section exists, is not reported again; a key of the format it read stays only while
-    it is still unanswered, so an answered comment that waits again is reported again."""
-    other_format = {k for k in reported if k.startswith(file_comments.KEY_PREFIX) != found.in_file}
-    return other_format | set(found.unanswered)
+    """What stays reported after this poll. In-file keys stay while the poll could not read
+    the file's comments, so a section that disappears for one poll and comes back is not
+    reported again; otherwise a key stays only while it is still unanswered, so an answered
+    comment that waits again is reported again. A Relay thread that leaves the body (the
+    file's text moved into code, say) keeps its key too, as long as nothing replaced it."""
+    unread_in_file = (
+        {k for k in reported if k.startswith(file_comments.KEY_PREFIX)}
+        if not found.read_in_file
+        else set()
+    )
+    return unread_in_file | set(found.unanswered)
 
 
 def _load_reported(path: pathlib.Path) -> set[str]:
@@ -217,12 +230,12 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
     new = [threads[k] for k in new_keys]
     reminders = [t for k, t in threads.items() if k in w.reported] if w.all_threads else []
     noun = "comment(s)" if found.in_file else "thread(s)"
-    new_ids = [file_comments.id_of(k) for k in new_keys]
+    new_ids = [file_comments.id_of(k) for k in new_keys if k in found.in_file]
     messages = (
         [
             clip.shorten(
                 f"{len(new)} new or changed unanswered {noun} in {w.doc} ({len(threads)} unanswered in all)\n\n"
-                + (f"{file_comments.how_to_answer(w.doc, new_ids)}\n\n" if found.in_file else "")
+                + (f"{file_comments.how_to_answer(w.doc, new_ids)}\n\n" if new_ids else "")
                 + "\n\n".join(t.text for t in new)
                 + "".join(f"\n\nStill unanswered, already reported: {t.gist}" for t in reminders),
                 clip.BATCH_LIMIT,

@@ -1,7 +1,8 @@
 """The doc waiter's view of comment threads kept in the file (`lemonaid.comments`).
 
-A Python or Markdown file with a threads section is read with that model; any other doc
-is read for Relay Comment threads, as before.
+A Python or Markdown file with a threads section is read with that model. Every doc but a
+Python file is also read for Relay and plain CriticMarkup threads, so a person can comment
+either way in the same file; in Python that markup is code.
 """
 
 import hashlib
@@ -9,7 +10,7 @@ import pathlib
 import re
 import typing as ty
 
-from ..comments import edits, model, parse, threads
+from ..comments import edits, kinds, model, parse, threads
 from . import clip, relay_comments
 
 KEY_PREFIX: ty.Final = "lma:"
@@ -57,7 +58,28 @@ def body(doc: pathlib.Path, text: str) -> str:
             removed.append(model.Edit(parsed.section.start, parsed.section.end, ""))
         text = edits.apply(text, removed)
     lf_text = _LINE_END.sub("\n", text)
-    return lf_text if kind == "python" else relay_comments.body_without_threads(lf_text)
+    if kind == "python":
+        return lf_text
+    return relay_comments.body_without_threads(lf_text, _code(kind, lf_text))
+
+
+def relay_text(doc: pathlib.Path, text: str) -> tuple[str, relay_comments.Regions] | None:
+    """The text to read Relay and plain CriticMarkup threads in, with LF line endings, and
+    its Markdown code regions, where a doc quotes that markup as an example. None for
+    Python, where that markup is code. The threads section needs no special case: records
+    escape `>`, so `{>>` and `>>...<<}}` never appear in one."""
+    kind = _kind(doc)
+    if kind == "python":
+        return None
+
+    lf_text = _LINE_END.sub("\n", text)
+    return lf_text, _code(kind, lf_text)
+
+
+def _code(kind: model.FileKind | None, lf_text: str) -> relay_comments.Regions:
+    if kind != "markdown":
+        return ()
+    return [(r.start, r.end) for r in kinds.get("markdown").code_regions(lf_text)]
 
 
 def unanswered(parsed: model.Document, mine: ty.AbstractSet[str]) -> list[model.Comment]:
@@ -91,6 +113,7 @@ def how_to_answer(doc: pathlib.Path, ids: ty.Iterable[str]) -> str:
     """Kept ahead of the comments' text, so a wake cut to the batch limit still has it."""
     return (
         f"Ids: {', '.join(ids)}. Read them with their code: lemonaid comments list {doc}"
-        f" --unanswered --me <you>. Answer each with lemonaid comments reply {doc} --re <id>"
-        " --as <you> <body>."
+        f" --unanswered --self. Answer each with lemonaid comments reply {doc} --re <id>"
+        " --self <body>. If someone replied first, the reply is refused and shows what they"
+        " wrote: add only what they didn't say, with the --after it names, or nothing."
     )

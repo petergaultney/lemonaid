@@ -213,3 +213,142 @@ def test_a_link_retargeted_during_add_changes_only_the_file_it_first_named(
 
     assert "<!-- [lma:" in first.read_text()
     assert second.read_text() == "x = 1\n"
+
+
+def _brief(tmp_path, *, watching: str = "") -> object:
+    brief = tmp_path / "brief.md"
+    brief.write_text(
+        "# Work\nBrief-ID: HillyHad.work\n\n## Goal\n\nx\n"
+        + (f"\n## Watching\n\n- `{watching}`\n" if watching else "")
+    )
+    return brief
+
+
+def test_self_signs_as_the_author_for_a_file_the_brief_does_not_name(
+    code, tmp_path, monkeypatch, capsys
+) -> None:
+    brief = _brief(tmp_path)
+    monkeypatch.setattr("lemonaid.brief.command.own_brief", lambda args: (brief, ""))
+    _run("add", str(code), "--lines", "4", "--as", "caleb.gregory", "why?")
+    root = capsys.readouterr().out.strip()
+
+    assert _run("reply", str(code), "--re", root, "--self", "because") == 0
+
+    reply = parse.parse(code.read_text(), "python").comment(capsys.readouterr().out.strip())
+    assert (reply.author, reply.by_lemon) == ("HillyHad (Author)", True)
+
+
+def test_self_signs_with_the_brief_s_watch_doc_signature_for_that_file(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    doc = tmp_path / "review.md"
+    doc.write_text("# Review\n\nA claim.\n")
+    brief = _brief(tmp_path, watching=f"lemonaid watch doc --wait {doc} --me 'HillyHad (Reviewer)'")
+    monkeypatch.setattr("lemonaid.brief.command.own_brief", lambda args: (brief, ""))
+
+    assert _run("add", str(doc), "--lines", "3", "--self", "true?") == 0
+
+    added = parse.parse(doc.read_text(), "markdown").comments[0]
+    assert added.author == "HillyHad (Reviewer)"
+
+
+def test_a_second_reply_must_name_the_newest_reply_it_read(code, capsys) -> None:
+    _run("add", str(code), "--lines", "4", "--as", "caleb.gregory", "why?")
+    root = capsys.readouterr().out.strip()
+    _run("reply", str(code), "--re", root, "--as", "RoastJet (Reviewer)", "because")
+    theirs = capsys.readouterr().out.strip()
+
+    refused = _run("reply", str(code), "--re", root, "--as", "HillyHad (Author)", "also because")
+    said = capsys.readouterr().err
+    written = _run(
+        "reply", str(code), "--re", root, "--after", theirs, "--as", "HillyHad (Author)", "and"
+    )
+
+    assert refused == 2
+    assert f"--after {theirs}" in said and "RoastJet (Reviewer)" in said and "because" in said
+    assert written == 0
+    assert len(parse.parse(code.read_text(), "python").comments) == 3
+
+
+def test_a_reply_after_an_older_reply_is_refused_and_shows_the_newer_one(code, capsys) -> None:
+    _run("add", str(code), "--lines", "4", "--as", "caleb.gregory", "why?")
+    root = capsys.readouterr().out.strip()
+    _run("reply", str(code), "--re", root, "--as", "RoastJet (Reviewer)", "first")
+    first = capsys.readouterr().out.strip()
+    _run("reply", str(code), "--re", root, "--after", first, "--as", "Sam", "second")
+    capsys.readouterr()
+
+    refused = _run(
+        "reply", str(code), "--re", root, "--after", first, "--as", "HillyHad (Author)", "x"
+    )
+
+    said = capsys.readouterr().err
+    assert refused == 2 and "second" in said and "first" not in said.split("\n", 2)[-1]
+
+
+def test_quote_anchors_a_phrase_in_markdown(tmp_path, capsys) -> None:
+    doc = tmp_path / "review.md"
+    doc.write_text("# Review\n\nThe pre-commit hook is missing.\n")
+
+    assert (
+        _run("add", str(doc), "--lines", "3", "--quote", "pre-commit hook", "--as", "Sam", "v3")
+        == 0
+    )
+
+    text = doc.read_text()
+    anchor = parse.parse(text, "markdown").anchors[0]
+    assert text[anchor.start : anchor.end] == "pre-commit hook"
+
+
+def test_quote_is_refused_in_python(code, capsys) -> None:
+    refused = _run("add", str(code), "--lines", "4", "--quote", "def", "--as", "Sam", "x")
+
+    assert refused == 2 and "only Markdown" in capsys.readouterr().err
+
+
+def test_a_lemon_s_reply_shows_in_the_inbox_until_it_is_seen(
+    code, tmp_path, monkeypatch, capsys
+) -> None:
+    from lemonaid.comments import notice
+    from lemonaid.inbox import db
+
+    brief = _brief(tmp_path)
+    monkeypatch.setattr("lemonaid.brief.command.own_brief", lambda args: (brief, ""))
+    _run("add", str(code), "--lines", "4", "--as", "caleb.gregory", "why?")
+    root = capsys.readouterr().out.strip()
+    with db.connect() as conn:
+        after_a_person_s_comment = db.get_by_channel(conn, notice.channel(code))
+
+    _run("reply", str(code), "--re", root, "--self", "because\nmore")
+    first = capsys.readouterr().out.strip()
+    with db.connect() as conn:
+        shown = db.get_by_channel(conn, notice.channel(code))
+    second_status = _run("reply", str(code), "--re", first, "--self", "and another thing")
+    said = capsys.readouterr()
+    second = said.out.strip()
+    assert second_status == 0, said.err
+    notice.seen(code, [first])
+    with db.connect() as conn:
+        after_seeing_one = db.get_by_channel(conn, notice.channel(code))
+    unseen_after_one = notice.unread_ids(code)
+    notice.seen(code, [second])
+    with db.connect() as conn:
+        after_seeing_both = db.get_by_channel(conn, notice.channel(code))
+
+    assert after_a_person_s_comment is None
+    assert shown is not None and shown.message == "HillyHad (Author) in a.py: because"
+    assert after_seeing_one is not None and unseen_after_one == [second]
+    assert after_seeing_both is None
+
+
+def test_after_compares_replies_in_file_order_not_by_their_times(code, capsys) -> None:
+    _run("add", str(code), "--lines", "4", "--as", "caleb.gregory", "why?")
+    root = capsys.readouterr().out.strip()
+    text = code.read_text()
+    known = f'# {{"id": "Known", "re": "{root}", "author": "A", "at": "2026-11-20T15:02:00Z", "body": "k"}}\n'
+    unread = f'# {{"id": "Unread", "re": "{root}", "author": "B", "at": "2026-11-20T15:01:00Z", "body": "u"}}\n'
+    code.write_text(text + known + unread)
+
+    refused = _run("reply", str(code), "--re", root, "--after", "Known", "--as", "C", "me too")
+
+    assert refused == 2 and "Unread" in capsys.readouterr().err

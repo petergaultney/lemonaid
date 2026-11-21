@@ -55,26 +55,32 @@ Give every claim a location the reader can jump to with one key. Write each as `
 
 1. **Open the guide** in the user's editor: `lemonaid editor open <guide>`. If it fails, give the user the guide's path in chat, with the command's message, since it says why: no editor server, none in this terminal workspace, or an editor that refused. Say the guide is open only when the command succeeded.
 2. **Watch the guide and every file the round changed:** `lemonaid brief doc add --self <path> "review" --watch "All edits"` for each one. That only records the subscription; check that something delivers it with `lemonaid watch --self --status`, and if no watcher runs, start one as the `brief` skill says. Without a brief, use the `watch-doc` skill for each file.
-3. **Tell the user**, in chat, the guide's path and which files you watch. The watcher reads files on disk, so a comment wakes you once the user saves the file it is in. Then end the turn.
+3. **Tell the user**, in chat, the guide's path and which files you watch. The watcher reads files on disk, so a comment wakes you once the user saves the file it is in (their editor may save it for them). Then end the turn.
 
-Keep watching until the user says the review is done, or until the work is committed.
+Keep watching until the user says the review is done. When the round is committed, remove the rows you added for its files: `lemonaid brief doc rm --self <path>` for each, so the brief's Docs table holds only what is still under review.
 
 ## Answer comments
 
-Sign every reply with the name your brief gives you, followed by ` (Author)`, and pass the same name to `--me`: for the lemon `SleepRib`, `"SleepRib (Author)"`. The watcher counts a comment as answered only when the reply carries that signature. Without a brief, use the name you pass to `watch-doc`'s `--me`.
+Read and answer with `--self`, which signs with the same name your watcher counts as yours for that file, so your own replies never wake you:
 
 ```sh
-lemonaid comments list <path> --unanswered --me "SleepRib (Author)"
-lemonaid comments reply <path> --re <id> --as "SleepRib (Author)" "<body>"
+lemonaid comments list <path> --unanswered --self
+lemonaid comments reply <path> --re <id> --self "<body>"
 ```
 
-`list` marks each comment waiting on you `UNANSWERED`, with its id; pass that id to `--re`, even when it is a reply deep in a thread. Never edit a threads section by hand.
+`list` marks each comment waiting on you `UNANSWERED`, with its id; pass that id to `--re`, even when it is a reply deep in a thread. Without a brief, `--self` has no signature to find; sign with `--as` and read with `--me`, both the name you pass to `watch-doc`'s `--me`.
+
+Never edit a threads section by hand, and never remove a record: if you posted a comment by mistake, ask the user to delete it.
+
+If someone answered the same comment while you were writing, `reply` refuses, and prints the comment and the replies you haven't read. Read them. If yours adds nothing, don't post it. If it still adds something, say only that, and send it again with the `--after <id>` the refusal names.
+
+Your comment or reply also shows in the user's inbox, so they hear of it even when the file isn't open in their editor.
 
 - If a comment asks for a change, make it, then reply with what you changed and where (`path:line`).
 - If it asks a question, answer it in the thread. Keep the reply to one to three sentences; if the answer needs more, change the guide or the code and point the reply at the change.
 - Leave resolving to the user. Don't resolve or strip their comments during the review.
 
-A file with a threads section wakes you only for its threads. If you find a Relay Comment in such a Markdown file, answer it as the `watch-doc` skill says.
+The user may also comment with Relay or plain CriticMarkup (`{>>...<<}`) in a Markdown file, beside its threads; the watcher wakes you for those too. Answer them in place, as the `watch-doc` skill says.
 
 ## Keep comments out of commits
 

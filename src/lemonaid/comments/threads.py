@@ -51,22 +51,31 @@ def threads(doc: model.Document) -> list[model.Thread]:
 
 
 def unanswered(doc: model.Document, mine: abc.Set[str]) -> list[model.Comment]:
-    """Comments by someone else that nobody has answered, outside resolved branches.
+    """Comments that wait on the reader signed `mine`: unanswered, outside resolved
+    branches, by someone else, and meant for this reader. A person's comment is meant for
+    every reader, and so is one that starts a thread; a lemon's reply is meant only for
+    the author of the comment it answers, so two lemons answering one person don't wake
+    each other.
 
     A comment with replies is answered even when every reply was resolved, because
     resolving a reply closes that exchange, not the question it answered.
     """
-    leaves: list[model.Comment] = []
+    leaves: list[tuple[model.Comment, model.Comment | None]] = []
     for thread in threads(doc):
-        stack = [thread.root]
+        stack: list[tuple[model.Node, model.Comment | None]] = [(thread.root, None)]
         while stack:
-            node = stack.pop()
+            node, parent = stack.pop()
             if node.resolved:
                 continue
             if not node.replies:
-                leaves.append(node.comment)
-            stack += reversed(node.replies)
-    return [leaf for leaf in leaves if leaf.author not in mine]
+                leaves.append((node.comment, parent))
+            stack += [(reply, node.comment) for reply in reversed(node.replies)]
+    return [
+        leaf
+        for leaf, parent in leaves
+        if leaf.author not in mine
+        and (not leaf.by_lemon or parent is None or parent.author in mine)
+    ]
 
 
 def _written_order(comment: model.Comment) -> tuple[dt.datetime, int]:

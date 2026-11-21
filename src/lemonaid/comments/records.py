@@ -57,7 +57,7 @@ def read(
     return tuple(comments), tuple(resolutions), errors
 
 
-_COMMENT_FIELDS: ty.Final = frozenset({"id", "author", "at", "body", "re", "span"})
+_COMMENT_FIELDS: ty.Final = frozenset({"id", "author", "at", "body", "re", "span", "by"})
 
 
 _RESOLUTION_FIELDS: ty.Final = frozenset({"resolves", "author", "at"})
@@ -130,6 +130,7 @@ def _record(obj: object, offset: int) -> model.Comment | model.Resolution | mode
         body=body,
         re=re_,
         span=(span[0], span[1]) if span is not None else None,
+        by_lemon=obj.get("by") == "lemon",  # any other value, or none, is a person's
         offset=offset,
         extra={k: v for k, v in obj.items() if k not in _COMMENT_FIELDS},
     )

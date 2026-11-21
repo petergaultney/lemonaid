@@ -317,3 +317,18 @@ def test_a_closing_marker_before_its_opening_one_is_refused() -> None:
 
     with pytest.raises(ValueError, match="closes before it opens"):
         edits.strip(commented, "markdown")
+
+
+@pytest.mark.parametrize("ending", ["\n", "\r\n"])
+def test_empty_lines_a_formatter_added_above_the_section_go_with_it(ending: str) -> None:
+    """ruff format puts two empty lines before a top-level comment that follows a function;
+    we write one."""
+    original = f"def f():{ending}    return 1{ending}"
+    added = edits.add_comment(original, "python", 0, 0, author="Sam", body="why", comment_id="Root")
+    commented = edits.apply(original, added.edits)
+    header = f"{ending}# [lma:threads]"
+    formatted = commented.replace(header, ending + header, 1)
+
+    result = edits.strip(formatted, "python")
+
+    assert result == original

@@ -1,5 +1,7 @@
 """The changes a lemon asks for, as data, so `lemonaid comments` can apply one to the file or
-send it to the editor server that has the file open, and both compute the same edits.
+send it to the editor server that has the file open, and both compute the same edits. A
+comment an operation writes is marked as a lemon's (`"by": "lemon"`); a person's comments
+come from the editor's own commands.
 """
 
 import typing as ty
@@ -11,12 +13,18 @@ class Add(ty.NamedTuple):
     lines: str  # `<a>-<b>` or `<a>`, 1-based and inclusive
     author: str
     body: str
+    quote: str = ""  # anchor on this text within the lines, not the whole lines
 
 
 class Reply(ty.NamedTuple):
     re: str
     author: str
     body: str
+    after: str = ""  # the newest reply to `re` the lemon has read; needed once `re` has one
+
+
+class Unseen(ValueError):
+    """A reply refused because the comment it answers has replies its writer hasn't read."""
 
 
 class Resolve(ty.NamedTuple):
@@ -43,15 +51,33 @@ def edits_for(
     writes one. `at` and `comment_id` fix the record's time and id, so the same operation
     tried again writes the same record. Raises ValueError for what the model refuses."""
     match operation:
-        case Add(lines, author, body):
+        case Add(lines, author, body, quote):
             start, end = line_range(text, lines)
+            if quote:
+                start, end = quoted_range(text, kind, start, end, quote)
             added = edits.add_comment(
-                text, kind, start, end, author=author, body=body, at=at, comment_id=comment_id
+                text,
+                kind,
+                start,
+                end,
+                author=author,
+                body=body,
+                at=at,
+                comment_id=comment_id,
+                by_lemon=True,
             )
             return added.edits, added.comment_id
-        case Reply(re_, author, body):
+        case Reply(re_, author, body, after):
+            check_seen(parse.parse(text, kind), re_, after)
             added = edits.reply(
-                text, kind, re_, author=author, body=body, at=at, comment_id=comment_id
+                text,
+                kind,
+                re_,
+                author=author,
+                body=body,
+                at=at,
+                comment_id=comment_id,
+                by_lemon=True,
             )
             return added.edits, added.comment_id
         case Resolve(resolved_id, author):
@@ -78,6 +104,44 @@ def landed(
             )
         case Strip():
             return edits.strip(text, kind) == text
+
+
+def check_seen(doc: model.Document, re_: str, after: str) -> None:
+    """Refuse a reply to `re_` from a lemon that hasn't read its newest reply. A first reply
+    needs nothing; a later one names, in `after`, the newest reply it read, and is refused
+    while a newer one exists. Two replies to one comment are fine once the second writer
+    has seen the first. Raises `Unseen` with the comment and its replies, so the writer can
+    decide at once whether it still has something to add."""
+    # record order, not time: a record's `at` can be earlier than one written before it
+    replies = sorted((c for c in doc.comments if c.re == re_), key=lambda c: c.offset)
+    if not replies or (after and after == replies[-1].id):
+        return
+
+    parent = doc.comment(re_)
+    unread = replies
+    if after in [r.id for r in replies]:
+        unread = replies[[r.id for r in replies].index(after) + 1 :]
+    why = (
+        f"comment {re_} has replies you haven't read; read them, then reply only with what"
+        f" they don't already say, passing --after {replies[-1].id}"
+    )
+    shown = [f"{c.author} [{c.id}]: {c.body}" for c in ([parent] if parent else []) + unread]
+    raise Unseen("\n".join([why, "", *shown]))
+
+
+def quoted_range(
+    text: str, kind: model.FileKind, start: int, end: int, quote: str
+) -> tuple[int, int]:
+    """Where `quote` appears in `text[start:end]`, which must be exactly once. Only Markdown
+    can anchor part of a line; in Python an anchor covers whole lines."""
+    if kind != "markdown":
+        raise ValueError("--quote anchors part of a line, which only Markdown can do")
+    found = text.find(quote, start, end)
+    if found < 0:
+        raise ValueError(f"--quote {quote!r} is not in those lines")
+    if text.find(quote, found + 1, end) >= 0:
+        raise ValueError(f"--quote {quote!r} appears more than once in those lines")
+    return found, found + len(quote)
 
 
 def line_range(text: str, lines: str) -> tuple[int, int]:

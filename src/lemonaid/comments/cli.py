@@ -24,7 +24,7 @@ from .. import file
 from ..front_end import location
 from ..lsp import registry
 from ..watch import signature
-from . import edits, listing, model, operations, parse
+from . import edits, listing, model, notice, operations, parse
 
 _ATTEMPTS: ty.Final = 3
 _T = ty.TypeVar("_T")
@@ -101,7 +101,9 @@ def _list(a: argparse.Namespace) -> int:
     text = unsaved[0].text if unsaved else _read(a.target)
     doc = parse.parse(text, _kind(a.target))
     if a.unanswered and not a.me:
-        raise _Refused("--unanswered needs --me, the names whose comments count as answers")
+        raise _Refused(
+            "--unanswered needs --me or --self, the names whose comments count as answers"
+        )
     shown = listing.render(
         text,
         doc,
@@ -116,13 +118,55 @@ def _list(a: argparse.Namespace) -> int:
 
 
 def _add(a: argparse.Namespace) -> int:
-    print(_carry_out(a.target, operations.Add(a.lines, a.author, _body(a.body)), retry=False))
+    body = _body(a.body)
+    comment_id = _carry_out(
+        a.target, operations.Add(a.lines, a.author, body, a.quote or ""), retry=False
+    )
+    _tell_the_inbox(a, comment_id, body)
+    print(comment_id)
     return 0
 
 
 def _reply(a: argparse.Namespace) -> int:
-    print(_carry_out(a.target, operations.Reply(a.re, a.author, _body(a.body))))
+    body = _body(a.body)
+    comment_id = _carry_out(a.target, operations.Reply(a.re, a.author, body, a.after or ""))
+    _tell_the_inbox(a, comment_id, body)
+    print(comment_id)
     return 0
+
+
+def _tell_the_inbox(a: argparse.Namespace, comment_id: str | None, body: str) -> None:
+    """A lemon's comment (`--self`) shows in the inbox; a person's, written with `--as`, doesn't."""
+    if a.use_self and comment_id:
+        notice.replied(a.target, a.author, comment_id, body)
+
+
+def own_signature(target: pathlib.Path) -> str:
+    """The signature the calling lemon's watcher uses for `target`, read from its brief as
+    the watcher reads it: a `watch doc` line for the file gives its `--me`, and a file the
+    brief doesn't name gets `<name> (Author)`, as a Docs row does. A lemon that signs with
+    it can't drift from the name its own waiter counts as answered."""
+    from ..brief import command, identity
+    from ..config import load_config
+    from ..watch import subscriptions
+
+    brief, error = command.own_brief(argparse.Namespace(session=None, channel=None, id=None))
+    if brief is None:
+        raise _Refused(f"--self: {error}")
+
+    text = brief.read_text()
+    vaults = tuple(load_config().brief.vaults)
+    for spec in subscriptions.read(text, pathlib.Path.cwd(), vaults=vaults):
+        if spec.kind == "doc" and pathlib.Path(spec.target[0]).resolve() == target.resolve():
+            return spec.me
+
+    try:
+        name = identity.brief_name(identity.read(text))
+    except ValueError:
+        name = ""
+    if not name:
+        raise _Refused(f"--self: the brief {brief} has no Brief-ID to sign with")
+    return f"{name} (Author)"
 
 
 def _resolve(a: argparse.Namespace) -> int:
@@ -214,6 +258,12 @@ def _open_buffers(target: pathlib.Path) -> list[_Buffer]:
 def _run(a: argparse.Namespace) -> ty.NoReturn:
     try:
         a.target = a.path.resolve()
+        if getattr(a, "use_self", False):
+            signed = own_signature(a.target)
+            if a.comments_func is _list:
+                a.me = [*a.me, signed]
+            else:
+                a.author = signed
         code = a.comments_func(a)
     except (_Refused, ValueError, registry.Unreachable) as refusal:
         print(f"{a.path}: {refusal}", file=sys.stderr)
@@ -262,13 +312,31 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     strip.add_argument("path", type=pathlib.Path)
     strip.set_defaults(comments_func=_strip)
 
+    add.add_argument(
+        "--quote", help="anchor on this text within the lines (Markdown only), not the whole lines"
+    )
+    reply.add_argument(
+        "--after",
+        help="the newest reply to --re you have read; needed once it has replies, so you don't"
+        " repeat an answer someone just gave",
+    )
+    listing_parser.add_argument(
+        "--self",
+        dest="use_self",
+        action="store_true",
+        help="count the signature your watcher uses for this file as yours",
+    )
     for parser in (add, reply):
         parser.add_argument("body", help="Markdown; - reads it from stdin")
     for parser in (add, reply, resolve):
-        parser.add_argument(
-            "--as",
-            dest="author",
-            required=True,
-            help="your signature, as in Relay: `SleepRib (Author)`",
+        who = parser.add_mutually_exclusive_group(required=True)
+        who.add_argument(
+            "--as", dest="author", help="your signature, as in Relay: `SleepRib (Author)`"
+        )
+        who.add_argument(
+            "--self",
+            dest="use_self",
+            action="store_true",
+            help="sign with the signature your watcher uses for this file",
         )
     ap.set_defaults(func=_run)

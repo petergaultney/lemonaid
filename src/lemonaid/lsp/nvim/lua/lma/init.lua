@@ -16,7 +16,13 @@
 --
 -- One key, <leader>cc by default, comments: on code it anchors a new thread on the line
 -- or the selection; in the panel or a float it replies to the comment under the cursor,
--- about the selected part of it when there is a selection.
+-- about the selected part of it when there is a selection.  <leader>cx deletes a comment
+-- and its replies, or a whole thread on its anchor; <leader>cm moves a thread to the
+-- selected text; <leader>cw turns on saving the file after each comment, so the lemon
+-- hears of it at once (off by default, so a batch of comments goes out on one :w).
+--
+-- A lemon's reply that arrives while you work is announced and marked unread until you
+-- visit its thread; once nothing in the file is unread, its inbox row is marked read.
 
 local compose = require("lma.compose")
 local drafts = require("lma.drafts")
@@ -30,7 +36,12 @@ local state = require("lma.state")
 local M = {}
 
 local config = {
-  keys = { comment = "<leader>cc", resolve = "<leader>cr", thread = "<leader>ct", panel = "<leader>cp" },
+  keys = {
+    comment = "<leader>cc", resolve = "<leader>cr", thread = "<leader>ct", panel = "<leader>cp",
+    delete = "<leader>cx", move = "<leader>cm", autosave = "<leader>cw",
+  },
+  -- save the file once the server confirms a comment, reply, resolve or delete
+  autosave = false,
   -- yield_to(buf): true to leave the comment and panel keys to the buffer's own mappings
   -- in a buffer with no threads (a vault doc whose comments are CriticMarkup)
   yield_to = function(_) return false end,
@@ -51,11 +62,30 @@ local function redraw_views(buf)
   float.draw()
 end
 
+local function announce(buf, arrived)
+  if #arrived == 0 then return end
+  local name = vim.fn.fnamemodify(path_of(buf), ":t")
+  local first = arrived[1]
+  local message = #arrived == 1
+      and ("%s replied in %s: %s"):format(first.author, name, (first.body:match("^[^\n]*")))
+    or ("%d new replies in %s"):format(#arrived, name)
+  notify(message .. "  (" .. config.keys.panel .. " to see)")
+end
+
 function M.on_threads(_, params, ctx)
   local buf = vim.fn.bufnr(vim.uri_to_fname(params.uri))
   if buf == -1 or not vim.api.nvim_buf_is_loaded(buf) then return end
+  -- threads for an older version of the buffer would place anchors from text that has
+  -- moved since; keep what we have and ask for threads for the buffer as it is now
+  local now = vim.lsp.util.buf_versions[buf]
+  local stale = params.version ~= vim.NIL and params.version ~= nil and now and params.version ~= now
+  if stale then
+    state.on_stale(buf)
+    return
+  end
   local client = vim.lsp.get_client_by_id(ctx.client_id)
-  state.set(buf, params.threads, client and client.offset_encoding or "utf-16")
+  local unread = params.unread ~= vim.NIL and params.unread or nil
+  announce(buf, state.set(buf, params.threads, client and client.offset_encoding or "utf-16", unread))
   panel.follow(buf)
   redraw_views(buf)
 end
@@ -117,6 +147,26 @@ local function chosen_text(buf)
   return selection.take(buf)
 end
 
+-- Saving after a confirmed change, when turned on: the lemon's watcher reads the file.
+local function save_if_auto(buf)
+  if not config.autosave or not vim.api.nvim_buf_is_loaded(buf) or not vim.bo[buf].modified then return end
+  local ok, err = pcall(vim.api.nvim_buf_call, buf, function() vim.cmd("silent write") end)
+  if not ok then
+    notify("couldn't save the file, so the lemon won't hear of it until you do: " .. tostring(err),
+      vim.log.levels.WARN)
+  end
+end
+
+-- You've looked at `thread`: its comments are read, and the inbox row drops them, marking
+-- itself read once it lists none you haven't seen.
+local function seen(buf, thread)
+  local cleared = state.mark_seen(buf, thread)
+  if #cleared > 0 then
+    send.run(buf, "lemonaid.seen", function() return { uri = vim.uri_from_bufnr(buf), ids = cleared } end,
+      function() end)
+  end
+end
+
 local function kept(draft, message)
   drafts.returned(draft)
   notify(message .. " Your draft is kept; " .. config.keys.comment .. " offers it again.", vim.log.levels.WARN)
@@ -148,6 +198,7 @@ local function comment_on_code(buf)
       end, function(err)
         if not err then
           drafts.confirmed(draft)
+          save_if_auto(buf)
         elseif send.reason(err) == "moved" then
           kept(draft, "The buffer changed while the comment was written; select the text again.")
         else
@@ -195,7 +246,12 @@ local function reply(source, rows, rendered_buf)
           span = draft.span, quote = draft.span and draft.quote,
         }
       end, function(err)
-        if err then kept(draft, err.message or vim.inspect(err)) else drafts.confirmed(draft) end
+        if err then
+          kept(draft, err.message or vim.inspect(err))
+        else
+          drafts.confirmed(draft)
+          save_if_auto(source)
+        end
       end)
     end,
   })
@@ -209,8 +265,75 @@ local function resolve(source, comment)
   send.run(source, "lemonaid.resolve", function()
     return { uri = vim.uri_from_bufnr(source), id = comment.id }
   end, function(err)
-    if err then notify(err.message or vim.inspect(err), vim.log.levels.WARN) end
+    if err then notify(err.message or vim.inspect(err), vim.log.levels.WARN) else save_if_auto(source) end
   end)
+end
+
+-- Deletes `comment` and every reply below it; a thread's first comment takes the thread.
+local function delete(source, thread, comment)
+  local below = 0
+  local inside = false
+  for _, c in ipairs(thread.comments) do
+    if c == comment then
+      inside = true
+    elseif inside and c.depth > comment.depth then
+      below = below + 1
+    elseif inside then
+      break
+    end
+  end
+  local what = comment == thread.root and "this thread" or ("%s's comment"):format(comment.author)
+  local question = below > 0 and ("Delete %s and %d %s below it?"):format(what, below, below == 1 and "reply" or "replies")
+    or ("Delete %s?"):format(what)
+  if vim.fn.confirm(question, "&Delete\n&Keep", 2) ~= 1 then return end
+  send.run(source, "lemonaid.delete", function()
+    return { uri = vim.uri_from_bufnr(source), id = comment.id }
+  end, function(err)
+    if err then notify(err.message or vim.inspect(err), vim.log.levels.WARN) else save_if_auto(source) end
+  end)
+end
+
+-- Moves a thread's anchor to the selected text.  The markers are hidden, so this is the
+-- way to re-anchor one; with several threads in the file, you choose which.
+local function move(buf)
+  local mode = vim.fn.mode()
+  if mode ~= "v" and mode ~= "V" then
+    notify("select the text to move a thread to, then " .. config.keys.move, vim.log.levels.WARN)
+    return
+  end
+  local sr, sc, er, ec = selection.take(buf)
+  if not sr then return end
+  local selected = vim.api.nvim_buf_get_text(buf, sr, sc, er, ec, {})
+  local st = state.get(buf)
+  -- a thread whose anchor is gone can be moved too, which is how to repair it
+  local threads = st and st.threads or {}
+  if #threads == 0 then
+    notify("no thread in this file to move")
+    return
+  end
+  local function moved(thread)
+    if not thread then return end
+    send.run(buf, "lemonaid.reanchor", function()
+      -- the buffer may have changed or reloaded since you selected, as before a resend
+      local ok, now = pcall(vim.api.nvim_buf_get_text, buf, sr, sc, er, ec, {})
+      if not (ok and vim.deep_equal(now, selected)) then
+        notify("the text you selected has changed; select it again", vim.log.levels.WARN)
+        return nil
+      end
+      local encoding = send.client(buf).offset_encoding
+      return {
+        uri = vim.uri_from_bufnr(buf), id = thread.root.id,
+        range = { start = state.to_lsp(buf, sr, sc, encoding), ["end"] = state.to_lsp(buf, er, ec, encoding) },
+      }
+    end, function(err)
+      if err then notify(err.message or vim.inspect(err), vim.log.levels.WARN) else save_if_auto(buf) end
+    end)
+  end
+  if #threads == 1 then return moved(threads[1]) end
+  vim.ui.select(threads, {
+    prompt = "Move which thread here?",
+    format_item = function(t) return ("%s: %s"):format(t.root.author, (t.root.body:match("^[^\n]*"))) end,
+  }, moved)
 end
 
 -- Keys for a buffer that shows threads (the panel, a float): reply and resolve.
@@ -225,7 +348,23 @@ local function rendered_keys(context)
       local info = rows[vim.api.nvim_win_get_cursor(0)[1]]
       if info then resolve(source, info.comment or info.thread.root) end
     end, { buffer = rendered_buf, desc = "lma: resolve this comment and its replies" })
+    vim.keymap.set("n", config.keys.delete, function()
+      local source, rows = context()
+      local info = rows[vim.api.nvim_win_get_cursor(0)[1]]
+      if info then delete(source, info.thread, info.comment or info.thread.root) end
+    end, { buffer = rendered_buf, desc = "lma: delete this comment and its replies" })
   end
+end
+
+-- Markers moved by hand, or threads for an older version: the server sends the threads
+-- again, from the buffer as it is now.  At most once per version of the buffer, so a
+-- marker that can never match (whatever the reason) doesn't ask forever.
+local asked_at = {}
+state.on_stale = function(buf)
+  local version = vim.lsp.util.buf_versions[buf]
+  if version ~= nil and asked_at[buf] == version then return end
+  asked_at[buf] = version
+  send.run(buf, "lemonaid.refresh", function() return { uri = vim.uri_from_bufnr(buf) } end, function() end)
 end
 
 panel.on_open = rendered_keys(panel.context)
@@ -272,7 +411,9 @@ local function map(buf, lhs, modes, action, desc)
   local before = {}
   for _, mode in ipairs(modes) do
     local existing = vim.fn.maparg(lhs, mode, false, true)
-    if existing.buffer == 1 then before[mode] = existing end
+    -- our own earlier mapping, when we map again after a reload, is not theirs to yield to
+    local ours = (existing.desc or ""):sub(1, 4) == "lma:"
+    if existing.buffer == 1 and not ours then before[mode] = existing end
   end
   vim.keymap.set(modes, lhs, function()
     local mode = vim.fn.mode():sub(1, 1):lower() == "n" and "n" or "x"
@@ -285,11 +426,29 @@ local function map(buf, lhs, modes, action, desc)
   end, { buffer = buf, desc = desc })
 end
 
-function M.on_attach(_, buf)
+local function map_shared_keys(buf)
   map(buf, config.keys.comment, { "n", "x" }, comment_on_code, "lma: comment on this line or selection")
   map(buf, config.keys.panel, { "n" }, panel.toggle, "lma: toggle the thread panel")
-  vim.keymap.set("n", config.keys.thread, function() float.show(buf) end,
-    { buffer = buf, desc = "lma: show the thread here; again to move into it" })
+end
+
+function M.on_attach(_, buf)
+  map_shared_keys(buf)
+  local function here()
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    return state.thread_at(buf, cursor[1] - 1, cursor[2])
+  end
+  vim.keymap.set("n", config.keys.thread, function()
+    float.show(buf)
+    seen(buf, here())
+  end, { buffer = buf, desc = "lma: show the thread here; again to move into it" })
+  vim.keymap.set("n", config.keys.delete, function()
+    local thread = here()
+    if thread then delete(buf, thread, thread.root) else notify("no thread here") end
+  end, { buffer = buf, desc = "lma: delete the thread here" })
+  vim.keymap.set("x", config.keys.move, function() move(buf) end,
+    { buffer = buf, desc = "lma: move a thread to the selected text" })
+  vim.keymap.set("n", config.keys.move, function() move(buf) end,
+    { buffer = buf, desc = "lma: move a thread to the selected text" })
   vim.keymap.set("n", config.keys.resolve, function()
     local thread = state.thread_at(buf, vim.api.nvim_win_get_cursor(0)[1] - 1, vim.api.nvim_win_get_cursor(0)[2])
     if thread then resolve(buf, thread.root) else notify("no thread here") end
@@ -298,6 +457,14 @@ function M.on_attach(_, buf)
   watch(buf)
   local group = vim.api.nvim_create_augroup("lma_buf_" .. buf, { clear = true })
   vim.api.nvim_create_autocmd("BufEnter", { group = group, buffer = buf, callback = function() panel.follow(buf) end })
+  -- visiting a thread with an unread reply reads it
+  vim.api.nvim_create_autocmd("CursorMoved", {
+    group = group, buffer = buf,
+    callback = function() if state.has_unread(buf) then seen(buf, here()) end end,
+  })
+  -- A reload (:edit, :checktime after a lemon writes the file) sets the filetype again, and
+  -- its ftplugin maps its own keys over ours; the client stays attached, so map ours again.
+  vim.api.nvim_create_autocmd("FileType", { group = group, buffer = buf, callback = function() map_shared_keys(buf) end })
   vim.api.nvim_create_autocmd("BufWinEnter", { group = group, buffer = buf, callback = function() state.allow_conceal(buf) end })
   -- :saveas and :file change the name we watch for
   vim.api.nvim_create_autocmd("BufFilePost", { group = group, buffer = buf, callback = function() watch(buf) end })
@@ -326,10 +493,25 @@ local function list_drafts()
   vim.cmd.copen()
 end
 
+-- Starts `lemonaid lsp` without waiting for a Python or Markdown buffer, so a lemon's
+-- `lemonaid editor open` reaches this nvim from the start.  Call it after enabling the
+-- server; a buffer that opens later attaches to it, or to a server for its own workspace.
+function M.start_server()
+  if #vim.lsp.get_clients({ name = "lemonaid" }) > 0 then return end
+  local server = vim.lsp.config["lemonaid"]
+  if not server then return end
+  vim.lsp.start(vim.tbl_extend("force", server, { root_dir = vim.fn.getcwd() }), { attach = false })
+end
+
 function M.setup(opts)
   opts = opts or {}
   config.keys = vim.tbl_extend("force", config.keys, opts.keys or {})
   config.yield_to = opts.yield_to or config.yield_to
+  if opts.autosave ~= nil then config.autosave = opts.autosave end
+  vim.keymap.set("n", config.keys.autosave, function()
+    config.autosave = not config.autosave
+    notify("saving after each comment is " .. (config.autosave and "on" or "off"))
+  end, { desc = "lma: save the file after each comment, or stop" })
   vim.api.nvim_create_user_command("LmaDrafts", list_drafts,
     { desc = "List the comments you wrote that the server never confirmed" })
   vim.api.nvim_create_user_command("LmaMarkers", function()
