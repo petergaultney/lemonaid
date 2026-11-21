@@ -862,17 +862,17 @@ With `enabled = true`, `brief new` gives every new brief a task, hands it an exi
 
 ## `[slack]`
 
-How lemons follow Slack threads; see [Following Slack threads](slack.md).
+How lemons follow Slack threads and channels; see [Following Slack threads and channels](slack.md).
 
 ```toml
 [slack]
 workspace = "https://acme.slack.com/"  # what `lemonaid slack signin` opens with no argument
-push = true            # hold one socket to Slack, so a reply wakes its followers at once
+push = true            # hold one socket to Slack, so a message wakes its followers at once
 fetch_every = 60       # seconds between fetches of each followed thread while no socket is up
 presence_every = 300   # seconds between presence readings while the socket is up; 0 takes none
 ```
 
-With `push = false`, the scout host opens no socket, and each followed thread is fetched every `fetch_every` seconds (10 or more). `presence_every` is for the trial described in [Presence while the socket is up](slack.md#presence-while-the-socket-is-up-trial).
+With `push = false`, the scout host opens no socket, and each followed thread or channel is fetched every `fetch_every` seconds (10 or more). `presence_every` is for the trial described in [Presence while the socket is up](slack.md#presence-while-the-socket-is-up-trial).
 
 ## `[claude.statusline]`
 

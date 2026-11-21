@@ -13,7 +13,15 @@ import urllib.request
 
 from . import session
 
-READ_METHODS = frozenset({"auth.test", "conversations.replies", "users.info", "users.getPresence"})
+READ_METHODS = frozenset(
+    {
+        "auth.test",
+        "conversations.history",
+        "conversations.replies",
+        "users.info",
+        "users.getPresence",
+    }
+)
 # Slack's answers to a session it no longer accepts; anything else is about the one call.
 EXPIRED = frozenset(
     {"invalid_auth", "token_revoked", "token_expired", "account_inactive", "not_authed"}

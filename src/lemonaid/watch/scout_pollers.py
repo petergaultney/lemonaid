@@ -237,6 +237,7 @@ def open_poller(
         return slack_events.poller(
             permalink.parse(spec.link),
             spec.after,
+            spec.match,
             spec.brief_done,
             directory,
             root.name,

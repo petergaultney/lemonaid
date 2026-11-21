@@ -83,7 +83,7 @@ def _identity(
     elif kind == "command":
         target = (str(a.wait),)
     elif kind == "slack":
-        target = (a.link.channel, a.link.ts)
+        target = a.link.target
     elif kind == "pr":
         url_repo, number = a.wait
         target = (str(number),)

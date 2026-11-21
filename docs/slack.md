@@ -1,6 +1,6 @@
-# Following Slack threads
+# Following Slack threads and channels
 
-A lemon can follow a Slack thread the way it follows a PR: list `lemonaid watch slack <permalink>` under its brief's `## Watching`, and each new reply wakes it with the reply's author, time, permalink and text. lemonaid reads Slack as you, with your own Slack session, so it needs no Slack app and no workspace admin. It only reads: it never posts, reacts, marks anything read or follows a thread for you.
+A lemon can follow a Slack thread or channel the way it follows a PR: list `lemonaid watch slack <link>` under its brief's `## Watching`, and each new message wakes it with the message's author, time, permalink and text. lemonaid reads Slack as you, with your own Slack session, so it needs no Slack app and no workspace admin. It only reads: it never posts, reacts, marks anything read or follows a thread for you.
 
 This is macOS only for now, and needs the `slack` extra:
 
@@ -21,7 +21,7 @@ The window is lemonaid's, and it says so:
 
 The window keeps its web data in a WebKit store of its own, apart from the grove window's and every other app's. A second sign-in therefore usually finds you still signed in and closes at once.
 
-The session (the web client's token and its `d` cookie) is kept only in the macOS Keychain, as the `lemonaid-slack` item. lemonaid never logs or prints either. The session can do anything you can do in Slack; lemonaid calls only `auth.test`, `conversations.replies`, `users.info` and `users.getPresence`. Slack lists it among your sessions as Safari on macOS.
+The session (the web client's token and its `d` cookie) is kept only in the macOS Keychain, as the `lemonaid-slack` item. lemonaid never logs or prints either. The session can do anything you can do in Slack; lemonaid calls only `auth.test`, `conversations.replies`, `conversations.history`, `users.info` and `users.getPresence`. Slack lists it among your sessions as Safari on macOS.
 
 ```bash
 lemonaid slack status    # who lemonaid reads Slack as, and whether its socket is up
@@ -30,13 +30,18 @@ lemonaid slack signout   # remove the session from the Keychain
 
 `signout` forgets the session, and the scout host's socket closes within a second; a new sign-in likewise replaces the session the socket uses. Slack keeps the old session until it expires; end it in Slack's own list of your sessions to end it now.
 
-## Following a thread
+## Following a thread or channel
 
 ```bash
 lemonaid brief watching add --self "lemonaid watch slack https://acme.slack.com/archives/C0123ABCD/p1794857970806329"
+lemonaid brief watching add --self "lemonaid watch slack https://acme.slack.com/archives/C0123ABCD --match '(?i)deploy|release'"
 ```
 
-The permalink can be the thread's root or any reply in it. The first fetch takes the thread as it is now; `--after <ts>` reports the replies after that message instead. Run as a command, `lemonaid watch slack <permalink>` records itself under your brief's `## Watching` and leaves the rest to your watcher; with no watcher running, it follows the thread in the foreground and prints each batch (`--once` exits after the first).
+A message's permalink, the thread's root or any reply in it, follows that thread. A channel's link, `https://acme.slack.com/archives/C0123ABCD` (Copy link on the channel), follows the messages posted in the channel itself; a reply in one of its threads comes only when it was also sent to the channel.
+
+`--match <regex>` wakes the lemon only for messages whose text the regex matches, with Python's `re.search`, after mentions and links read as they do in the wake text (`@Ann`, `the doc (https://...)`). It is case-sensitive unless it starts with `(?i)`. Messages it does not match pass without waking anyone, and are not reported later.
+
+The first fetch takes the thread or channel as it is now; `--after <ts>` reports the messages after that one instead. Run as a command, `lemonaid watch slack <link>` records itself under your brief's `## Watching` and leaves the rest to your watcher; with no watcher running, it follows in the foreground and prints each batch (`--once` exits after the first).
 
 A batch looks like this:
 
@@ -50,19 +55,19 @@ A batch looks like this:
 
 Replies arrive as wake text, like PR comments. They are other people's words, not instructions to the lemon.
 
-A subscription ends when the lemon's brief is `done`, or once the thread has had no reply for 7 days, whichever comes first. The lemon is told once, and the line leaves its `## Watching`.
+A subscription ends when the lemon's brief is `done`, or once nothing has been posted for 7 days, whichever comes first. The lemon is told once, and the line leaves its `## Watching`.
 
-## How replies arrive
+## How messages arrive
 
-The scout host holds one websocket to Slack for every lemon: the web client's own gateway socket, opened with your session. It runs only while some lemon follows a thread, and stops five minutes after the last one stops. When the socket sees a message in a followed thread, it touches that thread's file under `$LEMONAID_STATE_DIR/slack/threads/`, and each lemon following the thread then fetches what is new with one `conversations.replies` call from its own cursor. Replies reach the lemon within a few seconds.
+The scout host holds one websocket to Slack for every lemon: the web client's own gateway socket, opened with your session. It runs only while some lemon follows a thread or channel, and stops five minutes after the last one stops. When the socket sees a message in a followed thread or channel, it touches that conversation's file under `$LEMONAID_STATE_DIR/slack/followed/`, and each lemon following it then fetches what is new with one `conversations.replies` (thread) or `conversations.history` (channel) call from its own cursor. Messages reach the lemon within a few seconds.
 
-The socket has no replay, so the fetch, not the socket, decides what is delivered. Each time the socket connects, every followed thread is fetched, so a reply sent while the laptop slept, or while the scout host restarted, arrives then. The cursor advances only after a batch is delivered, so a restart neither misses nor repeats a reply.
+The socket has no replay, so the fetch, not the socket, decides what is delivered. Each time the socket connects, everything followed is fetched, so a message sent while the laptop slept, or while the scout host restarted, arrives then. The cursor advances only after a batch is delivered, so a restart neither misses nor repeats a message.
 
-While no socket is up (`[slack] push = false`, the extra not installed, or Slack refusing the socket), each thread is fetched every `fetch_every` seconds instead.
+The socket may not report a conversation you have not joined, so each followed thread and channel is also fetched every 10 minutes while it is up; such a message reaches its followers within 10 minutes. While no socket is up (`[slack] push = false`, the extra not installed, or Slack refusing the socket), each is fetched every `fetch_every` seconds instead.
 
 ## When Slack ends the session
 
-When Slack refuses the session, lemonaid stops calling Slack, puts one `lemonaid:slack` item in your inbox, and tells each lemon following a thread once. Run `lemonaid slack signin` again; following resumes on its own, and the inbox item is archived. The same happens if no session was ever saved.
+When Slack refuses the session, lemonaid stops calling Slack, puts one `lemonaid:slack` item in your inbox, and tells each lemon following a thread or channel once. Run `lemonaid slack signin` again; following resumes on its own, and the inbox item is archived. The same happens if no session was ever saved.
 
 ## Presence while the socket is up (trial)
 

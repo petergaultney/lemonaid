@@ -30,6 +30,18 @@ def test_a_line_naming_any_link_into_a_thread_follows_that_thread(tmp_path):
     )
 
 
+def test_a_channel_line_follows_the_channel_with_its_pattern(tmp_path):
+    channel = "https://acme.slack.com/archives/C0TEAM"
+    text = shared.BRIEF + f"- `lemonaid watch slack {channel} --match '(?i)deploy|release'`\n"
+
+    [spec] = _slack_specs(text, tmp_path)
+
+    assert (spec.target, spec.link, spec.match) == (("C0TEAM",), channel, "(?i)deploy|release")
+    assert brief_record._identity(f"lemonaid watch slack {channel}") != brief_record._identity(
+        f"lemonaid watch slack {LINK}"
+    )
+
+
 def test_a_done_brief_marks_its_slack_subscriptions_to_end(tmp_path):
     text = shared.BRIEF.replace("Brief-ID:", "Status: done\n\nBrief-ID:")
 

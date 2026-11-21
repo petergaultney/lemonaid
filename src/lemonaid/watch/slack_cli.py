@@ -1,21 +1,30 @@
-"""`lemonaid watch slack`: follow a Slack thread, reporting each new reply with its author, time,
-permalink and text. Reads Slack with the session `lemonaid slack signin` saved; never writes.
+"""`lemonaid watch slack`: follow a Slack thread or channel, reporting each new message with its
+author, time, permalink and text. Reads Slack with the session `lemonaid slack signin` saved;
+never writes.
+
+A link to a message, or to a reply, follows that message's thread. A channel's link
+(`/archives/<channel>`) follows the messages posted in the channel itself; replies in its
+threads come only when also sent to the channel. `--match <regex>` reports only the messages
+whose text it matches (Python `re.search`, mentions as `@Name`; `(?i)` for any case), and
+passes the others silently.
 
 Listed under a brief's `## Watching`, the lemon's unified watcher follows it, and the scout
-host's one Slack socket wakes it within a second of a reply. The subscription ends once the
-brief is done or the thread has had no reply for 7 days: the lemon hears it once, and the line
+host's one Slack socket wakes it within seconds of a message. The subscription ends once the
+brief is done or nothing has been posted for 7 days: the lemon hears it once, and the line
 leaves `## Watching`.
 
 Run with an attached brief, it records itself under `## Watching`; if the lemon's watcher runs,
-it exits there. Otherwise it follows the thread in the foreground, printing each batch of
-replies (`--once`: the first, then exits). The first fetch takes the thread as it is now;
-`--after <ts>` reports replies after that message instead.
+it exits there. Otherwise it follows in the foreground, printing each batch (`--once`: the
+first, then exits). The first fetch takes the conversation as it is now; `--after <ts>` reports
+the messages after that one instead.
 
     lemonaid watch slack https://acme.slack.com/archives/C0123ABCD/p1794857970806329
     lemonaid watch slack <permalink> --after 1794857970.806329
+    lemonaid watch slack https://acme.slack.com/archives/C0123ABCD --match '(?i)deploy|release'
 """
 
 import argparse
+import re
 import sys
 import time
 
@@ -33,11 +42,19 @@ from . import (
 _EVERY = 2.0  # seconds between polls in the foreground; each is a few file reads
 
 
-def _thread(value: str) -> permalink.Thread:
+def _conversation(value: str) -> permalink.Conversation:
     try:
         return permalink.parse(value)
     except ValueError as error:
         raise argparse.ArgumentTypeError(str(error)) from None
+
+
+def _pattern(value: str) -> str:
+    try:
+        re.compile(value)
+    except re.error as error:
+        raise argparse.ArgumentTypeError(f"not a regex: {value!r}: {error}") from None
+    return value
 
 
 def _ts(value: str) -> str:
@@ -58,7 +75,7 @@ def run(a: argparse.Namespace) -> int:
     if owner and wait_state.is_armed(owner):
         print(
             f"{'push scout' if push_scout.running(owner) else 'watcher'} running; "
-            "it follows this thread from your brief's ## Watching, nothing to rearm"
+            f"it follows this {a.link.noun} from your brief's ## Watching, nothing to rearm"
         )
         return 0
 
@@ -71,7 +88,7 @@ def run(a: argparse.Namespace) -> int:
     directory = cursors.directory("slack", a.me)
     directory.mkdir(parents=True, exist_ok=True)
     poll = slack_events.poller(
-        a.link, a.after, False, directory, owner, deliver, load_config().slack
+        a.link, a.after, a.match, False, directory, owner, deliver, load_config().slack
     )
     try:
         while not (a.once and delivered):
@@ -85,16 +102,26 @@ def run(a: argparse.Namespace) -> int:
 def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap = subparsers.add_parser(
         "slack",
-        help="Follow a Slack thread: report each new reply",
+        help="Follow a Slack thread or channel: report each new message",
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument(
-        "link", type=_thread, metavar="PERMALINK", help="a link to the thread or to a reply in it"
+        "link",
+        type=_conversation,
+        metavar="LINK",
+        help="a channel's link, or a link to a thread or any reply in it",
     )
     ap.add_argument(
-        "--after", type=_ts, default="", metavar="TS", help="first report replies after this ts"
+        "--after", type=_ts, default="", metavar="TS", help="first report messages after this ts"
+    )
+    ap.add_argument(
+        "--match",
+        type=_pattern,
+        default="",
+        metavar="REGEX",
+        help="report only messages whose text this regex matches",
     )
     ap.add_argument("--me", default="", help="your lemon name, so two lemons' cursors stay apart")
-    ap.add_argument("--once", action="store_true", help="print the first replies and exit")
+    ap.add_argument("--once", action="store_true", help="print the first messages and exit")
     ap.set_defaults(func=lambda a: sys.exit(run(a)), status=None)
