@@ -473,9 +473,9 @@ lemonaid watch command --status <pid>
   on the process's exit through kqueue; elsewhere it is checked every `--interval` (5 seconds).
   Records over a week old are removed when `lemonaid run` next starts.
 
-## Watching Slack threads
+## Watching Slack threads and channels
 
-`lemonaid watch slack <permalink>` follows a Slack thread with your own Slack session, and reports each new reply with its author, time, permalink and text. Listed under `## Watching`, the scout host's one Slack socket wakes the lemon within seconds of a reply, and the subscription ends once the brief is `done` or the thread has had no reply for 7 days, its line then leaving `## Watching`. Sign-in, the socket, and what happens when Slack ends the session are in [Following Slack threads](slack.md).
+`lemonaid watch slack <link>` follows a Slack thread, or a channel's own messages, with your own Slack session, and reports each new message with its author, time, permalink and text; `--match <regex>` reports only the messages whose text matches. Listed under `## Watching`, the scout host's one Slack socket wakes the lemon within seconds of a message, and the subscription ends once the brief is `done` or nothing has been posted for 7 days, its line then leaving `## Watching`. Sign-in, the socket, and what happens when Slack ends the session are in [Following Slack threads and channels](slack.md).
 
 ## Watching other lemons
 

@@ -19,8 +19,9 @@ SESSION = session.Session(
     team_id="T0ACME",
     captured_at=1000.0,
 )
-THREAD = permalink.Thread("acme.slack.com", "C0TEAM", "1794857970.806329")
+THREAD = permalink.Conversation("acme.slack.com", "C0TEAM", "1794857970.806329")
 LINK = THREAD.link
+CHANNEL = permalink.Conversation("acme.slack.com", "C0TEAM", "")
 
 
 class Keychain:
@@ -53,11 +54,22 @@ def reply(ts: str, text: str, user: str = "U0ANN") -> dict:
     return {"ts": ts, "thread_ts": THREAD.ts, "user": user, "text": text}
 
 
+def post(ts: str, text: str, user: str = "U0ANN", **more: str) -> dict:
+    return {"ts": ts, "user": user, "text": text, **more}
+
+
+def _newer(messages: list[dict], params: dict) -> list[dict]:
+    oldest = permalink.order(params.get("oldest", "0"))
+    return [m for m in messages if permalink.order(m["ts"]) > oldest]
+
+
 @dataclasses.dataclass
 class Slack:
-    """`api.call` over one thread's messages; set `error` to make every call raise it."""
+    """`api.call` over one thread's replies and its channel's posts; set `error` to make every
+    call raise it."""
 
     replies: list[dict] = dataclasses.field(default_factory=list)
+    posts: list[dict] = dataclasses.field(default_factory=list)
     names: dict[str, str] = dataclasses.field(default_factory=lambda: {"U0ANN": "Ann"})
     calls: list[tuple[str, dict]] = dataclasses.field(default_factory=list)
     error: Exception | None = None
@@ -71,14 +83,19 @@ class Slack:
         if method == "users.info":
             return {"ok": True, "user": {"profile": {"display_name": self.names[params["user"]]}}}
 
+        if method == "conversations.history":
+            newest_first = list(reversed(_newer(self.posts, params)))
+            if params.get("limit") == "1":
+                return {"ok": True, "messages": newest_first[:1], "has_more": len(self.posts) > 1}
+            return {"ok": True, "messages": newest_first, "has_more": False}
+
         latest = self.replies[-1]["ts"] if self.replies else None
         root = {"ts": THREAD.ts, **({"latest_reply": latest} if latest else {})}
         if params.get("limit") == "1":
             return {"ok": True, "messages": [root], "has_more": bool(self.replies)}
 
-        oldest = permalink.order(params.get("oldest", "0"))
-        newer = [m for m in self.replies if permalink.order(m["ts"]) > oldest]
-        return {"ok": True, "messages": [root, *newer], "has_more": False}
+        return {"ok": True, "messages": [root, *_newer(self.replies, params)], "has_more": False}
 
     def fetches(self) -> int:
-        return sum(1 for method, _ in self.calls if method == "conversations.replies")
+        reads = ("conversations.replies", "conversations.history")
+        return sum(1 for method, _ in self.calls if method in reads)

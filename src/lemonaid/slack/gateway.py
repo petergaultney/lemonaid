@@ -1,10 +1,11 @@
 """The scout host's one Slack socket: the web client's own gateway websocket, opened with the
-user's session, which says when a message arrives in a thread some lemon follows.
+user's session, which says when a message arrives in a thread or channel some lemon follows.
 
-It only signals the thread (`wakes.signal`). Each follower then fetches what is new from its own
-cursor, since the socket has no replay; on each connect the gateway signals every followed
-thread, so a reply sent while it was down is fetched then. It runs, as a scout host service,
-while a scout follows a thread, `[slack] push` is on and the `slack` extra is installed.
+It only signals it (`wakes.signal`). Each follower then fetches what is new from its own
+cursor, since the socket has no replay; on each connect the gateway signals everything
+followed, so a message sent while it was down is fetched then. It runs, as a scout host
+service, while a scout follows something, `[slack] push` is on and the `slack` extra is
+installed.
 """
 
 import dataclasses
@@ -27,11 +28,12 @@ _FIRST_RETRY = 5.0
 _LAST_RETRY = 300.0
 _SIGNED_OUT_CHECK = 30.0
 _CHECK = 5.0  # seconds between the service's looks at what is followed
-_LINGER = 300.0  # the socket stays up this long after the last thread stops being followed
+_LINGER = 300.0  # the socket stays up this long after the last follower stops
 
 
 def _signal(raw: str | bytes) -> str:
-    """Signal the thread a message event belongs to; the event's type."""
+    """Signal the thread a message event belongs to, and its channel for a message posted
+    there; the event's type."""
     try:
         event = json.loads(raw)
     except ValueError:
@@ -40,9 +42,12 @@ def _signal(raw: str | bytes) -> str:
         return ""
 
     if event.get("type") == "message":
+        channel = event.get("channel", "")
         thread = event.get("thread_ts") or (event.get("message") or {}).get("thread_ts")
-        if thread and wakes.signal(event.get("channel", ""), thread):
-            _log.info("reply in a followed thread %s %s", event.get("channel"), thread)
+        if thread and wakes.signal(channel, thread):
+            _log.info("reply in a followed thread %s %s", channel, thread)
+        if (not thread or event.get("subtype") == "thread_broadcast") and wakes.signal(channel, ""):
+            _log.info("message in a followed channel %s", channel)
     return str(event.get("type", ""))
 
 
@@ -130,7 +135,7 @@ class _State:
 
 
 def _tick(state: _State, settings: abc.Callable[[], SlackConfig]) -> int:
-    """Start the socket when a thread is followed, and stop it `_LINGER` after none is."""
+    """Start the socket when anything is followed, and stop it `_LINGER` after nothing is."""
     now = time.monotonic()
     if now - state.checked_at < _CHECK:
         return state.followed

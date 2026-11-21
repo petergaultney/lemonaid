@@ -11,7 +11,7 @@ from lemonaid.inbox import db
 from lemonaid.slack import api, gateway, gateway_socket, presence, session, signed_out, wakes
 from lemonaid.slack_config import SlackConfig
 
-from .shared import SESSION, THREAD, Keychain
+from .shared import CHANNEL, SESSION, THREAD, Keychain
 
 OTHER = ("C0ELSE", "1794850000.000001")
 
@@ -77,14 +77,34 @@ def test_a_message_in_a_followed_thread_wakes_its_followers_and_no_others():
     assert wakes.stamp(THREAD.channel, THREAD.ts) > before
 
 
-def test_each_connect_wakes_every_followed_thread_and_the_beat_ends_with_the_socket(signed_in):
+def test_a_message_posted_in_a_followed_channel_wakes_its_followers_and_a_reply_does_not():
+    wakes.follow(CHANNEL.channel, CHANNEL.ts, "lemon.Ann")
+    before = wakes.stamp(CHANNEL.channel, CHANNEL.ts)
+    time.sleep(0.01)
+    posted = {"type": "message", "channel": CHANNEL.channel, "ts": "1794857999.000001"}
+
+    gateway._signal(json.dumps({**posted, "thread_ts": THREAD.ts}))
+    assert wakes.stamp(CHANNEL.channel, CHANNEL.ts) == before
+
+    gateway._signal(json.dumps({**posted, "thread_ts": THREAD.ts, "subtype": "thread_broadcast"}))
+    broadcast = wakes.stamp(CHANNEL.channel, CHANNEL.ts)
+    assert broadcast > before
+    time.sleep(0.01)
+
+    gateway._signal(json.dumps(posted))
+    assert wakes.stamp(CHANNEL.channel, CHANNEL.ts) > broadcast
+
+
+def test_each_connect_wakes_everything_followed_and_the_beat_ends_with_the_socket(signed_in):
     wakes.follow(THREAD.channel, THREAD.ts, "lemon.Ann")
-    before = wakes.stamp(THREAD.channel, THREAD.ts)
+    wakes.follow(CHANNEL.channel, CHANNEL.ts, "lemon.Sam")
+    before = [wakes.stamp(c.channel, c.ts) for c in (THREAD, CHANNEL)]
     time.sleep(0.01)
 
     _follow_once([])
 
-    assert wakes.stamp(THREAD.channel, THREAD.ts) > before  # catching up what it missed
+    after = [wakes.stamp(c.channel, c.ts) for c in (THREAD, CHANNEL)]
+    assert all(a > b for a, b in zip(after, before, strict=True))  # catching up what it missed
     assert not wakes.gateway_up()
 
 

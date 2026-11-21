@@ -19,7 +19,20 @@ def test_a_reply_link_names_the_thread_it_is_in():
 
     assert thread.ts == "1794857970.806329"
     assert thread.link == ROOT
-    assert permalink.reply_link(thread, "1794858000.000100") == reply
+    assert thread.target == ("C0TEAM", "1794857970.806329")
+    assert permalink.message_link(thread, "1794858000.000100") == reply
+
+
+def test_a_channel_link_names_the_channel():
+    channel = permalink.parse("https://acme.slack.com/archives/C0TEAM/")
+
+    assert channel == ("acme.slack.com", "C0TEAM", "")
+    assert (channel.link, channel.target) == ("https://acme.slack.com/archives/C0TEAM", ("C0TEAM",))
+    assert permalink.message_link(channel, "1794857970.806329") == ROOT
+    assert permalink.message_link(channel, "1794858000.000100", "1794857970.806329") == (
+        "https://acme.slack.com/archives/C0TEAM/p1794858000000100"
+        "?thread_ts=1794857970.806329&cid=C0TEAM"
+    )
 
 
 @pytest.mark.parametrize(
@@ -27,6 +40,7 @@ def test_a_reply_link_names_the_thread_it_is_in():
     [
         "http://acme.slack.com/archives/C0TEAM/p1794857970806329",
         "https://acme.slack.com/messages/C0TEAM",
+        "https://acme.slack.com/archives/C0TEAM/files",
         "https://acme.slack.com/archives/C0TEAM/p1794857970806329?thread_ts=junk",
     ],
 )
