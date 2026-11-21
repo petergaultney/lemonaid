@@ -776,8 +776,8 @@ class LemonaidApp(CrashLoggedApp):
 
     def _show_keys(self, shown: bool) -> None:
         self._keys_shown = shown
-        if self._brief_target is not None:
-            return
+        if self._brief_target is not None or not self.is_running:
+            return  # not running: the hint timer firing during shutdown, as widgets are removed
 
         self.query_one(Footer).display = shown
         self.query_one("#status", Static).display = not shown
