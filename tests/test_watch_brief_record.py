@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from lemonaid import file
 from lemonaid.brief import attached, frontmatter, store, waiters
 from lemonaid.inbox import db
 from lemonaid.watch import (
@@ -221,7 +222,7 @@ def test_unwritable_attached_brief_prevents_startup(brief, tmp_path, monkeypatch
     def fail(*args, **kwargs):
         raise PermissionError("brief is read-only")
 
-    monkeypatch.setattr(store, "_replace", fail)
+    monkeypatch.setattr(file, "replace", fail)
     monkeypatch.setattr(doc_cli.doc_wait, "wait_doc", lambda *a: pytest.fail("must not start"))
     assert doc_cli.run(args("doc", tmp_path)) == 2
     assert "## Waiters" not in brief.read_text()

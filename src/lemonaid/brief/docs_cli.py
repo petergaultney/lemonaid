@@ -36,10 +36,10 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     add.add_argument("purpose")
     add.add_argument(
         "--watch",
-        type=doc_table.Watch,
+        type=doc_table.Watch.read,
         choices=list(doc_table.Watch),
-        default=doc_table.Watch.RELAY_COMMENTS,
-        help="Document events to watch (default: Relay comments)",
+        default=doc_table.Watch.COMMENTS,
+        help="Document events to watch (default: Comments; `Relay comments` is an old name for it)",
     )
     remove = command.parser(verbs, "rm", "Remove a document subscription")
     remove.add_argument("path", type=Path)

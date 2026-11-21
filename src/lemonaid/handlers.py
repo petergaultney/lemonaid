@@ -2,6 +2,7 @@
 
 import sqlite3
 import subprocess
+import sys
 from collections import abc
 from typing import Any, Literal
 
@@ -56,6 +57,20 @@ def handle_notification(
     """
     if config is None:
         config = load_config()
+
+    # A lemon's reply in a file (`comments.notice`) opens the file in the editor running
+    # `lemonaid lsp`, else in whichever app opens it.
+    in_editor = (metadata or {}).get("open_in_editor")
+    if in_editor:
+        _log.info("opening %s in the editor", in_editor)
+        shown = subprocess.run(
+            [sys.executable, "-m", "lemonaid", "editor", "open", in_editor, "--focus"],
+            check=False,
+            capture_output=True,
+        )
+        if shown.returncode == 0:
+            return True
+        return subprocess.run(["open", in_editor], check=False).returncode == 0
 
     # A row naming a document opens it in whichever app owns its URI scheme.
     # Nothing is running behind such a row, so there is no pane to switch to,

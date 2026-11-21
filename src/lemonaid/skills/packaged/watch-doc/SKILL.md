@@ -25,6 +25,12 @@ Reply blocks look like `{{authorId="<id>" author="<name>">>...<<}}`. Relay shows
 
 If `--me` and the `author` of your reply blocks differ, the waiter sees your own replies as unanswered and wakes you on them.
 
+## Comments kept in the file
+
+A Python or Markdown file may also hold comments in a threads section at its end (`<!-- [lma:threads]` or `# [lma:threads]`). The wake lists each unanswered one with its id. Run `lemonaid comments list <path> --unanswered --self` to see them with their code, and answer with `lemonaid comments reply <path> --re <id> --self <body>`; `--self` signs with the name your watcher counts as yours for that file. Without a brief, sign with `--as <name>` and read with `--me <name>`, the name you pass the waiter. Never edit the section by hand. If someone answered while you wrote, `reply` refuses and shows what they said: add only what they didn't, with the `--after` it names, or nothing.
+
+Relay blocks and plain CriticMarkup comments (`{>>...<<}`, which an editor writes with no author) in the same Markdown file wake you too. A plain comment waits until a signed reply block follows it.
+
 ## Watching in your brief
 
 With an attached brief, the watch command automatically records its restartable command under the final `## Watching` after startup checks pass. The command keeps the supplied arguments without injecting defaults or temporary state paths. Rearming updates the same entry, including the head and flags; you do not need a separate `brief waiter add` or `set`. Confirm it is running with `--status`: a saved command can remain while a one-shot waiter has exited.
