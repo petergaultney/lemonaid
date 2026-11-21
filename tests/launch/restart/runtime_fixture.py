@@ -34,17 +34,17 @@ int main(int argc, char **argv) {
     fprintf(out, "home=%s\nbedrock=%s\n", home ? home : "<unset>", provider ? provider : "<unset>");
     fclose(out); return 0;
   }
-  FILE *hook = popen(getenv("TEST_HOOK"), "w");
-  fprintf(hook, "{\"session_id\":\"%s\",\"model\":\"gpt-6\",\"effort\":\"high\",\"model_provider\":\"openai\",\"sandbox_policy\":\"workspace-write\",\"approval_policy\":\"on-request\"}", getenv("TEST_SESSION"));
-  if (pclose(hook)) return 2;
-  FILE *ready = fopen(getenv("TEST_STARTED"), "a");
-  fprintf(ready, "%d\n", getpid()); fclose(ready);
   for (int i=1; i<argc; ++i) {
     if (strstr(argv[i], "You were just ")) {
       FILE *prompt = fopen(getenv("TEST_PROMPT"), "w");
       fprintf(prompt, "%s", argv[i]); fclose(prompt);
     }
   }
+  FILE *hook = popen(getenv("TEST_HOOK"), "w");
+  fprintf(hook, "{\"session_id\":\"%s\",\"model\":\"gpt-6\",\"effort\":\"high\",\"model_provider\":\"openai\",\"sandbox_policy\":\"workspace-write\",\"approval_policy\":\"on-request\"}", getenv("TEST_SESSION"));
+  if (pclose(hook)) return 2;
+  FILE *ready = fopen(getenv("TEST_STARTED"), "a");
+  fprintf(ready, "%d\n", getpid()); fclose(ready);
   while (1) {
     if (getenv("TEST_SELF") && !access(getenv("TEST_SELF"), F_OK)) {
       unlink(getenv("TEST_SELF"));
