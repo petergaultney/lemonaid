@@ -117,6 +117,8 @@ def test_a_superseded_probe_finishing_last_does_not_overwrite_the_newer_answer(m
         return True
 
     monkeypatch.setattr(focus, "pane_receives_keys", lambda pane: True)
+    # Only the two rechecks may call `probe`: a refresh asking too would take one's turn.
+    monkeypatch.setattr(focus.Probe, "has_keys", lambda self, pane: None)
 
     async def check():
         app = LemonaidApp(scratch_mode=True)
