@@ -134,7 +134,11 @@ def test_codex_with_a_live_harness_and_armed_waiter_is_listening(capsys, monkeyp
 
 def test_codex_stopped_at_a_question_is_asking_even_with_an_armed_waiter(capsys, monkeypatch):
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish", "codex"])
-    lemon_id = _attach("codex:asking", {"tty": "/dev/ttys998"}, turn_at=time.time())
+    lemon_id = _attach(
+        "codex:asking",
+        {"tty": "/dev/ttys998", "notification_type": "permission_prompt"},
+        turn_at=time.time(),
+    )
     with db.connect() as conn:
         conn.execute(
             "UPDATE notifications SET status = 'unread' WHERE channel = ?", ("codex:asking",)
@@ -235,9 +239,29 @@ def test_other_harnesses_are_unknown_even_without_a_process():
 
 
 def test_claude_stopped_at_a_question_is_asking():
-    row = db.Notification(id=1, channel="claude:x", message="", turn_at=time.time())
+    row = db.Notification(
+        id=1,
+        channel="claude:x",
+        message="",
+        status="unread",
+        metadata={"notification_type": "permission_prompt"},
+        turn_at=time.time() - 6 * 3600,
+    )
 
     assert recipient.classify("claude:x", row, True, False, time.time()).state == recipient.ASKING
+
+
+def test_a_restored_claude_with_a_turn_left_open_is_not_asking():
+    row = db.Notification(
+        id=1,
+        channel="claude:x",
+        message="",
+        status="read",
+        metadata={"notification_type": "started"},
+        turn_at=time.time() - 3600,
+    )
+
+    assert recipient.classify("claude:x", row, True, True, time.time()).state == recipient.LISTENING
 
 
 def test_an_idle_claude_whose_scout_starts_is_listening(capsys, monkeypatch):

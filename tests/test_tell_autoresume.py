@@ -207,9 +207,11 @@ def test_a_resume_that_found_it_dead_does_not_start_one_restored_since(
 
 def test_a_lemon_at_a_question_is_not_typed_into(capsys, started, monkeypatch):
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["claude"])
-    _attach("claude:asking", "# t\n\nStatus: working\n")
+    _attach("claude:asking", "# t\n\nStatus: working\n", notification_type="permission_prompt")
     with db.connect() as conn:
         db.record_turn(conn, "claude:asking", 1.0)  # a turn left open long ago
+        conn.execute("UPDATE notifications SET status = 'unread' WHERE channel = 'claude:asking'")
+        conn.commit()
 
     assert _tell("claude:asking") == 1
     assert started == []

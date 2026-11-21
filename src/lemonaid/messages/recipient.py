@@ -209,7 +209,7 @@ def classify(
         )
         return State(MID_TURN, detail)
 
-    if row.turn_at is not None:  # however old: it may have sat at a permission prompt for hours
+    if row.asks:  # however old: it may have sat at a permission prompt for hours
         return State(ASKING, "it stopped mid-turn to ask its user something")
 
     if scout_failure:  # its scout holds the lock now and then, between failures

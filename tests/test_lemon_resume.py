@@ -42,6 +42,17 @@ def _attach(channel: str, brief: str) -> str:
         return identity.ensure(conn, path)
 
 
+def _stop_at_prompt(channel: str) -> None:
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE notifications SET status = 'unread',"
+            " metadata = json_set(metadata, '$.notification_type', 'permission_prompt')"
+            " WHERE channel = ?",
+            (channel,),
+        )
+        conn.commit()
+
+
 def _resume(*argv: str) -> int:
     parser = argparse.ArgumentParser()
     resume_cli.add_parser(parser.add_subparsers())
@@ -101,6 +112,7 @@ def test_a_lemon_asking_its_user_is_not_typed_into(capsys, started, monkeypatch)
     _attach("claude:asking", "# t\n\nStatus: working\n")
     with db.connect() as conn:
         db.record_turn(conn, "claude:asking", time.time() - 3600)
+    _stop_at_prompt("claude:asking")
 
     assert _resume("claude:asking") == 1
     assert started == []
@@ -114,10 +126,7 @@ def test_a_codex_asking_its_user_is_not_typed_into_with_an_armed_waiter(
     lemon_id = _attach("codex:asking", "# t\n\nStatus: working\n")
     with db.connect() as conn:
         db.record_turn(conn, "codex:asking", time.time())
-        conn.execute(
-            "UPDATE notifications SET status = 'unread' WHERE channel = ?", ("codex:asking",)
-        )
-        conn.commit()
+    _stop_at_prompt("codex:asking")
 
     with waiter.armed(store.mailbox_for_id(lemon_id)):
         assert _resume("codex:asking") == 1
