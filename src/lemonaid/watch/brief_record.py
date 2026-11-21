@@ -38,6 +38,7 @@ def _identity(
         pr_cli,
         repo_cli,
         reviews_cli,
+        slack_cli,
     )
 
     lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
@@ -61,6 +62,7 @@ def _identity(
             file_cli,
             command_cli,
             briefs_cli,
+            slack_cli,
         ):
             module.add_parser(sub)
         a = parser.parse_args(words[2:])
@@ -80,6 +82,8 @@ def _identity(
         target = reviews_cli.target(a.scope)
     elif kind == "command":
         target = (str(a.wait),)
+    elif kind == "slack":
+        target = a.link.target
     elif kind == "pr":
         url_repo, number = a.wait
         target = (str(number),)

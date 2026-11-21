@@ -26,6 +26,8 @@ import lemonaid.opencode.cli
 import lemonaid.places.cli
 import lemonaid.restore.cli
 import lemonaid.skills.cli
+import lemonaid.slack.cli
+import lemonaid.slack.gateway
 import lemonaid.tasks.cli
 import lemonaid.tasks.inspection.service
 import lemonaid.terminal.cli
@@ -167,6 +169,7 @@ def main() -> None:
     lemonaid.restore.cli.setup_parser(subparsers)
     lemonaid.brief.cli.setup_parser(subparsers)
     lemonaid.skills.cli.setup_parser(subparsers)
+    lemonaid.slack.cli.setup_parser(subparsers)
     lemonaid.tasks.cli.setup_parser(subparsers)
     lemonaid.terminal.cli.setup_parser(subparsers)
     lemonaid.tmux.cli.setup_parser(subparsers)
@@ -174,7 +177,12 @@ def main() -> None:
     lemonaid.watch.wait_cli.setup_parser(subparsers)
     lemonaid.watch.run_cli.setup_parser(subparsers)
     lemonaid.watch.cli.setup_parser(
-        subparsers, (lemonaid.tmux.label_host.service, lemonaid.tasks.inspection.service.service)
+        subparsers,
+        (
+            lemonaid.tmux.label_host.service,
+            lemonaid.tasks.inspection.service.service,
+            lemonaid.slack.gateway.service,
+        ),
     )
     lemonaid.wezterm.cli.setup_parser(subparsers)
     setup_config_parser(subparsers)

@@ -473,6 +473,10 @@ lemonaid watch command --status <pid>
   on the process's exit through kqueue; elsewhere it is checked every `--interval` (5 seconds).
   Records over a week old are removed when `lemonaid run` next starts.
 
+## Watching Slack threads and channels
+
+`lemonaid watch slack <link>` follows a Slack thread, or a channel's own messages, with your own Slack session, and reports each new message with its author, time, permalink and text; `--match <regex>` reports only the messages whose text matches. Listed under `## Watching`, the scout host's one Slack socket wakes the lemon within seconds of a message, and the subscription ends once the brief is `done` or nothing has been posted for 7 days, its line then leaving `## Watching`. Sign-in, the socket, and what happens when Slack ends the session are in [Following Slack threads and channels](slack.md).
+
 ## Watching other lemons
 
 `### Lemons` in `## Now` lists lemons to watch besides your children. A row names a lemon
@@ -607,7 +611,7 @@ for the next waiter. This state is separate from document, PR, and external brie
 
 ## Recording watches in a brief
 
-When the calling lemon has an attached brief, `watch doc`, `watch pr`, `watch repo`, `watch reviews`, `watch file`, `watch command`, and `watch briefs` automatically record their restartable command in its final `## Watching` section after startup checks pass. With `--codex-thread`, the recipient thread’s attached brief is used instead of caller detection. The recorded command preserves the supplied arguments and their order (with shell-safe quoting), including `--self`, relative paths and a bare `--codex-thread`. Omitted defaults stay omitted; no temporary state-directory path is injected. Restart it from the same project or directory context, with the appropriate harness identity. Rearming the same watch replaces its entry, including changed heads and flags. Different targets and signatures remain separate. Matching context is kept in a hidden `.BRIEF-FILENAME.waiter-context.json` file beside the brief so a later command from another directory or repository cannot replace the earlier watch. If that context is unavailable, ambiguous saved entries are preserved.
+When the calling lemon has an attached brief, `watch doc`, `watch pr`, `watch repo`, `watch reviews`, `watch file`, `watch command`, `watch briefs`, and `watch slack` automatically record their restartable command in its final `## Watching` section after startup checks pass. With `--codex-thread`, the recipient thread’s attached brief is used instead of caller detection. The recorded command preserves the supplied arguments and their order (with shell-safe quoting), including `--self`, relative paths and a bare `--codex-thread`. Omitted defaults stay omitted; no temporary state-directory path is injected. Restart it from the same project or directory context, with the appropriate harness identity. Rearming the same watch replaces its entry, including changed heads and flags. Different targets and signatures remain separate. Matching context is kept in a hidden `.BRIEF-FILENAME.waiter-context.json` file beside the brief so a later command from another directory or repository cannot replace the earlier watch. If that context is unavailable, ambiguous saved entries are preserved.
 
 The entry survives one-shot events, interrupted waits, and delivery failures so it can be rearmed. `lemonaid watch stop --self` removes it along with the waiter it stops (see below); for a waiter that already exited, remove it with `lemonaid brief waiter rm --self "<unique command substring>"` when the watch ends permanently. The manual `add` and `set` verbs remain available for custom shell waiters. With no attached brief, watching works as before without recording; a failed write to an attached brief prevents startup and reports the error. Status queries, document edit markers, and refused duplicate waits never change the brief.
 
@@ -674,7 +678,7 @@ The rows and commands declare these sources:
 
 | Source | What the unified watcher watches |
 |---|---|
-| `## Watching` | Supported `watch pr`, `doc`, `file`, `command` and `briefs` commands, using their supplied options. These are declarations, not shell commands to execute. |
+| `## Watching` | Supported `watch pr`, `doc`, `file`, `command`, `briefs` and `slack` commands, using their supplied options. These are declarations, not shell commands to execute. |
 | `### PRs` | Each PR with comments enabled, regardless of whether an explicit watch line omitted that flag. A pass is reported as `ci-green` after CI was seen running or failed, and otherwise only for an explicit `--ci` line. Each PR wakes only for the events its role needs; see [Roles](#roles). |
 | A PR's Review cell | A local review document's unanswered comments and body edits, whatever its Docs row says, because reviewers write findings and verdicts in the body. Obsidian links resolve through configured vault roots. |
 | `### Docs` | Unanswered comments on each document; `Watch: All edits` also watches the body. Documents remain watched while the session exists, including when its brief says `Status: done`. |
