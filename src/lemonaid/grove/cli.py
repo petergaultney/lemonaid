@@ -13,7 +13,7 @@ from rich.segment import Segment, Segments
 
 from ..config import load_config
 from ..lemon_watchers.common import detect_terminal_switch_source
-from . import as_json, edit_cli, garden_cli, layout_cli
+from . import as_json, edit_cli, garden_cli, graft_cli, layout_cli
 from .draw import block_scene, canvas, scenes
 from .layout import advice
 from .source import live, standalone
@@ -116,5 +116,6 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     ).set_defaults(func=_cmd_open)
     edit_cli.add_parsers(grove_subparsers)
     garden_cli.add_parsers(grove_subparsers)
+    graft_cli.add_parsers(grove_subparsers)
     layout_cli.add_parsers(grove_subparsers)
     window_cli.add_parsers(grove_subparsers)

@@ -16,6 +16,7 @@ from ...inbox.tui.edits.screens import RenameScreen, SnoozeScreen
 from ..tui.picking import Target
 from ..tui.rename_dialog import RenameDialog
 from . import changes, renames
+from .tree_picker import TreePickerScreen
 
 
 def _in_thread(app: App, work: abc.Callable[[], str], done: abc.Callable[[str], None]) -> None:
@@ -71,6 +72,11 @@ def ask(
             lambda: app.call_from_thread(pick, changes.group_names(target)),
             thread=True,
             group="grove-edit",
+        )
+    elif target.action == "graft":
+        app.push_screen(
+            TreePickerScreen(f"Put {target.name} on another lemon's tree", target.trees),
+            then(lambda onto: changes.graft(target, onto)),
         )
     elif target.action == "color":
 

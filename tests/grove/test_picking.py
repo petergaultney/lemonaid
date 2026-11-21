@@ -1,7 +1,9 @@
+import dataclasses
+
 from lemonaid.grove.layout import arrange
 from lemonaid.grove.tui import picking
 
-from .selecting.shared import BLOCKS, CORE, _in, press
+from .selecting.shared import ARRANGEMENT, BLOCKS, CORE, NOTES, _in, press
 from .shared import NOW, block, lemon
 
 
@@ -51,3 +53,43 @@ def test_the_packhouse_has_no_color():
     letter = found.trees[("", "hq")].letter
     where, _, target = press("tab", "0", letter, "c", blocks=packhouse, arrangement=found)
     assert target is None and "no color" in where.note
+
+
+def test_a_graft_offers_each_other_trees_main_lemon_its_own_block_first():
+    where, _, target = press("tab", "1", NOTES, "t")
+    other = ARRANGEMENT.trees[("relay", "other")]
+    assert target.trees == (
+        ("claude:a", f"1{CORE} {ARRANGEMENT.trees[('oria', 'core')].label}"),
+        ("claude:o", f"2{other.letter} {other.label}"),
+    )
+    assert picking.prompt(where, BLOCKS) == "grafting lemon lemon claude:notes"
+
+
+def test_a_grafted_lemon_can_go_back_and_a_session_rename_leaves_it_where_it_runs():
+    guest = dataclasses.replace(
+        lemon("claude:g"), session="elsewhere", grafted_onto="SwordAce.core"
+    )
+    core = _in("core", lemon("claude:a", "SwordAce"))
+    grafted = (block("oria", "1", dataclasses.replace(core, lemons=(*core.lemons, guest))),)
+    found, _ = arrange.arrange(grafted, {"plots": {}, "trees": {}}, NOW)
+    letter = found.trees[("oria", "core")].letter
+    _, _, back = press("tab", "1", ".", letter, "1", "t", blocks=grafted, arrangement=found)
+    assert back.trees == (("", "back to its own tree"),)
+    _, _, rename = press("tab", "1", "$", letter, "r", blocks=grafted, arrangement=found)
+    assert rename.lemons == (("claude:a", ""),)
+
+
+def test_a_session_rename_covers_lemons_running_there_that_a_graft_draws_elsewhere():
+    a = dataclasses.replace(lemon("claude:a"), grafted_onto="claude:c")
+    old = _in("old", lemon("claude:b"))
+    other = _in("other", lemon("claude:c"))
+    other = dataclasses.replace(
+        other, lemons=(*other.lemons, dataclasses.replace(a, session="old"))
+    )
+    same = dataclasses.replace(lemon("claude:s"), session="old", grafted_onto="claude:b")
+    old = dataclasses.replace(old, lemons=(*old.lemons, same))
+    grafted = (block("oria", "1", old, other),)
+    found, _ = arrange.arrange(grafted, {"plots": {}, "trees": {}}, NOW)
+    letter = found.trees[("oria", "old")].letter
+    _, _, rename = press("tab", "1", "$", letter, "r", blocks=grafted, arrangement=found)
+    assert sorted(channel for channel, _ in rename.lemons) == ["claude:a", "claude:b", "claude:s"]

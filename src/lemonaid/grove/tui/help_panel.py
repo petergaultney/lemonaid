@@ -52,8 +52,9 @@ _SELECT = [
         "with a whole tree chosen, move it a step; Shift, five; it hops what it can't stand on",
     ),
     (
-        "r, s, a, p, g, c",
-        "with a tree or a lemon chosen: rename, snooze, archive, pin or unpin, move to another group, recolor its block",
+        "r, s, a, p, g, t, c",
+        "with a tree or a lemon chosen: rename, snooze, archive, pin or unpin, move to another group"
+        " or onto another lemon's tree, recolor its block",
     ),
     ("enter, o", "jump to the chosen lemon, or the chosen tree's first"),
     ("backspace", "back to the block, then out of it"),
@@ -96,7 +97,7 @@ def rows(
         else (
             key,
             "select mode: keys choose a block, tree or lemon without jumping, a card shows it,"
-            " and r s a p g c rename, snooze, archive, pin, move or recolor it",
+            " and r s a p g t c rename, snooze, archive, pin, move or recolor it",
         )
     )
     return [

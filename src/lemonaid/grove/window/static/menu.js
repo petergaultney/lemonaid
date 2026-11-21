@@ -2,7 +2,7 @@
 // choosing one from the keyboard after `Tab`; those that need an answer ask for it in a small dialog, and
 // Python makes the change (window/edits.py). Each edit has the terminal's letter.
 const menu = document.getElementById("menu"), dialog = document.getElementById("dialog");
-const EDITS = [["rename", "r", "Rename…"], ["snooze", "s", "Snooze…"], ["archive", "a", "Archive"], ["pin", "p", "Pin or unpin"], ["group", "g", "Move to group…"], ["color", "c", "Recolor block…"]];
+const EDITS = [["rename", "r", "Rename…"], ["snooze", "s", "Snooze…"], ["archive", "a", "Archive"], ["pin", "p", "Pin or unpin"], ["group", "g", "Move to group…"], ["graft", "t", "To another lemon's tree…"], ["color", "c", "Recolor block…"]];
 const escaped = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const menuOpen = () => menu.style.display === "block", dialogOpen = () => dialog.style.display === "block";
 let menuItems = [], menuAt = 0, menuTarget = null;  // the open menu's edits, the highlighted one, and what they change
@@ -40,7 +40,7 @@ function showMenu(x, y, target) {
 function choose(action) { menu.style.display = "none"; begin(action, menuTarget); }
 // While the menu is open: an edit's letter, or ↑ ↓ and enter, chooses it; esc closes it.
 function menuKey(e) {
-  const by = menuItems.find(([, key]) => key === e.key);
+  const by = menuItems.find(([, key]) => key === e.key.toLowerCase());  // shown capitalized, so Shift may be held
   if (by) return choose(by[0]);
   if (e.key === "ArrowDown" || e.key === "ArrowUp") { menuAt = (menuAt + (e.key === "ArrowDown" ? 1 : menuItems.length - 1)) % menuItems.length; return drawMenu(); }
   if (e.key === "Enter") return choose(menuItems[menuAt][0]);
@@ -107,16 +107,41 @@ async function begin(action, target) {
     color: field(info.color, "#rrggbb or a name like teal; empty clears"),
     snooze: field("", info.syntax) + choices(info.presets),
     group: info.groups.length ? choices(info.groups.map(g => [g, g])) : "<div>No other group to move to.</div>",
+    graft: info.trees.length ? field("", "type to narrow") + `<div style="max-height:50vh; overflow-y:auto">${choices(info.trees)}</div>` : "<div>No other tree to move to.</div>",
   }[action];
-  dialog.innerHTML = `<div class="title">${escaped(info.what)}</div>${body}<div class="hint">enter to change · esc to cancel</div>`;
+  const hint = action === "graft" ? "↑ ↓ to choose · enter to put it there · esc to cancel" : "enter to change · esc to cancel";
+  dialog.innerHTML = `<div class="title">${escaped(info.what)}</div>${body}<div class="hint">${hint}</div>`;
   dialog.style.display = "block";
   dialog.querySelectorAll(".item").forEach(item => item.addEventListener("click", () => edit(action, target, item.dataset.value)));
-  const input = dialog.querySelector("#answer");
+  const input = dialog.querySelector("#answer"), items = [...dialog.querySelectorAll(".item")];
   if (input) { input.focus(); input.select(); }
+  const shown = () => items.filter(item => item.style.display !== "none");
+  let at = 0;  // among the trees the typing leaves, the one Enter picks
+  const mark = () => {
+    items.forEach(item => item.classList.toggle("on", item === shown()[at]));
+    shown()[at]?.scrollIntoView({block: "nearest"});
+  };
+  if (action === "graft" && input) {
+    input.oninput = () => {
+      items.forEach(item => { item.style.display = item.textContent.toLowerCase().includes(input.value.trim().toLowerCase()) ? "" : "none"; });
+      at = 0;
+      mark();
+    };
+    mark();
+  }
   dialog.onkeydown = ev => {  // kept from the page's own keys, which would act on them again
     if (!dialogOpen()) return;
     if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); closeMenus(); }
-    else if (ev.key === "Enter" && input) { ev.preventDefault(); ev.stopPropagation(); edit(action, target, input.value.trim()); }
+    else if (action === "graft" && (ev.key === "ArrowDown" || ev.key === "ArrowUp") && shown().length) {
+      ev.preventDefault(); ev.stopPropagation();
+      at = (at + (ev.key === "ArrowDown" ? 1 : shown().length - 1)) % shown().length;
+      mark();
+    }
+    else if (ev.key === "Enter" && input) {
+      ev.preventDefault(); ev.stopPropagation();
+      if (action !== "graft") edit(action, target, input.value.trim());
+      else if (shown()[at]) edit(action, target, shown()[at].dataset.value);
+    }
   };
 }
 
@@ -135,7 +160,7 @@ function showHelp() {
     ...(zoomed ? [["a letter", "jump to that tree's first lemon"], [".s1", "another lemon on tree s: 1 is the second, 0a the eleventh"], [". .", "back to this block's fit"], ["drag a tree", "move it within its block"], ["drag a bare tree", "move it, or off its block's ground to clear it"]]
       : [["a digit", "zoom into that block"], ["click a tree", "jump to its first lemon"], [".", "back to the grove's fit"], ["drag a block", "move it, or by its edge resize it; open ground too"]]),
     ["click a lemon's row", "jump to that lemon; on its other page, a PR number opens the PR"],
-    ["right-click", "a lemon's, tree's or block's edits: rename, snooze, archive, pin, move to a group; recolor a block"],
+    ["right-click", "a lemon's, tree's or block's edits: rename, snooze, archive, pin, move to a group or another lemon's tree; recolor a block"],
     ["tab", zoomed ? "choose from the keyboard: a letter, .s1, $ and a letter for the whole tree, or # for the block; then its edit's letter" : "choose from the keyboard: a block's digit first"],
     ["/", "search Brief-IDs, sessions and names; ↑ ↓ choose, enter jumps"],
     [`hold ${flipKey}`, zoomed ? "each lemon's PRs, branch, model and context" : "each tree's mid-turn lemons, fullest context and latest report"],

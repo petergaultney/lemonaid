@@ -30,11 +30,12 @@ class Lemon:
     updated: float = 0.0  # when it last reported, epoch seconds
     contested: bool = False  # an open challenge disputes its Status
     prs: tuple[tuple[str, str], ...] = ()  # its PRs as the inbox shows them: number, and URL or ""
+    grafted_onto: str = ""  # the lemon whose tree a graft puts it on (Lemon-ID, else channel)
 
 
 @dataclasses.dataclass(frozen=True)
 class Tree:
-    key: str  # what makes lemons share a tree: their place, else their terminal container
+    key: str  # its main lemon's terminal container, else its place; a graft adds other lemons
     label: str
     lemons: tuple[Lemon, ...]  # its main lemon first: see `source.blocks.main_first`
     lead: bool  # holds the group's lead

@@ -72,6 +72,9 @@ class GroupPickerScreen(ModalScreen[str | None]):
         ("down", "step(1)", "Next group"),
     ]
 
+    PLACEHOLDER = "type to narrow, or to name a new group"
+    HINT = "Enter to add, Up/Down to pick, Escape to cancel"
+
     def __init__(self, title: str, names: abc.Sequence[str]) -> None:
         super().__init__()
         self._title = title
@@ -80,16 +83,19 @@ class GroupPickerScreen(ModalScreen[str | None]):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label(self._title)
-            yield Input(placeholder="type to narrow, or to name a new group", id="group-name")
+            yield Input(placeholder=self.PLACEHOLDER, id="group-name")
             options = OptionList(id="group-options")
             options.can_focus = False
             yield options
-            yield Label("Enter to add, Up/Down to pick, Escape to cancel", classes="hint")
+            yield Label(self.HINT, classes="hint")
+
+    def _choices(self, typed: str) -> list[tuple[str, str]]:
+        return choices(self._names, typed)
 
     def _show(self, typed: str) -> None:
         options = self.query_one("#group-options", OptionList)
         options.clear_options()
-        options.add_options([Option(label, id=id) for id, label in choices(self._names, typed)])
+        options.add_options([Option(label, id=id) for id, label in self._choices(typed)])
         options.highlighted = 0 if options.option_count else None
 
     def on_mount(self) -> None:

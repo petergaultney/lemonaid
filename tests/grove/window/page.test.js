@@ -103,7 +103,51 @@ test("a block's menu only recolors it, and a lemon's or a tree's never does", ()
   vm.runInContext(`${menuJs.match(/const EDITS = [^\n]*/)[0]}\nconst editsFor = ${menuJs.match(/const editsFor = ([^\n]*)/)[1]}`, context);
 
   assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(editsFor({block: true}).map(e => e[0]))", context)), ["color"]);
-  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(editsFor({}).map(e => e[0]))", context)), ["rename", "snooze", "archive", "pin", "group"]);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(editsFor({}).map(e => e[0]))", context)), ["rename", "snooze", "archive", "pin", "group", "graft"]);
+});
+
+test("an edit's letter chooses it from the menu with or without Shift", () => {
+  const chosen = [];
+  const context = {menu: {style: {}}, menuTarget: {}, menuAt: 0, drawMenu: () => {}, begin: action => chosen.push(action)};
+  vm.createContext(context);
+  vm.runInContext(`${menuJs.match(/const EDITS = [^\n]*/)[0]}\nvar menuItems = EDITS;\n${fromMenu("choose")}\n${fromMenu("menuKey")}`, context);
+
+  for (const key of ["t", "T", "R", "x"]) vm.runInContext(`menuKey({key: ${JSON.stringify(key)}})`, context);
+  assert.deepEqual(chosen, ["graft", "graft", "rename"]);
+});
+
+// The graft dialog, with stand-ins for its field and its trees, and the trees Enter sent to Python.
+async function grafting(trees) {
+  const sent = [];
+  const element = () => ({style: {}, dataset: {}, classList: {on: false, toggle(_, on) { this.on = on; }}, addEventListener() {}, scrollIntoView() {}});
+  const input = {...element(), value: "", focus() {}, select() {}};
+  const items = trees.map(([value, label]) => ({...element(), dataset: {value}, textContent: label}));
+  const dialog = {style: {}, querySelector: () => input, querySelectorAll: () => items};
+  const context = {
+    dialog, dialogOpen: () => true, closeMenus: () => {}, said: () => {},
+    window: {pywebview: {api: {edit_info: async () => ({what: "Put it on another lemon's tree", trees, presets: [], groups: []}), edit: async (...args) => sent.push(args[4])}}},
+  };
+  vm.createContext(context);
+  vm.runInContext(`${menuJs.match(/const escaped = [^\n]*/)[0]}\n${fromMenu("edit")}\nasync ${fromMenu("begin")}`, context);
+  await context.begin("graft", {digit: "5", key: "g", channel: "c:1"});
+  const press = key => dialog.onkeydown({key, preventDefault() {}, stopPropagation() {}});
+  const type = text => { input.value = text; input.oninput(); };
+  const on = () => items.filter(item => item.classList.on).map(item => item.dataset.value);
+  return {sent, press, type, on};
+}
+
+test("the graft dialog marks the tree Enter picks, and arrows move the mark among those the typing leaves", async () => {
+  const {sent, press, type, on} = await grafting([["c:a", "5a ant"], ["c:b", "5b bee"], ["c:c", "6a bear"]]);
+
+  assert.deepEqual(on(), ["c:a"]);
+  press("ArrowUp");
+  assert.deepEqual(on(), ["c:c"]);
+  type("be");
+  assert.deepEqual(on(), ["c:b"]);
+  press("ArrowDown");
+  assert.deepEqual(on(), ["c:c"]);
+  press("Enter");
+  assert.deepEqual(sent, ["c:c"]);
 });
 
 test("tab's digits build a block's number, so 1 then 2 chooses in block 12", () => {

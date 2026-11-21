@@ -1,6 +1,7 @@
 import itertools
 
 from lemonaid import groups
+from lemonaid.grove import grafts
 from lemonaid.grove.source import changes
 from lemonaid.grove.tui.picking import Target
 from lemonaid.inbox import db, pins
@@ -58,3 +59,16 @@ def test_moving_to_a_group_it_is_in_already_still_takes_it_out_of_its_own():
     with db.connect() as conn:
         assert groups.store.find(conn, "here").members == ()
         assert set(groups.store.find(conn, "there").members) == {a, b}
+
+
+def test_grafting_a_tree_moves_each_lemon_and_back_ungrafts_them():
+    a, b, host = _lemon("graft-a"), _lemon("graft-b"), _lemon("graft-host")
+    assert changes.graft(_target("graft", a, b), host) == f"grafted 2 lemons onto {host}"
+    with db.connect() as conn:
+        assert {a: host, b: host}.items() <= grafts.recorded(conn).items()
+    assert (
+        changes.graft(_target("graft", host), a)
+        == f"{a} is grafted onto {host}'s tree; ungraft it first"
+    )
+    assert changes.graft(_target("graft", a, b), "") == "ungrafted 2 lemons"
+    assert changes.graft(_target("graft", a, b), "") == "no graft to undo"

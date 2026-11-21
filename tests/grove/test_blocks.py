@@ -2,10 +2,13 @@ import dataclasses
 
 from lemonaid.groups.store import Group
 from lemonaid.grove.draw import colors
+from lemonaid.grove.layout import arrange
 from lemonaid.grove.source import blocks, inputs
 from lemonaid.inbox import context_use, db
 from lemonaid.inbox.tui.rows import pr_numbers
 
+from .selecting.shared import press
+from .shared import NOW
 from .shared import lemon as shared_lemon
 
 
@@ -137,3 +140,46 @@ def test_a_lemon_knows_its_branch_prs_and_age():
         "4m ago",
         "Sol 6.1",
     )
+
+
+def test_a_grafted_lemon_hangs_after_its_hosts_tree_mates_until_its_host_goes():
+    rows = [
+        notification("claude:host", "richer"),
+        notification("codex:mate", "richer"),
+        notification("claude:guest", "window"),
+    ]
+    found = dataclasses.replace(
+        read(rows, {row.channel: ("oria",) for row in rows}),
+        lemon_ids={"claude:host": "SillyOil.richer"},
+        grafts={"claude:guest": "SillyOil.richer"},
+    )
+    (oria,) = blocks.blocks(found, {})
+    assert [(t.key, [m.channel for m in t.lemons]) for t in oria.trees] == [
+        ("richer", ["claude:host", "codex:mate", "claude:guest"])
+    ]
+    assert oria.trees[0].lemons[2].grafted_onto == "SillyOil.richer"
+
+    gone = dataclasses.replace(found, rows=rows[1:])
+    (oria,) = blocks.blocks(gone, {})
+    assert sorted(t.key for t in oria.trees) == ["richer", "window"]
+    assert not any(m.grafted_onto for t in oria.trees for m in t.lemons)
+
+
+def test_a_grafted_lead_comes_after_its_hosts_own_so_the_tree_still_renames_its_session():
+    rows = [
+        notification("claude:host", "host"),
+        notification("claude:lead", "lead"),
+        notification("claude:child", "lead"),
+    ]
+    found = dataclasses.replace(
+        read(rows, {row.channel: ("oria",) for row in rows}, {"claude:child": "claude:lead"}),
+        grafts={"claude:lead": "claude:host"},
+    )
+    grove = blocks.blocks(found, {})
+    host = next(t for t in grove[0].trees if t.key == "host")
+    assert host.lead and [m.channel for m in host.lemons] == ["claude:host", "claude:lead"]
+
+    arrangement, _ = arrange.arrange(grove, {"plots": {}, "trees": {}}, NOW)
+    letter = arrangement.trees[("oria", "host")].letter
+    _, _, rename = press("tab", "1", "$", letter, "r", blocks=grove, arrangement=arrangement)
+    assert (rename.channel, rename.name) == ("", "host")

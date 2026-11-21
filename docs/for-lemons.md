@@ -1013,6 +1013,22 @@ lemonaid grove show --plain 2          # block 2 drawn as text
 lemonaid grove move 2 40 10            # move block 2's corner; resize, reshape, clear-open too
 ```
 
+A tree is a terminal workspace unless a graft puts a lemon on another lemon's tree. When the
+person asks to put a lemon on another's tree, or to combine two trees, graft each lemon onto the
+other tree's main lemon:
+
+```bash
+lemonaid grove graft StoveHub --onto SillyOil   # Lemon-IDs, names, channels or self
+lemonaid grove ungraft StoveHub                 # back on its own tree
+lemonaid grove grafts --json                    # lemon, onto, grafted_at, waiting
+```
+
+A graft changes only the drawing: it moves no window, pane or directory, and the lemon keeps its
+group. It is kept in lemonaid's database by Lemon-ID (by channel without a brief), so it holds
+across restarts, resumes and renamed trees. While the host isn't live (`waiting`), the lemon
+stands on its own tree. In `grove show --json`, a grafted lemon stands on its host's tree and its
+`grafted_onto` names the host; it is `""` for a lemon on its own tree.
+
 Gardening means laying out a block's trees so that, zoomed in, each tree stands on top of its
 lemon list, its tag clear of its neighbors in the grove view, and the block's lead nearest the
 packhouse. Blocks were placed with care; tidy what is off, moving as little as you can, rather
