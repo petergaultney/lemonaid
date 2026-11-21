@@ -263,7 +263,7 @@ def _arrange() -> None:
 
 
 def _stage(keys: list[str], columns: int, rows: int) -> None:
-    demo._tmux("kill-server")
+    demo._end_server()
     demo._tmux(
         "-f", "/dev/null", "new-session", "-d", "-s", "demo", "-n", "grove",
         "-x", str(columns), "-y", str(rows), "-c", str(Path.home()),
