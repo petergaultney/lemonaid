@@ -7,7 +7,7 @@ from ..layout.arrange import Arrangement
 from ..model import Block, Lemon, Tree
 from . import choice, keys
 
-_EDITS = "r s a p g c edit"
+_EDITS = "r s a p g t c edit"
 
 
 def key_name(key: str) -> str:

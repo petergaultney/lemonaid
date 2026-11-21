@@ -14,7 +14,15 @@ from ..layout.arrange import Arrangement
 from ..model import Block, Lemon, Tree
 from . import choice, keys, picking
 
-VERBS = {"r": "rename", "s": "snooze", "a": "archive", "p": "pin", "g": "group", "c": "color"}
+VERBS = {
+    "r": "rename",
+    "s": "snooze",
+    "a": "archive",
+    "p": "pin",
+    "g": "group",
+    "t": "graft",
+    "c": "color",
+}
 DEFAULT_KEY = "tab"
 
 Step = tuple[keys.Where, str, picking.Target | None]
@@ -71,6 +79,7 @@ def _edit(
     where: keys.Where,
     verb: str,
     blocks: abc.Sequence[Block],
+    arrangement: Arrangement,
     found: tuple[Block, Tree, Lemon | None],
 ) -> Step:
     block, tree, lemon = found
@@ -79,12 +88,12 @@ def _edit(
         if not block.name:
             return _noted(where, "the packhouse has no color")
         editing = dataclasses.replace(where, editing=action)
-        return editing, "", picking.target(editing, blocks, block, None)
+        return editing, "", picking.target(editing, blocks, arrangement, block, None)
 
     whole = "" in picking.edit_choices(action, tree)  # not a one-lemon tree, or a dir's rename
     channel = lemon.channel if lemon else "" if whole else tree.lemons[0].channel
     editing = dataclasses.replace(where, editing=action, picked_tree=tree.key, picked_lemon=channel)
-    return editing, "", picking.target(editing, blocks, block, tree)
+    return editing, "", picking.target(editing, blocks, arrangement, block, tree)
 
 
 def _searched(
@@ -138,9 +147,9 @@ def _letter(
     if found and key == "o":
         return where, (found[2] or found[1].lemons[0]).channel, None
     if found and key in VERBS:
-        return _edit(where, key, blocks, found)
+        return _edit(where, key, blocks, arrangement, found)
     if found:
-        return _noted(where, "r s a p g c edit · o jumps · backspace to choose another tree")
+        return _noted(where, "r s a p g t c edit · o jumps · backspace to choose another tree")
     if key.isupper():
         return _noted(where, "$ and a tree's letter chooses the whole tree")
 

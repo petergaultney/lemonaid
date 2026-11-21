@@ -7,6 +7,7 @@ import pytest
 
 from lemonaid import lineage
 from lemonaid.brief import attached, identity, lemon, name_words, reroll, store, write_cli
+from lemonaid.grove import grafts
 from lemonaid.inbox import db
 from lemonaid.messages import cli, waiter
 from lemonaid.messages import store as message_store
@@ -67,6 +68,19 @@ def test_reroll_carries_the_mailbox_links_and_brief_to_the_new_id():
         assert lineage.links.children_of(conn, rerolled.new_id) == [child]
         assert lemon.brief_of(conn, old) == (store.briefs_dir() / "center.md").resolve()
         assert lemon.lemon_id(conn, old) == rerolled.new_id
+
+
+def test_reroll_keeps_grafts_onto_and_off_the_lemon():
+    host, guest = _lemon("host", "claude:host"), _lemon("guest", "claude:guest")
+    old = _lemon("middle", "claude:middle")
+    with db.connect() as conn:
+        grafts.graft(conn, old, host)
+        grafts.graft(conn, guest, old)
+
+    new = _reroll("middle", "quickodd").new_id
+
+    with db.connect() as conn:
+        assert grafts.recorded(conn) == {new: host, guest: new}
 
 
 def test_tell_to_the_old_id_reaches_the_new_mailbox(capsys, monkeypatch):

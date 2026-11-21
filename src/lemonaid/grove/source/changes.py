@@ -6,6 +6,7 @@ make them too.
 from ... import brief, groups
 from ...inbox import db, pins
 from ...inbox.tui.edits import inbox_edits
+from .. import grafts
 from ..tui.picking import Target
 
 
@@ -79,6 +80,24 @@ def move(target: Target, name: str) -> str:
     except groups.store.GroupError as error:
         return str(error)
     return _counted("moved", moved, f' to "{name}"')
+
+
+def graft(target: Target, onto: str) -> str:
+    """Graft each lemon onto the tree of the lemon on channel *onto*, or with "" put each back
+    on its own tree."""
+    with db.connect() as conn:
+        lemons = {channel: _lemon_id(conn, channel) for channel in channels_of(target)}
+        if not onto:
+            ungrafted = sum(bool(grafts.ungraft(conn, pair)) for pair in lemons.items())
+            return _counted("ungrafted", ungrafted) if ungrafted else "no graft to undo"
+
+        host = _lemon_id(conn, onto)
+        try:
+            for lemon in lemons.values():
+                grafts.graft(conn, lemon, host)
+        except grafts.GraftError as error:
+            return str(error)
+    return _counted("grafted", len(lemons), f" onto {brief.identity.brief_name(host) or host}")
 
 
 def group_names(target: Target) -> list[str]:

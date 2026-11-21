@@ -84,7 +84,7 @@ def test_c_recolors_the_chosen_trees_block():
 def test_another_letter_with_a_choice_says_what_letters_do():
     where, channel, target = press("tab", "1", CORE, "x")
     assert (channel, target) == ("", None)
-    assert where.selected_lemon == "claude:a" and "r s a p g c" in where.note
+    assert where.selected_lemon == "claude:a" and "r s a p g t c" in where.note
 
 
 def test_backspace_goes_back_to_the_block_then_out_of_it():

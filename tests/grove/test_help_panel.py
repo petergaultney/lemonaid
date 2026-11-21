@@ -15,8 +15,9 @@ def test_both_views_say_tab_selects_and_select_mode_lists_every_edit():
         assert "select mode" in keys["Tab"]
         assert {"?", "esc", "space"} <= set(keys)
         assert not any(key.startswith("Alt+r") for key in keys)
-    edits = dict(help_panel.rows(True, selected=True))["r, s, a, p, g, c"]
-    assert all(verb in edits for verb in ("rename", "snooze", "archive", "pin", "move", "recolor"))
+    edits = dict(help_panel.rows(True, selected=True))["r, s, a, p, g, t, c"]
+    verbs = ("rename", "snooze", "archive", "pin", "move", "lemon's tree", "recolor")
+    assert all(verb in edits for verb in verbs)
 
 
 def test_both_views_list_the_flip_key_as_configured():
@@ -62,7 +63,7 @@ def test_question_mark_shows_the_keys_over_the_grove_and_any_key_closes_them():
 
 def test_select_mode_lists_its_own_keys_and_how_to_leave():
     keys = dict(help_panel.rows(True, select_key="`", selected=True))
-    assert "rename" in keys["r, s, a, p, g, c"]
+    assert "rename" in keys["r, s, a, p, g, t, c"]
     assert keys["`, esc"] == "leave select mode"
     assert "esc" not in keys
     assert "select mode" in dict(help_panel.rows(True))["Tab"]

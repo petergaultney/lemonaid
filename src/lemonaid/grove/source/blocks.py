@@ -1,34 +1,19 @@
 """The grove's blocks, trees and lemons from what the inbox read.
 
-A lemon in several groups stands in the first, so it has exactly one place in the grove.
-Lemons share a tree when they run in the same terminal workspace (a tmux session or a
-WezTerm workspace), or otherwise in the same directory.
+A lemon in several groups stands in the first, so it has exactly one place in the grove;
+`rooting` says which tree it stands on.
 """
 
 import time
 from collections import abc
 
-from ... import brief, front_end
+from ... import brief
 from ...inbox import context_use, db, group_lead, model_label, provider_color, turns
 from ..model import Block, Lemon, Tree
+from . import rooting
 from .inputs import Inputs
 
 UNGROUPED_COLOR = "#c9b79c"
-
-
-def _tree(n: db.Notification) -> tuple[str, str]:
-    """(key, label) of *n*'s tree. A tmux tree's key is its session, which renaming the tree
-    renames; another front end's key holds its instance too, so equal names never merge.
-    """
-    where = front_end.location.of(n.metadata, n.switch_source)
-    if where.front_end == "tmux" and where.workspace:
-        return where.workspace, where.workspace
-
-    if where.workspace:
-        return f"{where.front_end}:{where.instance}:{where.workspace}", where.workspace
-
-    place = str(n.metadata.get("cwd") or n.channel)
-    return place, place
 
 
 def _context(n: db.Notification, thresholds: abc.Mapping[str, context_use.Threshold]) -> str:
@@ -51,6 +36,7 @@ def _lemon(
     inputs: Inputs,
     thresholds: abc.Mapping[str, context_use.Threshold],
     now: float,
+    grafted_onto: str,
 ) -> Lemon:
     card = inputs.cards.get(n.channel)
     status = card.status if card and card.status in brief.store.states() else ""
@@ -85,6 +71,7 @@ def _lemon(
         age=brief.status.age(max(0.0, now - n.created_at)),
         updated=n.created_at,
         prs=tuple((pr.number, pr.url) for pr in inputs.numbers.get(n.channel, ())),
+        grafted_onto=grafted_onto,
     )
 
 
@@ -93,10 +80,11 @@ def main_first(
 ) -> tuple[Lemon, ...]:
     """A tree's lemons with its main lemon first, so its lowercase letter always reaches it.
 
-    The group's lead (channel *lead*) comes first; then a lemon whose brief is hidden (a
-    reviewer's) comes after one that isn't, then a lemon comes after its ancestors in the tree
-    (per *parents*, child channel to parent channel), then the lower window comes first, then
-    the older lemon; the channel settles any tie.
+    A lemon grafted on comes after the tree's own, even the group's lead, so the tree's main
+    lemon is one that runs in its session. Then the group's lead (channel *lead*) comes first,
+    a lemon whose brief is hidden (a reviewer's) comes after one that isn't, a lemon comes after
+    its ancestors in the tree (per *parents*, child channel to parent channel), the lower window
+    comes first, then the older lemon; the channel settles any tie.
     """
     members = tuple(lemons)
     here = {m.channel for m in members}
@@ -110,7 +98,15 @@ def main_first(
     return tuple(
         sorted(
             members,
-            key=lambda m: (m.channel != lead, m.hidden, depth(m), window(m), m.born, m.channel),
+            key=lambda m: (
+                bool(m.grafted_onto),
+                m.channel != lead,
+                m.hidden,
+                depth(m),
+                window(m),
+                m.born,
+                m.channel,
+            ),
         )
     )
 
@@ -118,13 +114,14 @@ def main_first(
 def _trees(
     rows: abc.Sequence[db.Notification],
     lemons: abc.Mapping[str, Lemon],
+    roots: abc.Mapping[str, rooting.Rooted],
     lead: str,
     parents: abc.Mapping[str, str],
 ) -> tuple[Tree, ...]:
     by_key: dict[str, list[Lemon]] = {}
     labels: dict[str, str] = {}
     for n in rows:
-        key, labels[key] = _tree(n)
+        key, labels[key], _ = roots[n.channel]
         by_key.setdefault(key, []).append(lemons[n.channel])
     trees = [
         Tree(
@@ -155,7 +152,11 @@ def blocks(
 ) -> tuple[Block, ...]:
     """One block per group with live lemons, numbered in the inbox's group order, and block 0 for the rest."""
     now = time.time() if now is None else now
-    lemons = {n.channel: _lemon(n, inputs, thresholds, now) for n in inputs.rows}
+    roots = rooting.rooted(inputs.rows, inputs.lemon_ids, inputs.grafts)
+    lemons = {
+        n.channel: _lemon(n, inputs, thresholds, now, roots[n.channel].grafted_onto)
+        for n in inputs.rows
+    }
     first_group = {channel: names[0] for channel, names in inputs.memberships.items() if names}
     found: list[Block] = []
     for group in inputs.groups:
@@ -167,7 +168,7 @@ def blocks(
                     group.name,
                     str(len(found) + 1),
                     group.color,
-                    _trees(rows, lemons, lead, inputs.parents),
+                    _trees(rows, lemons, roots, lead, inputs.parents),
                 )
             )
     loose = [n for n in inputs.rows if n.channel not in first_group]
@@ -180,6 +181,7 @@ def blocks(
                 _trees(
                     loose,
                     lemons,
+                    roots,
                     _packhouse_lead(loose, inputs.rows, inputs.parents),
                     inputs.parents,
                 ),

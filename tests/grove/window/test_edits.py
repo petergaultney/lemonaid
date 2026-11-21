@@ -1,5 +1,6 @@
 from lemonaid import groups
 from lemonaid.config import load_config
+from lemonaid.grove import grafts
 from lemonaid.grove.layout import state
 from lemonaid.grove.source import blocks, live
 from lemonaid.grove.window import data, edits
@@ -58,3 +59,25 @@ def test_edits_change_one_lemon_or_the_whole_tree(monkeypatch):
     )
     assert edits.make(grove, config, "color", "1", "", "", "teal", None) == 'recolored "a"'
     assert edits.make(grove, config, "burn", "1", "s", "", "", None) == "no edit burn"
+
+
+def test_a_graft_offers_the_other_trees_and_makes_the_shared_change(monkeypatch):
+    with db.connect() as conn:
+        for name in ("one", "three"):
+            db.add(conn, f"claude:{name}", "a message", name, {"tty": f"/dev/ttys6{name}"})
+        groups.store.create(conn, "a")
+    trees = (tree("s", lemon("claude:one")), tree("t", lemon("claude:three")))
+    monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", *trees),))
+    state.save({"version": state.VERSION} | stream_saved({"a": plot_data(2, 2, 60, 14)}))
+    live.fresh(load_config(), None)
+    grove, config = data.load(load_config()), load_config()
+    letter = grove.arrangement.trees[("a", "t")].letter
+
+    info = edits.info(grove, config, "graft", "1", "s", "claude:one")
+    assert info["trees"] == [["claude:three", f"1{letter} t"]]
+    assert info["what"] == "grafting lemon lemon claude:one"
+    assert edits.make(grove, config, "graft", "1", "s", "claude:one", "claude:three", None) == (
+        "grafted 1 lemon onto claude:three"
+    )
+    with db.connect() as conn:
+        assert grafts.recorded(conn) == {"claude:one": "claude:three"}

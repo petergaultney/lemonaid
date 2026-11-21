@@ -13,6 +13,7 @@ from ...config import Config
 from ...inbox import db, emoji, parent_order, pins, presence, view
 from ...inbox.tui.live import inbox_frame
 from ...inbox.tui.rows import brief_cards, pr_numbers
+from .. import grafts
 
 
 @dataclasses.dataclass(frozen=True)
@@ -30,6 +31,7 @@ class Inputs:
     numbers: dict[str, tuple[pr_numbers.PR, ...]]  # each channel's PRs, as the inbox shows them
 
     jump_problems: dict[str, str] = dataclasses.field(default_factory=dict)
+    grafts: dict[str, str] = dataclasses.field(default_factory=dict)  # as `grafts.recorded`
 
 
 def _births(conn: sqlite3.Connection, channels: abc.Iterable[str]) -> dict[str, float]:
@@ -62,6 +64,7 @@ def from_frame(conn: sqlite3.Connection, frame: inbox_frame.Frame) -> Inputs:
         births=_births(conn, (n.channel for n in active.rows)),
         hidden=active.hidden_briefs,
         numbers=dict(frame.numbers),
+        grafts=grafts.recorded(conn),
     )
 
 
@@ -97,4 +100,5 @@ def read(conn: sqlite3.Connection, config: Config, switch_source: str | None) ->
         # From briefs alone: a branch's PR comes from a place's `open_prs` command, which the
         # inbox runs on its own schedule.
         numbers=pr_numbers.rows(conn, active.rows, config.places, pr_numbers.Cache()),
+        grafts=grafts.recorded(conn),
     )

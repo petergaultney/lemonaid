@@ -3,6 +3,7 @@
 import dataclasses
 from collections import abc
 
+from ..layout.arrange import Arrangement
 from ..model import Block, Lemon, Tree
 from . import keys
 
@@ -12,6 +13,7 @@ _VERBS = {
     "archive": "archiving",
     "pin": "pinning or unpinning",
     "group": "moving to another group",
+    "graft": "grafting",
     "color": "recoloring",
 }
 
@@ -27,6 +29,8 @@ class Target:
     # (channel, window) of each lemon on the tree; for a rename, in its session in every group
     lemons: tuple[tuple[str, str], ...]
     tagged: str = ""  # the lemon whose given name the tree's tag shows, "" when it's the session's
+    # For a graft, (channel, label) of the main lemon of each tree it can join; "" puts it back
+    trees: tuple[tuple[str, str], ...] = ()
 
 
 def _picked(where: keys.Where, blocks: abc.Sequence[Block]) -> tuple[Block, Tree] | None:
@@ -49,14 +53,46 @@ def edit_choices(action: str, tree: Tree) -> list[str]:
     return [*([""] if whole else []), *(lemon.channel for lemon in tree.lemons)]
 
 
+def _graft_choices(
+    blocks: abc.Sequence[Block],
+    arrangement: Arrangement,
+    home: Block,
+    tree: Tree,
+    moving: abc.Iterable[Lemon],
+) -> tuple[tuple[str, str], ...]:
+    back = (("", "back to its own tree"),) if any(m.grafted_onto for m in moving) else ()
+    return (
+        *back,
+        *(
+            (host.channel, f"{b.digit}{spot.letter} {spot.label}")
+            for b in sorted(blocks, key=lambda b: b.name != home.name)
+            for t in sorted(b.trees, key=lambda t: arrangement.trees[(b.name, t.key)].letter)
+            if t.key != tree.key
+            and (host := next((m for m in t.lemons if not m.grafted_onto), None))
+            for spot in (arrangement.trees[(b.name, t.key)],)
+        ),
+    )
+
+
 def target(
-    where: keys.Where, blocks: abc.Sequence[Block], block: Block, tree: Tree | None
+    where: keys.Where,
+    blocks: abc.Sequence[Block],
+    arrangement: Arrangement,
+    block: Block,
+    tree: Tree | None,
 ) -> Target:
     if tree is None:
         return Target(where.editing, block.name, (block.name,), "", "", block.name, ())
 
     lemon = _lemon(tree, where.picked_lemon)
     same = [(b, t) for b in blocks for t in b.trees if t.key == tree.key]
+    residents = [  # those running in the session, wherever a graft draws them
+        m
+        for b in blocks
+        for t in b.trees
+        for m in t.lemons
+        if m.session == tree.key and (t.key == tree.key or m.grafted_onto)
+    ]
     return Target(
         where.editing,
         block.name,
@@ -65,11 +101,12 @@ def target(
         where.picked_lemon,
         lemon.name if lemon else tree.key,
         tuple(
-            (m.channel, m.window)
-            for t in ([t for _, t in same] if where.editing == "rename" else [tree])
-            for m in t.lemons
+            (m.channel, m.window) for m in (residents if where.editing == "rename" else tree.lemons)
         ),
         tree.lemons[0].channel if tree.lemons and tree.lemons[0].named else "",
+        _graft_choices(blocks, arrangement, block, tree, [lemon] if lemon else tree.lemons)
+        if where.editing == "graft"
+        else (),
     )
 
 

@@ -1,5 +1,6 @@
 """The terminal grove's select-mode edits, from the window's right-click menu: rename, snooze,
-archive, pin, move to another group and recolor, made by the same changes.
+archive, pin, move to another group or onto another lemon's tree, and recolor, made by the same
+changes.
 """
 
 import dataclasses
@@ -12,7 +13,7 @@ from ..source import changes, renames
 from ..tui import keys, picking
 from ..tui.frame import Grove
 
-ACTIONS = ("rename", "snooze", "archive", "pin", "group", "color")
+ACTIONS = ("rename", "snooze", "archive", "pin", "group", "graft", "color")
 
 
 def _target(grove: Grove, action: str, digit: str, key: str, channel: str) -> picking.Target | str:
@@ -25,7 +26,13 @@ def _target(grove: Grove, action: str, digit: str, key: str, channel: str) -> pi
         return "that block is gone"
     if action == "color":
         return (
-            picking.target(keys.Where(block=digit, editing=action), grove.blocks, block, None)
+            picking.target(
+                keys.Where(block=digit, editing=action),
+                grove.blocks,
+                grove.arrangement,
+                block,
+                None,
+            )
             if block.name
             else "the packhouse has no color"
         )
@@ -36,7 +43,7 @@ def _target(grove: Grove, action: str, digit: str, key: str, channel: str) -> pi
     whole = "" in picking.edit_choices(action, tree)
     picked = channel or ("" if whole else tree.lemons[0].channel)
     where = keys.Where(block=digit, editing=action, picked_tree=key, picked_lemon=picked)
-    return picking.target(where, grove.blocks, block, tree)
+    return picking.target(where, grove.blocks, grove.arrangement, block, tree)
 
 
 def info(grove: Grove, config: Config, action: str, digit: str, key: str, channel: str) -> dict:
@@ -58,6 +65,7 @@ def info(grove: Grove, config: Config, action: str, digit: str, key: str, channe
         if action == "snooze"
         else [],
         "groups": changes.group_names(target) if action == "group" else [],
+        "trees": [list(choice) for choice in target.trees],
         "color": changes.saved_color(target) if action == "color" else "",
         "syntax": snooze_time.SYNTAX,
     }
@@ -90,4 +98,6 @@ def make(
         return changes.pin(target)
     if action == "group":
         return changes.move(target, answer) if answer else "no group chosen"
+    if action == "graft":
+        return changes.graft(target, answer)
     return changes.recolor(target, answer)
