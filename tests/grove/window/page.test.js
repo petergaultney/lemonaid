@@ -200,3 +200,18 @@ test("each lemon's key in a tree's list takes its status's color, as the termina
   assert.equal(color(".r1"), "#6f9fe0");
   assert.equal(color("r"), "#c9d1d9");
 });
+
+test("esc and backspace back out of a block, then go back to the terminal rather than closing", () => {
+  const asked = [];
+  const context = {
+    zoomed: "3", goTo: d => { context.zoomed = d; }, draw: () => {},
+    window: {pywebview: {api: {to_terminal: () => asked.push("terminal"), dismiss: () => asked.push("dismiss")}}},
+  };
+  vm.createContext(context);
+  vm.runInContext(source("back"), context);
+
+  context.back();
+  assert.deepEqual(asked, []);
+  context.back();
+  assert.deepEqual(asked, ["terminal"]);
+});

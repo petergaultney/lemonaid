@@ -141,7 +141,9 @@ function showHelp() {
     [`hold ${flipKey}`, zoomed ? "each lemon's PRs, branch, model and context" : "each tree's mid-turn lemons, fullest context and latest report"],
     ["- +", "smaller or larger labels in this view"],
     [usageKey, "usage"],
-    ["esc, backspace", zoomed ? "back to the grove" : "close the window, as q and space do"],
+    ["esc, backspace", zoomed ? "back to the grove" : "back to the terminal, as space does"],
+    ["space", "back to the terminal; a floating window stays up"],
+    ["q", "close the window"],
   ];
   help.innerHTML = `<h1>Keys</h1><table>${rows.map(([k, what]) => `<tr><th>${escaped(k)}</th><td>${escaped(what)}</td></tr>`).join("")}</table>`;
   help.style.display = "block";
