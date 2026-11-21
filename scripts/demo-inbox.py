@@ -373,8 +373,23 @@ def _position_state(position: str, width: int) -> None:
         (path.parent / f"tmux-scratch-{SERVER}-width").write_text(str(width))
 
 
+def _end_server() -> None:
+    """End the demo server. It reads your tmux config, which may refuse `kill-server`
+    until this alias is removed (see "Guarding the server from scripts" in docs/tmux.md)."""
+    from lemonaid.tmux import server
+
+    for args in (("set-option", "-su", "command-alias[4242]"), ("kill-server",)):
+        done = _tmux(*args)
+        if done.returncode == 0:
+            continue
+        if server.gone(done.stderr):
+            return
+
+        sys.exit(f"could not end the demo server: {(done.stdout + done.stderr).strip()}")
+
+
 def _kill() -> None:
-    _tmux("kill-server")
+    _end_server()
     shutil.rmtree(ROOT, ignore_errors=True)
     print(f"killed {SERVER}, removed {ROOT}")
 
@@ -385,7 +400,7 @@ def _stage(
     # A previous run's `lma` would otherwise watch the new rows as they are
     # seeded, and the layout is decided when the pane is built, so a leftover
     # pane would render the previous position. Everything is torn down first.
-    _tmux("kill-server")
+    _end_server()
     for directory in _DIRS.values():
         directory.mkdir(parents=True, exist_ok=True)
     _position_state(position, width)

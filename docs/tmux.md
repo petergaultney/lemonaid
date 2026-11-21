@@ -79,6 +79,26 @@ set -g remain-on-exit off
 set -g renumber-windows off
 ```
 
+### Guarding the server from scripts
+
+A tmux command alias can make the server refuse `kill-server`, whichever client asks: a lemon, a script it runs, or a test. The refused command prints why and exits 1, and the server keeps running. Add this line to `~/.tmux.conf`, and reload it with `tmux source-file ~/.tmux.conf` to guard the server you are in now:
+
+```tmux
+set -s 'command-alias[4242]' 'kill-server=display-message -p "this tmux server refuses kill-server. To use a server of your own, give every tmux command -L or -S: while TMUX is set, tmux ignores TMUX_TMPDIR." ; run-shell false'
+```
+
+To end a guarded server yourself, remove the alias first with `tmux set -su 'command-alias[4242]'`. lemonaid's demo and sandbox scripts do the same before ending their own servers, which read your tmux config, so keep the index 4242.
+
+A script usually reaches your server by mistake like this: it sets `TMUX_TMPDIR` to get a private server, but it runs in one of your panes, where `TMUX` is set, and tmux uses the server `TMUX` names. A script that wants its own server should pass `-L` or `-S` to every tmux command, or unset `TMUX`.
+
+The guard covers `kill-server` by its full name, however tmux is run: a script, a library, or tmux by its full path. It does not cover:
+
+- `kill-session`, including killing every session, which also ends a server with `exit-empty` on (tmux's default).
+- An abbreviation such as `tmux kill-ser`, which tmux matches to the command itself.
+- A signal sent to the server's process, such as `pkill tmux`.
+- A command that removes the alias, or another alias that runs `kill-server`.
+- Sessions a script creates on your server before it fails.
+
 ### Add a back-navigation keybinding (optional but recommended)
 
 Add to your `~/.tmux.conf`:

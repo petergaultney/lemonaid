@@ -131,6 +131,16 @@ def _refusal(argv: list[str]) -> str:
     )
 
 
+def _end_server() -> int:
+    """Stop the sandbox server. It reads your tmux config, which may refuse `kill-server`
+    until this alias is removed (see "Guarding the server from scripts" in docs/tmux.md)."""
+    for args in (["set-option", "-su", "command-alias[4242]"], ["kill-server"]):
+        if code := subprocess.run(["tmux", "-S", str(SOCKET), *args]).returncode:
+            return code
+
+    return 0
+
+
 def main(argv: list[str]) -> int:
     if not argv:
         print(__doc__.strip())
@@ -141,7 +151,7 @@ def main(argv: list[str]) -> int:
         return 0
 
     if argv == ["--kill"]:
-        return subprocess.run(["tmux", "-S", str(SOCKET), "kill-server"]).returncode
+        return _end_server()
 
     if not DB.exists():
         _snapshot()
