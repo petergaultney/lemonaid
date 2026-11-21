@@ -1,4 +1,4 @@
-"""`slack_events.poller`: one lemon following one Slack thread."""
+"""`slack_events.poller`: one lemon following one Slack thread or channel."""
 
 import datetime
 import time
@@ -11,7 +11,7 @@ from lemonaid.slack import api, session, signed_out, wakes
 from lemonaid.slack_config import SlackConfig
 from lemonaid.watch import delivery, slack_events
 
-from ..slack.shared import LINK, SESSION, THREAD, Slack, reply
+from ..slack.shared import CHANNEL, LINK, SESSION, THREAD, Slack, post, reply
 
 OLD = "1794857980.000001"
 NEW = "1794857990.000002"
@@ -25,12 +25,23 @@ def slack(monkeypatch):
     return fake
 
 
-def _poller(tmp_path, delivered: list, *, lemon_id="", after="", done=False, every=60.0):
+def _poller(
+    tmp_path,
+    delivered: list,
+    *,
+    lemon_id="",
+    after="",
+    match="",
+    done=False,
+    every=60.0,
+    conversation=THREAD,
+):
     directory = tmp_path / "cursors" / (lemon_id or "lemon.Ann") / "slack"
     directory.mkdir(parents=True, exist_ok=True)
     return slack_events.poller(
-        THREAD,
+        conversation,
         after,
+        match,
         done,
         directory,
         lemon_id,
@@ -40,9 +51,9 @@ def _poller(tmp_path, delivered: list, *, lemon_id="", after="", done=False, eve
     )
 
 
-def _signal() -> None:
+def _signal(conversation=THREAD) -> None:
     time.sleep(0.01)
-    assert wakes.signal(THREAD.channel, THREAD.ts)
+    assert wakes.signal(conversation.channel, conversation.ts)
 
 
 def test_a_first_poll_takes_the_thread_as_seen_and_a_signalled_reply_is_delivered(tmp_path, slack):
@@ -79,7 +90,7 @@ def test_a_reply_that_was_not_delivered_is_delivered_by_the_next_poller(tmp_path
         raise delivery.Failed("Batch was not delivered")
 
     directory = tmp_path / "cursors" / "lemon.Ann" / "slack"
-    failing = slack_events.poller(THREAD, "", False, directory, "", fail, fail, SlackConfig())
+    failing = slack_events.poller(THREAD, "", "", False, directory, "", fail, fail, SlackConfig())
     with pytest.raises(delivery.Failed):
         failing()
 
@@ -101,6 +112,58 @@ def test_without_a_gateway_threads_are_fetched_on_a_timer_and_with_one_only_when
     assert slack.fetches() == 2
 
 
+def test_with_a_gateway_up_a_backstop_fetch_still_finds_what_it_never_signalled(
+    tmp_path, slack, monkeypatch
+):
+    delivered: list = []
+    poll = _poller(tmp_path, delivered)
+    wakes.beat()
+    poll()
+    slack.replies.append(reply(NEW, "in a channel the socket does not report"))
+    poll()
+    assert delivered == []
+
+    monkeypatch.setattr(slack_events, "_BACKSTOP", 0.0)
+    poll()
+
+    assert len(delivered) == 1 and "the socket does not report" in delivered[0]
+
+
+def test_a_pattern_delivers_only_the_messages_it_matches_and_passes_the_rest(tmp_path, slack):
+    delivered: list = []
+    poll = _poller(tmp_path, delivered, match="(?i)deploy")
+    poll()
+    slack.replies.append(reply(NEW, "lunch?"))
+    _signal()
+    poll()
+    assert delivered == []
+
+    slack.replies.append(reply("1794857995.000003", "<@U0ANN> the Deploy is done"))
+    _signal()
+    poll()
+
+    [message] = delivered
+    assert "Deploy is done" in message and "lunch" not in message
+    assert "1 new reply matching '(?i)deploy'" in message
+
+
+def test_a_channel_delivers_the_messages_posted_in_it(tmp_path, slack):
+    slack.posts.append(post(OLD, "an old post"))
+    delivered: list = []
+    poll = _poller(tmp_path, delivered, conversation=CHANNEL)
+    poll()
+    slack.posts.append(post(NEW, "a new post"))
+
+    _signal(CHANNEL)
+    poll()
+
+    [message] = delivered
+    assert message.startswith(f"Slack channel {CHANNEL.link}: 1 new message\n")
+    assert "a new post" in message and "an old post" not in message
+    assert delivery.label_of(message) == "Slack message from Ann"
+    assert (tmp_path / "cursors" / "lemon.Ann" / "slack" / f"{CHANNEL.channel}.json").exists()
+
+
 def _lemon_following(tmp_path) -> tuple:
     path = store.create("following", datetime.date(2026, 11, 20))
     with db.connect() as conn:
@@ -120,7 +183,7 @@ def test_a_thread_quiet_for_seven_days_ends_once_and_leaves_watching(tmp_path, s
     poll()
 
     [message] = delivered
-    assert message.startswith(f"Stopped following Slack thread {LINK}: no reply in 7 days")
+    assert message.startswith(f"Stopped following Slack thread {LINK}: nothing new in 7 days")
     assert waiters.commands(path.read_text()) == []
 
 

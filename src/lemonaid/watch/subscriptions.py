@@ -73,8 +73,9 @@ class Subscription:
     role: str = ""  # a PR's, see watch/roles.py
     deadline: str = ""  # a file watch's
     mentioned: bool = False  # the brief links to this PR, so its merge or close asks about that
-    link: str = ""  # a Slack thread's permalink
-    after: str = ""  # a Slack thread's first fetch reports replies after this ts
+    link: str = ""  # a Slack thread's or channel's link
+    after: str = ""  # a Slack subscription's first fetch reports messages after this ts
+    match: str = ""  # a Slack subscription reports only messages this regex matches
     brief_done: bool = False  # the brief's Status is done, which ends a Slack subscription
 
     @property
@@ -119,14 +120,14 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
 
     kind = args.kind
     if kind == "slack":
-        thread = args.link
         return Subscription(
             kind,
-            (thread.channel, thread.ts),
+            args.link.target,
             args.me or me,
-            interval=1,  # a look at the thread's wake file; Slack is read only when it changed
-            link=thread.link,
+            interval=1,  # a look at the wake file; Slack is read only when it changed
+            link=args.link.link,
             after=args.after,
+            match=args.match,
         )
 
     if kind == "pr":

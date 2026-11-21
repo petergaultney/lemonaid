@@ -29,6 +29,7 @@ def test_without_a_sign_in_it_stops_and_leaves_the_lemons_notice_to_its_watcher(
     watcher = slack_events.poller(
         THREAD,
         "",
+        "",
         False,
         directory,
         "",
@@ -76,7 +77,7 @@ def test_a_watcher_starting_mid_fetch_still_gets_each_message_the_foreground_pri
 
     heard: list[str] = []
     watcher = slack_events.poller(
-        THREAD, "", False, directory, "lemon.Ann", heard.append, heard.append, SlackConfig()
+        THREAD, "", "", False, directory, "lemon.Ann", heard.append, heard.append, SlackConfig()
     )
     watcher()
     assert len(heard) == 1 and "a new reply" in heard[0] and "an old reply" not in heard[0]

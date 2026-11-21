@@ -49,15 +49,15 @@ def _cmd_status(_args: argparse.Namespace) -> None:
         print(problem)
     settings = load_config().slack
     socket = (
-        f"off ([slack] push = false); threads are fetched every {settings.fetch_every:g}s"
+        f"off ([slack] push = false); each is fetched every {settings.fetch_every:g}s"
         if not settings.push
-        else f"not installed ({_EXTRA}); threads are fetched every {settings.fetch_every:g}s"
+        else f"not installed ({_EXTRA}); each is fetched every {settings.fetch_every:g}s"
         if not gateway_socket.available()
         else "up"
         if wakes.gateway_up()
         else "down"
     )
-    print(f"Socket: {socket}; {len(wakes.followed(time.time()))} thread(s) followed")
+    print(f"Socket: {socket}; {len(wakes.followed(time.time()))} thread(s) or channel(s) followed")
 
 
 def _cmd_signout(_args: argparse.Namespace) -> None:

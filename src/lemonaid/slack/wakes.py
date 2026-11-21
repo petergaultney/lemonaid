@@ -1,14 +1,16 @@
-"""The files the Slack gateway and the thread scouts share, under lemonaid's state directory.
+"""The files the Slack gateway and the scouts share, under lemonaid's state directory.
 
-    slack/threads/<channel>/<ts>/wake     touched by the gateway when the socket sees a message
-                                          in that thread; the scouts following it watch it
-    slack/threads/<channel>/<ts>/<lemon>  touched by each scout as it polls, so the gateway
-                                          forwards events only for threads someone follows
-    slack/gateway.alive                   touched while the gateway's socket is up
-    slack/session.generation              touched whenever the saved session is replaced or
-                                          removed, so an open socket stops using the old one
+    slack/followed/<channel>/<ts>/wake     touched by the gateway when the socket sees a message
+                                           in that thread; the scouts following it watch it
+    slack/followed/<channel>/<ts>/<lemon>  touched by each scout as it polls, so the gateway
+                                           forwards events only for what someone follows
+    slack/followed/<channel>/channel/...   the same for the channel's own messages
+    slack/gateway.alive                    touched while the gateway's socket is up
+    slack/session.generation               touched whenever the saved session is replaced or
+                                           removed, so an open socket stops using the old one
 
-A thread's files are the whole contract: the gateway never knows which lemon follows what.
+These files are the whole contract: the gateway never knows which lemon follows what. A ts of
+"" names the channel itself.
 """
 
 import os
@@ -17,26 +19,27 @@ from pathlib import Path
 
 from ..watch import cursors
 
-INTEREST = 300.0  # a scout polls at least this often while it follows a thread
+INTEREST = 300.0  # a scout polls at least this often while it follows a conversation
 _ALIVE = 60.0  # the gateway beats more often than this while its socket is up
 _FORGET = 86400.0
+_CHANNEL = "channel"  # the directory of a channel's own messages, beside its threads'
 
 
 def state_dir() -> Path:
     return cursors.root().parent / "slack"
 
 
-def _thread_dir(channel: str, ts: str) -> Path:
-    return state_dir() / "threads" / channel / ts
+def _dir(channel: str, ts: str) -> Path:
+    return state_dir() / "followed" / channel / (ts or _CHANNEL)
 
 
 def wake_path(channel: str, ts: str) -> Path:
-    return _thread_dir(channel, ts) / "wake"
+    return _dir(channel, ts) / "wake"
 
 
-def wake_file(channel: str, ts: str) -> Path:
-    """The thread's wake file, created if missing: a kqueue watch opened on a path whose
-    directory does not exist yet would never see it appear."""
+def wake_file(channel: str, ts: str = "") -> Path:
+    """The wake file, created if missing: a kqueue watch opened on a path whose directory does
+    not exist yet would never see it appear."""
     path = wake_path(channel, ts)
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -45,12 +48,12 @@ def wake_file(channel: str, ts: str) -> Path:
 
 
 def follow(channel: str, ts: str, follower: str) -> None:
-    """Mark *follower*'s interest in the thread now."""
+    """Mark *follower*'s interest now."""
     (wake_file(channel, ts).parent / follower).touch()
 
 
 def stamp(channel: str, ts: str) -> int:
-    """Changes each time the gateway signals the thread; 0 before it ever has."""
+    """Changes each time the gateway signals it; 0 before it ever has."""
     try:
         return wake_path(channel, ts).stat().st_mtime_ns
     except FileNotFoundError:
@@ -58,9 +61,9 @@ def stamp(channel: str, ts: str) -> int:
 
 
 def followed(now: float) -> set[tuple[str, str]]:
-    """(channel, ts) of every thread a scout polled within `INTEREST`; forgets long-idle ones."""
+    """(channel, ts) of everything a scout polled within `INTEREST`; forgets long-idle ones."""
     found = set()
-    for path in state_dir().glob("threads/*/*/*"):
+    for path in state_dir().glob("followed/*/*/*"):
         if path.name == "wake":
             continue
         try:
@@ -70,12 +73,13 @@ def followed(now: float) -> set[tuple[str, str]]:
         if age > _FORGET:
             path.unlink(missing_ok=True)
         elif age < INTEREST:
-            found.add((path.parent.parent.name, path.parent.name))
+            ts = "" if path.parent.name == _CHANNEL else path.parent.name
+            found.add((path.parent.parent.name, ts))
     return found
 
 
 def signal(channel: str, ts: str) -> bool:
-    """Wake the scouts following the thread; False when nobody follows it."""
+    """Wake the scouts following it; False when nobody does."""
     try:
         os.utime(wake_path(channel, ts))
     except FileNotFoundError:
