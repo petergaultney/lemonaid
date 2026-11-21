@@ -17,6 +17,7 @@ def reply(
     span: tuple[int, int] | None = None,
     at: str | None = None,
     comment_id: str | None = None,
+    by_lemon: bool = False,
 ) -> Added:
     """Append a reply to comment `re_`, about `span` of its body when given."""
     doc = _write.writable(text, kind)
@@ -33,6 +34,8 @@ def reply(
     if span is not None:
         record["span"] = list(span)
     record |= {"author": author, "at": at or _write.now(), "body": body}
+    if by_lemon:
+        record["by"] = "lemon"
     added = Added(comment_id, [_write.append_record(text, doc, record)])
     _write.check_readable(doc, text, added.edits, comment_id=comment_id, new_markers=0)
     return added

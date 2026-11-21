@@ -929,6 +929,17 @@ def record_turn_end(
     return cursor.rowcount
 
 
+def update_metadata(
+    conn: sqlite3.Connection, notification_id: int, metadata: dict[str, Any]
+) -> None:
+    """Replace a notification's metadata, leaving its status, message and time alone."""
+    conn.execute(
+        "UPDATE notifications SET metadata = ? WHERE id = ?",
+        (json.dumps(metadata), notification_id),
+    )
+    conn.commit()
+
+
 def update_message(conn: sqlite3.Connection, channel: str, message: str) -> int:
     """Update the message for a channel without changing read/unread status.
 

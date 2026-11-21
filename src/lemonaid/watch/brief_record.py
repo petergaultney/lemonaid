@@ -207,7 +207,7 @@ def record(a: argparse.Namespace, kind: str, thread: str = "", repo: str = "") -
                         "Watched document",
                         doc_table.Watch.ALL_EDITS
                         if getattr(a, "edits", False)
-                        else doc_table.Watch.RELAY_COMMENTS,
+                        else doc_table.Watch.COMMENTS,
                     )
                     if kind == "doc" and a.wait
                     else _upsert(text, command, repo, contexts)

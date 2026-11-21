@@ -5,11 +5,14 @@ def _text(*records: str) -> str:
     return "# [lma:Root]\nx = 1\n\n# [lma:threads]\n" + "".join(f"# {r}\n" for r in records)
 
 
-def _comment(comment_id: str, author: str, *, re: str | None = None, minute: int = 0) -> str:
+def _comment(
+    comment_id: str, author: str, *, re: str | None = None, minute: int = 0, lemon: bool = False
+) -> str:
     re_field = f', "re": "{re}"' if re else ""
+    by_field = ', "by": "lemon"' if lemon else ""
     return (
         f'{{"id": "{comment_id}"{re_field}, "author": "{author}", '
-        f'"at": "2026-11-19T19:{minute:02}:00Z", "body": "b"}}'
+        f'"at": "2026-11-19T19:{minute:02}:00Z", "body": "b"{by_field}}}'
     )
 
 
@@ -82,3 +85,55 @@ def test_resolving_the_only_reply_leaves_the_question_answered() -> None:
     result = threads.unanswered(doc, {"Claude"})
 
     assert result == []
+
+
+def test_another_lemon_s_answer_to_a_person_does_not_wait_on_me() -> None:
+    doc = parse.parse(
+        _text(
+            _comment("Root", "caleb.gregory"),
+            _comment("Theirs", "RoastJet (Reviewer)", re="Root", minute=1, lemon=True),
+        ),
+        "python",
+    )
+
+    result = threads.unanswered(doc, {"HillyHad (Author)"})
+
+    assert result == []
+
+
+def test_a_lemon_s_reply_to_my_comment_waits_on_me() -> None:
+    doc = parse.parse(
+        _text(
+            _comment("Root", "caleb.gregory"),
+            _comment("Mine", "HillyHad (Author)", re="Root", minute=1, lemon=True),
+            _comment("Theirs", "RoastJet (Reviewer)", re="Mine", minute=2, lemon=True),
+        ),
+        "python",
+    )
+
+    result = threads.unanswered(doc, {"HillyHad (Author)"})
+
+    assert [c.id for c in result] == ["Theirs"]
+
+
+def test_a_thread_a_lemon_starts_waits_on_every_other_lemon() -> None:
+    doc = parse.parse(_text(_comment("Root", "RoastJet (Reviewer)", lemon=True)), "python")
+
+    result = threads.unanswered(doc, {"HillyHad (Author)"})
+
+    assert [c.id for c in result] == ["Root"]
+
+
+def test_a_person_s_reply_waits_on_every_lemon() -> None:
+    doc = parse.parse(
+        _text(
+            _comment("Root", "caleb.gregory"),
+            _comment("Theirs", "RoastJet (Reviewer)", re="Root", minute=1, lemon=True),
+            _comment("Followup", "caleb.gregory", re="Theirs", minute=2),
+        ),
+        "python",
+    )
+
+    result = threads.unanswered(doc, {"HillyHad (Author)"})
+
+    assert [c.id for c in result] == ["Followup"]

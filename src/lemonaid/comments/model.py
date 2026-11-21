@@ -78,6 +78,7 @@ class Comment:
     body: str
     re: str | None = None
     span: tuple[int, int] | None = None
+    by_lemon: bool = False  # `"by": "lemon"`, which `lemonaid comments` writes; else a person's
     offset: int = 0  # where the record's line starts
     extra: dict[str, ty.Any] = dataclasses.field(default_factory=dict)
 

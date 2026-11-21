@@ -84,7 +84,7 @@ write `>` as
 
 | Record | Fields |
 |---|---|
-| Comment | `id`, `author`, `at` (ISO 8601, with a UTC offset of zero), `body` (Markdown) |
+| Comment | `id`, `author`, `at` (ISO 8601, with a UTC offset of zero), `body` (Markdown), and `"by": "lemon"` on a comment `lemonaid comments` wrote; a comment without it is a person's |
 | Reply | a comment with `re`, the id of the comment it answers, and optionally `span`: `[start, end]`, a range of characters in that comment's body |
 | Resolution | `resolves`, `author`, `at` |
 
@@ -92,10 +92,12 @@ write `>` as
   is gone is an *orphan*.
 - A resolution closes the comment it names and every reply below it.
 - Readers keep fields they don't know.
-- A body never changes once written, so a `span` stays valid.
+- Records are only appended, except by `strip` and by deleting a comment, which only the
+  editor offers (see below). A body never changes once written, so a `span` stays valid.
 - Removing every marker and the section, which `strip` does, gives back the file as it
   was before any comment, with one exception: a comment on a last line that has no line
-  ending leaves one there. `strip` removes only markers whose id is a thread's first
+  ending leaves one there. Empty lines just above the section go with it, since a
+  formatter may add some (ruff wants two before a top-level comment after a function). `strip` removes only markers whose id is a thread's first
   comment in the file, so a marker-shaped example stays even where the reader takes it
   for a marker. It refuses an id with two opening or two closing markers, or a closing
   marker before its opening one, since one may be an example, and it refuses a Python file with a string that is never
@@ -106,9 +108,12 @@ write `>` as
 
 - Threads come in the order their anchors appear, orphans last. Replies form a tree, each
   comment's replies in the order they were written.
-- A comment is *unanswered* for a name when it is a leaf, it is not in a resolved branch,
-  and someone else wrote it. A comment whose replies were all resolved still counts as
-  answered.
+- A comment *waits on* a name when it is a leaf, it is not in a resolved branch, someone
+  else wrote it, and it is meant for that name: a person's comment and a comment that
+  starts a thread are meant for everyone, and a lemon's reply only for the author of the
+  comment it answers. So two lemons answering one person don't wake each other, and a
+  reviewer lemon's new thread still reaches the author lemon. A comment whose replies
+  were all resolved still counts as answered.
 - A duplicate id, a `re` or `resolves` that names no comment, an anchor with no comment,
   a time that isn't UTC, and a line that isn't JSON are errors. lemonaid reports them and
   never rewrites the file to fix them. Threads leave out a comment whose id an earlier
@@ -121,10 +126,10 @@ makes each comment's id and timestamp, keeps the file's line endings, and replac
 file in one step. A write the model refuses leaves the file as it was and exits 2.
 
 ```sh
-lemonaid comments list <path> [--unanswered --me <name>] [--resolved]
-lemonaid comments add <path> --lines <a>[-<b>] --as <name> <body | ->
-lemonaid comments reply <path> --re <id> --as <name> <body | ->
-lemonaid comments resolve <path> <id> --as <name>
+lemonaid comments list <path> [--unanswered (--self | --me <name>)] [--resolved]
+lemonaid comments add <path> --lines <a>[-<b>] [--quote <text>] (--self | --as <name>) <body | ->
+lemonaid comments reply <path> --re <id> [--after <id>] (--self | --as <name>) <body | ->
+lemonaid comments resolve <path> <id> (--self | --as <name>)
 lemonaid comments strip <path>
 ```
 
@@ -132,7 +137,25 @@ lemonaid comments strip <path>
   resolved branches out unless `--resolved`. With `--unanswered`, it prints only the
   threads with a comment waiting on `--me`, and marks those comments `UNANSWERED`. It
   prints format errors to stderr and exits 1 when there are any.
-- `add` and `reply` print the new comment's id. A body of `-` is read from stdin.
+- `add` and `reply` print the new comment's id. A body of `-` is read from stdin. The
+  comments they write are marked as a lemon's (`"by": "lemon"`).
+- `--self` signs with the signature the calling lemon's watcher uses for that file, read
+  from its brief: the `--me` of a `watch doc` line for the file, else `<name> (Author)` as
+  a Docs row has. With `list --unanswered`, it counts that signature as yours. A lemon
+  that signs with it can't drift from the name its own waiter matches.
+- `reply` to a comment that already has replies needs `--after`, the id of its newest
+  reply you have read, and refuses while a newer one exists, printing the comment and the
+  replies you haven't read; a first reply needs nothing. Two replies to one comment are
+  fine once the second writer has seen the first. The check runs on the text the reply is
+  written into, under the writers' lock and through the editor server alike.
+- `add --quote` anchors on that text within `--lines`, where it must appear once. Only
+  Markdown can anchor part of a line; in Python an anchor covers whole lines.
+- A lemon's `add` or `reply --self` also puts a row in the lemonaid inbox, one per file
+  (channel `comments:<path>`), so the person hears of it with the file closed. The row
+  lists the replies they haven't seen; the editor marks those unread when the file
+  opens and drops each one the person visits, and the row is marked read once it lists
+  none. Activating the row in `lma` opens the file with `lemonaid editor open --focus`,
+  or with the system's opener when no editor server answers.
 - A write follows a symlink and changes the file it names, whose extension decides its
   kind. If the file changes while a command computes, whether an editor saved it or
   another command wrote it, `reply`, `resolve` and `strip` start again from the new text,
@@ -166,13 +189,13 @@ buffer on every change, so it sees what you type before you save. It sends:
 - A diagnostic at each anchor, a hint with the author and first line of the thread's
   first comment and its reply count, and an error at each format error.
 - `lemonaid/threads`, a notification with `uri`, `version` and `threads`, on open and
-  whenever the buffer's comments, resolutions or set of anchors change. An edit that only
-  moves text sends nothing, so a client tracks each anchor from where the last
-  notification put it. Each thread has an `anchor` range, or `null` for an orphan, and
-  its `comments` in tree order, each with `id`, `re`, `span`, `author`, `at`, `body`,
-  `resolved` and its `depth` below the first comment, and `markers`, the ranges of its
-  own markers, each the `range` of what removing it removes and that `text`, for a
-  client that hides them.
+  whenever the buffer's comments, resolutions or set of anchors change, and when a client
+  asks with `lemonaid.refresh`. An edit that only moves text sends nothing, so a client
+  tracks each anchor from where the last notification put it. Each thread has an `anchor`
+  range, or `null` for an orphan, and its `comments` in tree order, each with `id`, `re`,
+  `span`, `author`, `by` (`lemon` or `person`), `at`, `body`, `resolved` and its `depth`
+  below the first comment, and `markers`, the ranges of its own markers, each the `range`
+  of what removing it removes and that `text`, for a client that hides them.
 
 Clients write comments through `workspace/executeCommand`, each with one object argument,
 and the server answers with `workspace/applyEdit`:
@@ -182,6 +205,16 @@ and the server answers with `workspace/applyEdit`:
 | `lemonaid.comment` | `{uri, range, body}` | `{id}` |
 | `lemonaid.reply` | `{uri, re, body, span?, quote?}` | `{id}` |
 | `lemonaid.resolve` | `{uri, id}` | `{}` |
+| `lemonaid.delete` | `{uri, id}` | `{}` |
+| `lemonaid.reanchor` | `{uri, id, range}` | `{}` |
+| `lemonaid.refresh` | `{uri}` | `{}`; sends `lemonaid/threads` again |
+| `lemonaid.seen` | `{uri, ids}` | `{}`; drops these comments from the file's inbox row, which is marked read once it lists none |
+
+`delete` removes a comment, every reply below it and their resolutions, and for a
+thread's first comment its markers too; with the file's last comment, the section goes
+as well. `reanchor` moves a thread's markers to the range. Both are the editor's alone:
+the socket `lemonaid comments` writes through refuses them, so a lemon can't delete a
+comment or move a thread.
 
 A command the server declines fails with LSP's `RequestFailed` (-32803), the reason as
 its message, and `data.reason` set for the two a client can act on: `diverged`, the file
@@ -224,12 +257,17 @@ lemonaid ships an nvim client beside the server, as a plugin directory that
 vim.opt.rtp:append(vim.trim(vim.fn.system({ "lemonaid", "editor", "nvim-path" })))
 require("lma").setup({
   -- these are the defaults
-  keys = { comment = "<leader>cc", resolve = "<leader>cr", thread = "<leader>ct", panel = "<leader>cp" },
+  keys = {
+    comment = "<leader>cc", resolve = "<leader>cr", thread = "<leader>ct", panel = "<leader>cp",
+    delete = "<leader>cx", move = "<leader>cm", autosave = "<leader>cw",
+  },
+  autosave = false, -- save the file after each comment
   -- true in a buffer without threads leaves the comment and panel keys to the
   -- buffer's own mappings, such as another comment plugin's in a vault doc
   yield_to = function(buf) return false end,
 })
 vim.lsp.enable("lemonaid")
+require("lma").start_server() -- so `lemonaid editor open` reaches nvim before a file is open
 ```
 
 `vim.fn.system` waits for Python to start; to keep startup fast, ask with
@@ -237,8 +275,11 @@ vim.lsp.enable("lemonaid")
 server to the buffers already open.
 
 - **Threads.** The client lights up the text each thread is about, puts the first
-  line of its first comment after it, and hides the markers. `:LmaMarkers` shows
-  them again. A Markdown window hides markers only while its `'conceallevel'` is
+  line of its first comment after it (on a line of its own below when the line would
+  wrap), and hides the markers. `:LmaMarkers` shows them again. When a hidden marker is
+  no longer where the last notification put it, as after moving one by hand, or the
+  notification described an older version of the buffer, the client asks for the
+  threads again, at most once per version of the buffer. A Markdown window hides markers only while its `'conceallevel'` is
   above 0, so a renderer that raises it while it draws decides when.
 - **Comment.** `<leader>cc` on code opens a small window to write a comment on the
   line or the selection; `:w` sends it and `q` keeps it as a draft. In the panel or a
@@ -250,6 +291,19 @@ server to the buffers already open.
   moves into the float.
 - **Resolve.** `<leader>cr` resolves the thread under the cursor, or in the panel or
   a float, the comment under the cursor and its replies.
+- **Delete.** `<leader>cx` deletes the thread under the cursor, or in the panel or a
+  float, the comment under the cursor and its replies, after asking.
+- **Move.** `<leader>cm` with a selection moves a thread's anchor to it, asking which
+  thread when the file has several.
+- **Replies.** A lemon's comment that arrives while you work is announced, and its
+  thread's sign shows `●` until you move into the thread or show it with `<leader>ct`.
+  A reply written while the file was closed, which its inbox row lists, is unread when
+  the file opens; each one you visit drops off the row, and the row is marked read once
+  it lists none.
+- **Saving.** `<leader>cw` turns on saving the file once the server confirms a comment,
+  reply, resolve, delete or move, so a lemon hears of it at once; it is off when nvim
+  starts, so a batch of comments goes out on one `:w`. A failed save is reported and
+  the comment stays in the buffer.
 - **Drafts.** The client saves what you write as you type, in nvim's state
   directory, and deletes it once the server confirms the comment. A refusal, a closed
   window or nvim exiting keeps it, the comment key offers it again on the same file,
@@ -267,8 +321,11 @@ server to the buffers already open.
 ## Watching a file for comments
 
 `lemonaid watch doc` reads a Python or Markdown file that has a threads section with
-this model, and any other doc for Relay Comment threads. It wakes a lemon for each new
-unanswered comment, by id, and the wake says how to list and answer them. Markers and the
+this model, and every doc but a Python file for Relay threads and plain CriticMarkup
+comments (`{>>...<<}`), at the same time, so a person can comment either way in one
+file; in Python that markup is code, and in Markdown it is ignored inside code. It wakes
+a lemon for each new comment waiting on it, by id, and the wake says how to list and
+answer them. Markers and the
 threads section are not part of the body, so adding a comment or replying is never a body
 edit.
 
@@ -276,8 +333,9 @@ edit.
 
 The packaged `review-guide` skill ([skills.md](skills.md)) has a lemon write a guide
 after each round of changes, ordered for reading, open it with `lemonaid editor open`,
-and watch it and the changed files. The lemon answers each comment in its thread, leaves
-resolving to you, and before a commit strips the threads and checks that none is staged.
+and watch it and the changed files. The lemon answers each comment in its thread with `--self`, leaves
+resolving and deleting to you, and before a commit strips the threads and checks that none
+is staged.
 Put your preferences for guides in `~/.lemons/skills/review-guide/overlay.md`.
 
 ## Known limits

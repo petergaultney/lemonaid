@@ -295,6 +295,47 @@ def test_the_editor_commands_reply_and_resolve_in_your_name(env, tmp_path) -> No
     _drive(env, tmp_path, scenario)
 
 
+def test_the_editor_deletes_a_comment_and_its_replies(env, tmp_path) -> None:
+    code = tmp_path / "code.py"
+    code.write_text(
+        "# [lma:SleepRib]\n"
+        "x = 1\n"
+        "# [/lma:SleepRib]\n"
+        "\n"
+        "# [lma:threads]\n"
+        '# {"id": "SleepRib", "author": "Caleb Gregory", "at": "2026-11-19T19:40:00Z", "body": "q"}\n'
+        '# {"id": "TinOwl", "re": "SleepRib", "author": "A (Author)", "at": "2026-11-19T19:41:00Z", "body": "a", "by": "lemon"}\n'
+        '# {"id": "MossCap", "re": "SleepRib", "author": "B (Reviewer)", "at": "2026-11-19T19:42:00Z", "body": "same", "by": "lemon"}\n'
+    )
+
+    async def scenario(editor: _Editor) -> None:
+        uri = editor.open(code)
+        await editor.command("lemonaid.delete", {"uri": uri, "id": "MossCap"})
+        after_reply = [c.id for c in parse.parse(editor.texts[uri], "python").comments]
+        await editor.command("lemonaid.delete", {"uri": uri, "id": "SleepRib"})
+
+        assert after_reply == ["SleepRib", "TinOwl"]
+        assert editor.texts[uri] == "x = 1\n"
+
+    _drive(env, tmp_path, scenario)
+
+
+def test_refresh_sends_the_threads_again_when_nothing_changed(env, tmp_path) -> None:
+    code = tmp_path / "code.py"
+    code.write_text(_CODE)
+
+    async def scenario(editor: _Editor) -> None:
+        uri = editor.open(code)
+        await _until(lambda: bool(editor.threads))
+        sent = len(editor.threads)
+
+        await editor.command("lemonaid.refresh", {"uri": uri})
+
+        await _until(lambda: len(editor.threads) == sent + 1)
+
+    _drive(env, tmp_path, scenario)
+
+
 def test_a_lemon_reply_goes_into_a_buffer_with_unsaved_changes(env, tmp_path) -> None:
     code = tmp_path / "code.py"
     code.write_text(_CODE)

@@ -2,8 +2,10 @@
 
 It parses each open Python and Markdown document on every change, publishes a diagnostic
 at each anchor and format error, and sends `lemonaid/threads` when a document's comments
-change. Editor commands (`lemonaid.comment`, `lemonaid.reply`, `lemonaid.resolve`) come
-back as `workspace/applyEdit`, so only the server inserts anchors and appends records.
+change. Editor commands (`lemonaid.comment`, `lemonaid.reply`, `lemonaid.resolve`,
+`lemonaid.delete`, `lemonaid.reanchor`) come back as `workspace/applyEdit`, so only the server edits the
+threads; `lemonaid.refresh` sends the threads again, and `lemonaid.seen` marks a file's
+inbox row read.
 
     documents   the server and its open documents
     sync        whether a buffer and its file still agree
@@ -13,6 +15,7 @@ back as `workspace/applyEdit`, so only the server inserts anchors and appends re
 
 import asyncio
 import functools
+import pathlib
 import typing as ty
 from collections import abc
 
@@ -20,7 +23,7 @@ from lsprotocol import types
 from pygls.exceptions import JsonRpcException
 
 from .. import config
-from ..comments import edits, model, operations, parse
+from ..comments import edits, model, notice, operations, parse
 from . import bridge, documents, editing, positions, publish, sync
 from .documents import CommentsServer, Refused
 
@@ -28,6 +31,10 @@ THREADS: ty.Final = "lemonaid/threads"
 COMMENT: ty.Final = "lemonaid.comment"
 REPLY: ty.Final = "lemonaid.reply"
 RESOLVE: ty.Final = "lemonaid.resolve"
+DELETE: ty.Final = "lemonaid.delete"  # the editor's alone: the CLI and its socket can't delete
+REANCHOR: ty.Final = "lemonaid.reanchor"  # the editor's alone, like delete
+REFRESH: ty.Final = "lemonaid.refresh"
+SEEN: ty.Final = "lemonaid.seen"
 # LSP's RequestFailed: the request was well formed, and the server declined it.
 _REQUEST_FAILED: ty.Final = -32803
 
@@ -133,6 +140,65 @@ def build() -> CommentsServer:
         await editing.apply(ls, documents.open_by_uri(ls, uri), change)
         return {}
 
+    @server.command(DELETE)
+    @_refusals_as_errors
+    async def delete(ls: CommentsServer, *arguments: ty.Any) -> dict[str, ty.Any]:
+        """Arguments: `{uri, id}`. Deletes the comment, every reply below it and their
+        resolutions, and a first comment's markers. A person's command only: the bridge
+        that carries a lemon's operations has no delete."""
+        uri, comment_id = _argument(arguments, "uri", str), _argument(arguments, "id", str)
+
+        def change(text: str, kind: model.FileKind, _: str | None) -> editing.Change:
+            gone = lambda now: parse.parse(now, kind).comment(comment_id) is None  # noqa: E731
+            return editing.Change(edits.delete(text, kind, comment_id), None, gone)
+
+        await editing.apply(ls, documents.open_by_uri(ls, uri), change, retry=False)
+        return {}
+
+    @server.command(REANCHOR)
+    @_refusals_as_errors
+    async def reanchor(ls: CommentsServer, *arguments: ty.Any) -> dict[str, ty.Any]:
+        """Arguments: `{uri, id, range}`. Moves thread `id`'s anchor to the range."""
+        uri, comment_id = _argument(arguments, "uri", str), _argument(arguments, "id", str)
+        lsp_range = _argument(arguments, "range", dict)
+
+        def change(text: str, kind: model.FileKind, _: str | None) -> editing.Change:
+            codec = documents.codec(ls, text)
+            start, end = (codec.offset(_position(lsp_range, end)) for end in ("start", "end"))
+            moved = edits.reanchor(text, kind, comment_id, start, end)
+            after = edits.apply(text, moved)
+            where = lambda now: now == after  # noqa: E731
+            return editing.Change(moved, None, where)
+
+        document = documents.open_by_uri(ls, uri)
+        await editing.apply(ls, document, change, retry=False)
+        # the comments and anchor ids are the same, so nothing would send the new places
+        ls.sent_keys.pop(documents.key(document.uri), None)
+        _refresh(ls, document.uri)
+        return {}
+
+    @server.command(REFRESH)
+    @_refusals_as_errors
+    async def refresh(ls: CommentsServer, *arguments: ty.Any) -> dict[str, ty.Any]:
+        """Arguments: `{uri}`. Sends the threads again even when nothing that decides
+        whether to send them changed: the client asks when its buffer no longer holds a
+        marker where the last notification put it, as after moving markers by hand."""
+        uri = _argument(arguments, "uri", str)
+        if (document := documents.managed(ls, uri)) is not None:
+            ls.sent_keys.pop(documents.key(document.uri), None)
+            _refresh(ls, uri)
+        return {}
+
+    @server.command(SEEN)
+    @_refusals_as_errors
+    async def seen(ls: CommentsServer, *arguments: ty.Any) -> dict[str, ty.Any]:
+        """Arguments: `{uri, ids}`. The person has seen these comments; the file's inbox row
+        (see `comments.notice`) is marked read once it lists none they haven't."""
+        uri, ids = _argument(arguments, "uri", str), _argument(arguments, "ids", list)
+        if (document := documents.managed(ls, uri)) is not None and document.path:
+            notice.seen(pathlib.Path(document.path), [i for i in ids if isinstance(i, str)])
+        return {}
+
     return server
 
 
@@ -154,7 +220,9 @@ def _refresh(ls: CommentsServer, uri: str) -> None:
         ls.sent_keys[key] = threads_key
         ls.protocol.notify(
             THREADS,
-            publish.threads_params(document.uri, document.version, document.source, doc, codec),
+            publish.threads_params(
+                document.uri, document.version, document.source, doc, codec, _unread(document)
+            ),
         )
     ls.changed.setdefault(key, asyncio.Event()).set()
 
@@ -208,3 +276,12 @@ def _span(raw: object) -> tuple[int, int] | None:
 
 def main() -> None:
     build().start_io()
+
+
+def _unread(document: documents.TextDocument) -> list[str]:
+    """The comments its inbox row says the person hasn't seen; none when the inbox can't be
+    read, which only costs the unread marks."""
+    try:
+        return notice.unread_ids(pathlib.Path(document.path)) if document.path else []
+    except Exception:  # an inbox we can't read must not stop the threads
+        return []
