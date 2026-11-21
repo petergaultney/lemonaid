@@ -17,6 +17,7 @@ time rather than whatever the automatic layout chose. `--kill` tears it all down
 import argparse
 import copy
 import importlib.util
+import itertools
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,7 @@ from lemonaid.groups import store as groups  # noqa: E402
 from lemonaid.grove.layout import state  # noqa: E402
 from lemonaid.inbox import db  # noqa: E402
 from lemonaid.lineage import links  # noqa: E402
+from lemonaid.tmux import jump_target  # noqa: E402
 
 
 class Lemon(ty.NamedTuple):
@@ -173,7 +175,23 @@ _SPOTS = {
 _HOUR = 3600
 
 
-def _seed() -> None:
+def _panes() -> dict[str, dict[str, ty.Any]]:
+    """The location metadata the grove's jump check wants, for each session the demo server runs."""
+    socket = demo._tmux("display-message", "-p", "#{socket_path}").stdout.strip()
+    listing = demo._tmux("list-panes", "-a", "-F", "|".join(jump_target.QUERY[3:])).stdout
+    found: dict[str, dict[str, ty.Any]] = {}
+    for line in listing.splitlines():
+        pane, tty, session, created, started, session_id = line.split("|")
+        found[session] = {
+            "tty": tty,
+            "tmux_pane_identity": [pane, int(started)],
+            "tmux_session_order": [int(created), int(started), int(session_id.lstrip("$"))],
+            "tmux_socket": socket,
+        }
+    return found
+
+
+def _seed(panes: dict[str, dict[str, ty.Any]]) -> None:
     assert db.get_db_path() == demo.DB, db.get_db_path()
     demo.DB.parent.mkdir(parents=True, exist_ok=True)
     demo.DB.unlink(missing_ok=True)
@@ -205,12 +223,12 @@ def _seed() -> None:
                 "",
                 session,
                 {
-                    "tty": f"/dev/ttys{900 + i}",
                     "cwd": str(Path.home() / "src" / session),
                     "tmux_session": session,
                     "tmux_window": "2" if lemon.task.startswith("review") else "1",
                     "model_provider": "openai" if lemon.backend == "codex" else "anthropic",
                     "model": lemon.model,
+                    **panes[session],
                 },
                 switch_source="tmux",
                 created_at=now - (i * 7 + 3) * _HOUR / 5,
@@ -246,12 +264,14 @@ def _arrange() -> None:
 
 def _stage(keys: list[str], columns: int, rows: int) -> None:
     demo._tmux("kill-server")
-    _seed()
-    _arrange()
     demo._tmux(
         "-f", "/dev/null", "new-session", "-d", "-s", "demo", "-n", "grove",
         "-x", str(columns), "-y", str(rows), "-c", str(Path.home()),
     )  # fmt: skip
+    for session, _ in [*itertools.chain.from_iterable(_GROUPS.values()), *_LOOSE]:
+        demo._tmux("new-session", "-d", "-s", session, "-c", str(Path.home()))
+    _seed(_panes())
+    _arrange()
     for name, value in demo.ENVIRONMENT.items():
         demo._tmux("set-environment", "-g", name, value)
     demo._tmux("set-option", "-g", "status", "off")
