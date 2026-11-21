@@ -96,6 +96,10 @@ _log = get_logger("tui")
 _W = ty.TypeVar("_W", bound=Widget)
 
 
+def _asked(probe: abc.Callable[[str], bool | None], pane: str) -> tuple[float, bool | None]:
+    return time.monotonic(), probe(pane)
+
+
 class LemonaidApp(CrashLoggedApp):
     """Lemonaid TUI - attention inbox for your lemons."""
 
@@ -131,7 +135,7 @@ class LemonaidApp(CrashLoggedApp):
         self._dim = unfocused_dim.Dim(
             unfocused_dim.strength(self.config.tui.unfocused_dim), enabled=False
         )
-        self._probe_generation = 0
+        self._input_asked = 0.0  # monotonic seconds when the shown focus answer was asked
         self._filters.append(self._dim)
         self._exec_on_exit: tuple[str, list[str]] | None = None
         self._keys_shown = True
@@ -351,19 +355,13 @@ class LemonaidApp(CrashLoggedApp):
         """Ask tmux off the event loop, so the dim follows a pane switch at once."""
         pane = os.environ.get("TMUX_PANE")
         if self._scratch_mode and pane and self.config.tui.unfocused_dim != "off":
-            self._probe_generation += 1
-            generation = self._probe_generation
             self.run_worker(
-                lambda: self._apply_probe(generation, focus.pane_receives_keys(pane)),
+                lambda: self.call_from_thread(
+                    self._set_input_active, *_asked(focus.pane_receives_keys, pane)
+                ),
                 thread=True,
                 group="pane-focus",
             )
-
-    def _apply_probe(self, generation: int, active: bool | None) -> None:
-        # A probe still running when a newer one starts can finish last.
-        self.call_from_thread(
-            lambda: generation == self._probe_generation and self._set_input_active(active)
-        )
 
     def _user_changed_focus(self) -> bool:
         """False for the blur and focus a keep-focus show causes in this pane itself."""
@@ -374,12 +372,15 @@ class LemonaidApp(CrashLoggedApp):
     def _update_input_indicator(self) -> None:
         pane = os.environ.get("TMUX_PANE") if self._scratch_mode else None
         if pane:
-            self._set_input_active(self._attention.has_keys(pane))
+            self._set_input_active(*_asked(self._attention.has_keys, pane))
 
-    def _set_input_active(self, active: bool | None) -> None:
-        if active is None:
+    def _set_input_active(self, asked: float, active: bool | None) -> None:
+        # Probes overlap, on the event loop and in workers, and one asked earlier can
+        # answer last.
+        if active is None or asked < self._input_asked:
             return
 
+        self._input_asked = asked
         self.set_class(active, "-input-active")
         self.set_class(not active, "-input-inactive")
         dim = self.config.tui.unfocused_dim != "off" and not active
@@ -553,17 +554,17 @@ class LemonaidApp(CrashLoggedApp):
         request = inbox.request(frozenset(), self._env_filter(), self._search_text())
         pane = os.environ.get("TMUX_PANE") if self._scratch_mode else None
 
-        def load() -> tuple[bool | None, inbox_frame.Frame | None]:
+        def load() -> tuple[tuple[float, bool | None], inbox_frame.Frame | None]:
             self._wake_expired_snoozes()
-            keys = self._attention.has_keys(pane) if pane else None
+            keys = _asked(self._attention.has_keys, pane) if pane else (0.0, None)
             asked = dataclasses.replace(request, focused=self._attention.ttys())
             if not found.due(dataclasses.replace(asked, seq=0), time.monotonic()):
                 return keys, None
 
             return keys, inbox.load(asked)
 
-        def done(loaded: tuple[bool | None, inbox_frame.Frame | None]) -> None:
-            self._set_input_active(loaded[0])
+        def done(loaded: tuple[tuple[float, bool | None], inbox_frame.Frame | None]) -> None:
+            self._set_input_active(*loaded[0])
             if loaded[1] is not None and self.is_running and self._brief_target is not None:
                 self._observe_attention(loaded[1])
                 return
