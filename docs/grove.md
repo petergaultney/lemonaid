@@ -132,6 +132,27 @@ The key replaces tmux's `next-layout`. Its lines work unchanged on other systems
 
 The key writes to the window's socket (`grove-window.sock` in lemonaid's state directory) with `nc -U` rather than running `lemonaid`, so the window appears at once. It covers the window of whichever app was in front when you pressed it, and hands that app the focus back when it closes.
 
+#### Where the window opens
+
+At first the window covers the terminal you summon it from, and hides once you choose a lemon. Drag its top bar to move it, or an edge to resize it, and leave it away from the terminal, say on another display: from then on it opens there, and stays up after you choose a lemon, giving the terminal the focus while the window stays in view. Move it back over the terminal and it covers the terminal again. The top bar says which: `over terminal`, or `floating`, which a click puts back over the terminal.
+
+Each set of displays, arranged as it is, keeps its own place, since macOS doesn't: the window remembers where you left it on the laptop alone and where you left it at your desk. With a set it hasn't seen, it covers the terminal. Connect or disconnect a display while it's up and it moves to its place for the new set.
+
+It counts as over the terminal when it covers a tenth or more of the terminal's window (`grove_window_cover_share` under `[tui]`; see [config](config.md)).
+
+#### Other terminals
+
+The window isn't tied to tmux. Anything that can run a command can summon it: `lemonaid grove window show`, or, faster, a line written to its socket, as the tmux key does. Keep `lemonaid grove window run` running yourself, in a tab of its own or at login. In WezTerm, for example, a key in `wezterm.lua`:
+
+```lua
+{ key = "Space", mods = "LEADER", action = wezterm.action_callback(function()
+  wezterm.background_child_process({ "sh", "-c",
+    'echo show | nc -U "${LEMONAID_STATE_DIR:-$HOME/.local/state/lemonaid}/grove-window.sock"' })
+end) },
+```
+
+Choosing a lemon switches to it the way the inbox does, through the front end it runs in: tmux, WezTerm or cmux. A tmux lemon switches the tmux client the window was summoned over; one whose pane is gone is resumed, as the inbox resumes it, unless it was lost with its tmux server, which `lemonaid restore` brings back.
+
 ### When the window doesn't appear
 
 - **The key says the window did not start:** run `lemonaid grove window run` in a pane to see why, usually a missing `web` extra. Once it runs, leave it there or press the key again from another pane.

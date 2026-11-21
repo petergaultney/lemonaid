@@ -22,28 +22,44 @@ class Shared:
     grove: Grove | None = None
     client: str = ""  # the tmux client tty the window was last summoned over
     terminal: Any = None  # the app that was frontmost then, which gets the focus back
+    displays: str = ""  # the displays connected when the window was last placed (`native.displays`)
+    placed: list[float] | None = None  # the frame it was given then, to tell whether it was moved
+    over: bool = True  # whether it is over the terminal (`placement.over_terminal`)
+    placing: bool = False  # while the window places itself, its own moves aren't kept
+    moves: int = 0  # move notices so far, so only the last of a drag's keeps where it ended
 
 
 class Api:
-    """pywebview exposes an object's methods to the page; *hide* hides the window, and *refresh*
-    starts a reload of the grove without waiting for it."""
+    """pywebview exposes an object's methods to the page; *hide* hides the window, *jumped* is
+    called once a jump has switched the terminal, *stick* puts the window back over the terminal,
+    and *refresh* starts a reload of the grove without waiting for it."""
 
     def __init__(
-        self, shared: Shared, hide: abc.Callable[[], None], refresh: abc.Callable[[], None]
+        self,
+        shared: Shared,
+        hide: abc.Callable[[], None],
+        refresh: abc.Callable[[], None],
+        jumped: abc.Callable[[], None],
+        stick: abc.Callable[[], None],
     ) -> None:
         self._shared, self._hide, self._refresh = shared, hide, refresh
+        self._jumped, self._stick = jumped, stick
 
     def data(self) -> dict | None:
         return data.shown(self._shared.grove) if self._shared.grove else None
 
     def jump(self, channel: str) -> str:
-        problem = data.jump(channel, self._shared.client)
+        problem = data.jump(channel, self._shared.client, self._shared.config)
         if not problem:
-            self._hide()
+            self._jumped()
         return problem
 
     def dismiss(self) -> None:
         self._hide()
+
+    def stick(self) -> None:
+        """Put the window back over the terminal, for this set of displays."""
+        self._stick()
 
     def refusal(self, digit: str, key: str, x: int, y: int) -> str:
         grove = self._shared.grove
@@ -138,7 +154,7 @@ class Api:
         return settings.load()
 
     def keep(self, kept: dict) -> None:
-        settings.save(kept)
+        settings.update(kept)
 
     def log(self, line: str) -> None:
         _log.info("page: %s", line)

@@ -152,3 +152,16 @@ test("a block number backed out of with backspace doesn't begin the next one", (
   for (const k of ["1", "Backspace", "2", "a"]) vm.runInContext(`selectKey({key: ${JSON.stringify(k)}})`, context);
   assert.equal(shown[0].channel, "c:2");
 });
+
+test("a lemon with a jump problem still asks Python, which may resume it", () => {
+  const asked = [];
+  const context = {
+    hideCard: () => {}, document: {getElementById: () => ({})},
+    window: {pywebview: {api: {jump: channel => { asked.push(channel); return Promise.resolve(""); }}}},
+  };
+  vm.createContext(context);
+  vm.runInContext(source("jumpTo"), context);
+
+  vm.runInContext("jumpTo({channel: 'claude:gone', jump_problem: 'Recorded tmux pane is gone or ambiguous; no jump made'})", context);
+  assert.deepEqual(asked, ["claude:gone"]);
+});

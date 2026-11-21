@@ -19,7 +19,7 @@ Zoomed into a block, each tree lists its lemons with their Brief-ID, status, mod
 
 <img width="900" alt="One block of the grove zoomed in, each tree beside a card for its lemons" src="docs/images/grove-block.png" />
 
-The grove is in beta. Keys, gardening and the command line are in [docs/grove.md](docs/grove.md). On macOS it can also open in the native window above, which a tmux key summons over your terminal ([the grove window](docs/grove.md#the-grove-window-beta-macos)).
+The grove is in beta. Keys, gardening and the command line are in [docs/grove.md](docs/grove.md). On macOS it can also open in the native window above, which a key summons over your terminal ([the grove window](docs/grove.md#the-grove-window-beta-macos)).
 
 ## An inbox that stays in view
 

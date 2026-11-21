@@ -8,9 +8,9 @@ the same rule `lemonaid grove plant` follows.
 import subprocess
 from collections import abc
 
-from ... import go
+from ... import go, handlers
 from ...config import Config
-from ...inbox import db
+from ...inbox import db, ended
 from ...lemon_watchers.common import detect_terminal_switch_source
 from .. import as_json
 from ..draw import bars, tree_stats
@@ -57,18 +57,45 @@ def search(grove: Grove, text: str) -> list[dict]:
     ]
 
 
-def jump(channel: str, client: str) -> str:
-    """Switch tmux *client* to the lemon on *channel*; returns why it couldn't, or ""."""
+def _pane_gone(found: db.Notification) -> bool:
+    """Whether the tmux pane the lemon ran in is known to be gone, which resuming it replaces;
+    a pane that can't be checked isn't."""
+    tty = found.metadata.get("tty")
+    return (
+        not tty
+        or handlers.check_pane_exists_by_tty(
+            tty, "tmux", found.metadata.get("tmux_socket"), found.created_at
+        )
+        is False
+    )
+
+
+def jump(channel: str, client: str, config: Config) -> str:
+    """Bring the lemon on *channel* to the front; returns why it couldn't, or "". A tmux lemon
+    the terminal grove could jump to switches tmux *client*, the one the window was summoned over;
+    one whose pane is gone is resumed by its front end, as the inbox resumes it, but not one lost
+    with its tmux server (`lemonaid restore` brings those back) or one whose pane is there but
+    can't be told apart. A lemon in WezTerm or cmux is shown by its front end."""
     with db.connect() as conn:
         found = db.get_by_channel(conn, channel, unread_only=False)
     if found is None:
         return f"No live lemon on {channel}"
 
+    name = found.name or channel
     try:
-        go.jump_tmux(found, client)
+        if found.switch_source == "tmux":
+            problem = go.jump_problems([found]).get(channel, "")
+            if not problem:
+                go.jump_tmux(found, client)
+                return ""
+            if ended.lost(found.metadata) or not _pane_gone(found):
+                return f"Can't jump to {name}: {problem}"
+
+        metadata = {**found.metadata, "channel": channel}
+        shown = handlers.handle_notification(metadata, config, switch_source=found.switch_source)
     except (LookupError, ValueError, OSError, subprocess.SubprocessError) as error:
-        return f"Could not switch to {found.name or channel}: {error}"
-    return ""
+        return f"Could not switch to {name}: {error}"
+    return "" if shown else f"Could not switch to {name}"
 
 
 def refusal(grove: Grove, digit: str, key: str, x: int, y: int) -> str:
