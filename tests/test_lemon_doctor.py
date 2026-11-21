@@ -44,6 +44,17 @@ def _child(name: str, channel: str, status: str) -> str:
     return lemon_id
 
 
+def _stop_at_prompt(channel: str) -> None:
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE notifications SET status = 'unread',"
+            " metadata = json_set(metadata, '$.notification_type', 'permission_prompt')"
+            " WHERE channel = ?",
+            (channel,),
+        )
+        conn.commit()
+
+
 def _doctor(*argv: str) -> int:
     parser = argparse.ArgumentParser()
     cli.add_parser(parser.add_subparsers())
@@ -106,6 +117,7 @@ def test_a_lemon_asking_its_user_is_not_listed(capsys, monkeypatch):
     _child("asking", "claude:asking", "Status: blocked")
     with db.connect() as conn:
         db.record_turn(conn, "claude:asking", 1.0)
+    _stop_at_prompt("claude:asking")
 
     assert _doctor("--children", "--self") == 0
     assert capsys.readouterr().out == "1 lemons, 0 deaf or dead and not done or archived\n"
