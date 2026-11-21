@@ -39,7 +39,8 @@ def test_a_half_edited_brief_reports_once_and_keeps_previous_watches(tmp_path):
     try:
         shared.eventually(lambda: bool(list((root / "file").glob("*.json"))))
         path.write_text(text + "- `lemonaid watch file --unknown`\n")
-        file.write_text("after")
+        (tmp_path / "source.new").write_text("after")
+        (tmp_path / "source.new").replace(file)  # a poll mid-write would see a second change
         thread.join(5)
         assert not thread.is_alive() and not errors
         assert len(sent) == 1 and "Invalid subscriptions" in sent[0] and str(file) in sent[0]
