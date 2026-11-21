@@ -12,7 +12,7 @@ def _api(grove=None):
         shared,
         hide=lambda: calls.append("hide"),
         refresh=lambda: calls.append("refresh"),
-        jumped=lambda: calls.append("jumped"),
+        leave=lambda: calls.append("leave"),
         stick=lambda: calls.append("stick"),
         drag=lambda: calls.append("drag"),
     ), calls
@@ -40,7 +40,7 @@ def test_a_jump_tells_the_window_only_when_it_switched_the_client(monkeypatch):
     monkeypatch.setattr(data, "jump", lambda *_args: "No live lemon on claude:2")
     assert page_api.jump("claude:2") == "No live lemon on claude:2"
     assert asked == [("claude:1", "/dev/ttys004")]
-    assert calls == ["jumped"]
+    assert calls == ["leave"]
 
 
 def test_a_drop_reloads_the_grove_only_when_it_was_saved(monkeypatch):
@@ -89,3 +89,11 @@ def test_the_lists_flip_on_the_terminal_groves_key():
     )
     flip = {k: _api()[0].look()[k] for k in ("flipKey", "flipHold")}
     assert flip == {"flipKey": "!", "flipHold": False}
+
+
+def test_the_summon_key_goes_back_to_the_terminal_and_q_hides():
+    page_api, calls = _api()
+
+    page_api.to_terminal()
+    page_api.dismiss()
+    assert calls == ["leave", "hide"]

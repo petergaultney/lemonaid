@@ -79,7 +79,7 @@ def test_left_away_from_the_terminal_it_floats_there_and_stays_up_after_a_jump(m
     mac.frame = [0, 0, 1, 1]
     position._place(window, shared)
     assert mac.frame == [1200, 0, 600, 800] and mac.calls[-1] == "put"
-    position.jumped(window, shared)
+    position.leave(window, shared)
     assert mac.calls[-1] == "focus"
 
 
@@ -93,7 +93,7 @@ def test_left_over_the_terminal_it_covers_it_again_and_hides_after_a_jump(monkey
     position._remember(window, shared)
     assert settings.frame(DESK) is None and shared.over
 
-    position.jumped(window, shared)
+    position.leave(window, shared)
     assert mac.calls[-1] == "hide"
 
 
@@ -160,7 +160,7 @@ def test_summoned_with_itself_in_front_it_keeps_its_terminal_and_stays_up_after_
     window = _window_up(monkeypatch)
 
     position.show(window, shared, "")
-    position.jumped(window, shared)
+    position.leave(window, shared)
     assert mac.calls == ["focus"]
 
 

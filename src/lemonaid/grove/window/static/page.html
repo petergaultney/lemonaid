@@ -958,7 +958,10 @@ function zoomTo(d) {
   if (!b) return;
   goTo(d); draw();
 }
-function back() { if (zoomed) { goTo(null); draw(); } else window.pywebview.api.dismiss(); }
+function back() {
+  if (zoomed) { goTo(null); draw(); }
+  else window.pywebview.api.to_terminal();  // as Space does; `q` is what closes the window
+}
 
 // `grove_flip_key` as a character, or a key's name as the terminal grove's config spells it (`tab`).
 const isFlipKey = e => e.key === flipKey || e.key.toLowerCase() === flipKey.toLowerCase();
@@ -1058,7 +1061,8 @@ function onKey(e) {
     keepSettings();
     layouts = {}; return draw();
   }
-  if ((e.key === "q" || e.key === " ") && !typed) return window.pywebview.api.dismiss();
+  if (e.key === "q" && !typed) return window.pywebview.api.dismiss();
+  if (e.key === " " && !typed) return window.pywebview.api.to_terminal();  // the summon key's own key; floating, the window stays up
   if (e.key === "." && zoomed) { dot = {letter: "", num: ""}; return status(); }
   if (e.key === ".") { view = homeView(DATA.blocks, zoomed, screen()); keepView(); return draw(); }  // back to this view's fit
   if (/^[0-9]$/.test(e.key)) { typed = (typed + e.key).slice(-2); return zoomTo(DATA.blocks.some(b => b.digit === typed) ? typed : e.key); }

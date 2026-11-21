@@ -82,15 +82,17 @@ def hide(window: webview.Window, shared: api.Shared) -> None:
     window.run_js("window.setShown && window.setShown(false)")
 
 
-def jumped(window: webview.Window, shared: api.Shared) -> None:
+def leave(window: webview.Window, shared: api.Shared) -> None:
+    """Back to the terminal, after a jump or from the summon key: hidden over it, otherwise left up
+    with the terminal given the focus."""
     measured, over = threading.Event(), []
 
     def measure() -> None:
         here, terminal = native.frame_of(window.native), native.terminal_frame(shared.terminal)
         over.append(placement.over_terminal(here, terminal, _share(shared)))
         _log.info(
-            "%s after a jump: at %s, the terminal's window at %s",
-            "hidden" if over[0] else "stays up",
+            "%s: at %s, the terminal's window at %s",
+            "hidden" if over[0] else "stays up, giving the terminal the focus",
             here,
             terminal,
         )

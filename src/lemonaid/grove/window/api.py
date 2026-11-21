@@ -31,21 +31,21 @@ class Shared:
 
 
 class Api:
-    """pywebview exposes an object's methods to the page; *hide* hides the window, *jumped* is
-    called once a jump has switched the terminal, *stick* puts the window back over the terminal, *drag* moves it with the pointer,
-    and *refresh* starts a reload of the grove without waiting for it."""
+    """pywebview exposes an object's methods to the page; *hide* hides the window, *leave* goes back
+    to the terminal, hiding the window only over it, *stick* puts the window back over the terminal,
+    *drag* moves it with the pointer, and *refresh* starts a reload of the grove without waiting for it."""
 
     def __init__(
         self,
         shared: Shared,
         hide: abc.Callable[[], None],
         refresh: abc.Callable[[], None],
-        jumped: abc.Callable[[], None],
+        leave: abc.Callable[[], None],
         stick: abc.Callable[[], None],
         drag: abc.Callable[[], None],
     ) -> None:
         self._shared, self._hide, self._refresh = shared, hide, refresh
-        self._jumped, self._stick, self._drag = jumped, stick, drag
+        self._leave, self._stick, self._drag = leave, stick, drag
 
     def data(self) -> dict | None:
         return data.shown(self._shared.grove) if self._shared.grove else None
@@ -53,11 +53,14 @@ class Api:
     def jump(self, channel: str) -> str:
         problem = data.jump(channel, self._shared.client, self._shared.config)
         if not problem:
-            self._jumped()
+            self._leave()
         return problem
 
     def dismiss(self) -> None:
         self._hide()
+
+    def to_terminal(self) -> None:
+        self._leave()
 
     def drag(self) -> None:
         """Move the window with the pointer, from a press on the top bar, until it's let go."""

@@ -62,7 +62,7 @@ def run(config: Config) -> None:
         refresh=lambda: threading.Thread(
             target=_refresh, args=(window_ref[0], shared), daemon=True
         ).start(),
-        jumped=lambda: position.jumped(window_ref[0], shared),
+        leave=lambda: position.leave(window_ref[0], shared),
         stick=lambda: position.stick(window_ref[0], shared),
         drag=lambda: position.drag(window_ref[0]),
     )
