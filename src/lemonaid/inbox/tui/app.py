@@ -31,7 +31,7 @@ from ...lemon_watchers import (
 )
 from ...log import get_logger
 from ...skills import refresh
-from ...tmux import fast_popup, navigation, pane_state, rename, scratch_autosave
+from ...tmux import fast_popup, grove_window, navigation, pane_state, rename, scratch_autosave
 from ...tmux.scratch import (
     _clear_state,
     _hide,
@@ -277,6 +277,7 @@ class LemonaidApp(CrashLoggedApp):
                 thread=True,
                 group="grove-popup",
             )
+            self.run_worker(grove_window.warm, thread=True, group="grove-window")
         self._refresh_usage()
         self.set_interval(self.config.usage.poll_seconds, self._refresh_usage)
         utils.use_light_theme(not self.current_theme.dark)
