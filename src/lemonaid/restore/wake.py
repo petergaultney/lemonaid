@@ -94,17 +94,3 @@ def settle(
         return _result(lemon, where, report.BY_HAND, why)
 
     return placed._replace(rearm=report.PROMPTED)
-
-
-def settle_all(
-    conn: sqlite3.Connection,
-    lemons: abc.Iterable[run.Lemon],
-    where: abc.Callable[[run.Lemon], str],
-    config: Config,
-    prompt: Prompt,
-) -> tuple[list[report.Placed], list[report.Result]]:
-    settled = [settle(conn, lemon, where(lemon), config, prompt) for lemon in lemons]
-    return (
-        [s for s in settled if isinstance(s, report.Placed)],
-        [s for s in settled if isinstance(s, report.Result)],
-    )

@@ -15,7 +15,7 @@ from . import carried, launch, prompt, report, run
 
 
 class Plan(ty.NamedTuple):
-    lemons: list[run.Lemon]  # in the order to start them
+    lemons: list[run.Lemon]  # in the order to make their windows
     skipped: list[report.Result]  # lost lemons restore can't start, and why
 
 

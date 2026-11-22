@@ -10,6 +10,7 @@ from .... import resume
 from ....config import Config
 from ....handlers import handle_notification
 from ....log import get_logger
+from ....restore import asked
 from ... import db, resume_archived
 from . import restore_offer
 from .resume_error import ResumeErrorScreen
@@ -91,6 +92,10 @@ def switch_to(
         switch_source=notification.switch_source,
         on_tmux_resume=lambda tty: resume_archived.record_inbox_resume(notification, tty),
     ):
+        return True
+
+    if told := asked.ask(notification.channel, notification.metadata, notification.name or ""):
+        widget.notify(told)
         return True
 
     found = (

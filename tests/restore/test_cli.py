@@ -2,13 +2,14 @@
 
 import argparse
 import json
+import re
 from collections import abc
 
 import pytest
 
 from lemonaid.config import Config
 from lemonaid.inbox import db, ended
-from lemonaid.restore import cli, inbox_report, report
+from lemonaid.restore import auto, cli, inbox_report, report, wake
 from lemonaid.restore_config import RestoreConfig
 from lemonaid.tmux import home, navigation, relink, restore_relink, server
 from lemonaid.tmux import restore as tmux_restore
@@ -52,7 +53,13 @@ def _terminal(monkeypatch, **changes) -> None:
         tmux_restore,
         "terminal",
         lambda start: terminal._replace(
-            type=lambda window, line: "", seen=lambda where: report.Seen(False, ""), **changes
+            **{
+                "reserve": lambda spots: None,
+                "release": lambda spot: None,
+                "type": lambda window, line: "",
+                "seen": lambda where: report.Seen(False, ""),
+                **changes,
+            }
         ),
     )
 
@@ -62,11 +69,12 @@ def _restore(
     running: set[str],
     opened: abc.Callable[[str], None] = lambda channel: None,
     closed: list[str] | None = None,
+    **changes,
 ) -> None:
     """Run `restore` with a tmux terminal in which only the *running* channels come up.
 
     *opened* is called with each lemon's channel as its window opens; *closed* collects
-    the windows restore closes.
+    the windows restore closes. *changes* replace more of the terminal.
     """
     monkeypatch.setattr(cli, "load_config", lambda: Config(restore=RestoreConfig(1, 0.05)))
     monkeypatch.setattr(cli.plan.transcript, "missing", lambda rows: set())
@@ -78,6 +86,7 @@ def _restore(
         ),
         close=(closed if closed is not None else []).append,
         running=lambda lemons: {lemon.channel for lemon in lemons} & running,
+        **changes,
     )
     cli.cmd_restore(
         argparse.Namespace(dry_run=False, wait=0, json=True, auto=False, into_running=False)
@@ -91,6 +100,40 @@ def _channel_at(spot) -> str:
 def _rows() -> dict[str, db.Notification]:
     with db.connect() as conn:
         return {n.channel: n for n in db.get_active(conn) if n.channel in LEMONS}
+
+
+def test_windows_are_made_in_layout_order_and_each_lemon_is_ready_before_the_next_starts(
+    monkeypatch,
+):
+    """main's session was made first, but work was heard from last, so it starts first."""
+    _lemons_from_the_dead_server()
+    monkeypatch.setattr(relink, "survey", lambda conn, rows=None: [])
+    events: list[str] = []
+    settle = wake.settle
+
+    def settled(conn, lemon, where, config, prompt):
+        row = db.get_by_channel(conn, auto.ASK_CHANNEL, unread_only=False)
+        back = re.search(r"(\d+) back", row.message if row else "")
+        events.append(f"ready {lemon.channel}, the inbox showing {back[1] if back else 0} back")
+        return settle(conn, lemon, where, config, prompt)
+
+    monkeypatch.setattr(wake, "settle", settled)
+    reserved: list[str] = []
+
+    _restore(
+        monkeypatch,
+        set(LEMONS),
+        opened=lambda channel: events.append(f"open {channel}"),
+        reserve=lambda spots: reserved.extend(spot.where for spot, _, _ in spots),
+    )
+
+    assert reserved == ["main:1", "work:1"]
+    assert events == [
+        "open claude:work",
+        "ready claude:work, the inbox showing 0 back",
+        "open claude:main",
+        "ready claude:main, the inbox showing 1 back",
+    ]
 
 
 def test_a_lemon_never_proven_running_stays_lost_and_is_listed_in_the_inbox(monkeypatch, capsys):
@@ -267,14 +310,18 @@ def test_a_lost_lemon_whose_tty_another_lemon_runs_on_stays_lost_and_restorable(
 
 
 def test_a_lemon_that_registered_before_failing_stays_lost_for_the_next_restore(monkeypatch):
-    """Its SessionStart replaced the row's metadata, so it records the new server."""
+    """Its SessionStart replaced the row's metadata, so it records the new server. It is
+    marked lost again as each attempt is given up, before the inbox's watcher could archive
+    a registered row whose window is gone."""
     _lemons_from_the_dead_server()
     monkeypatch.setattr(relink, "survey", lambda conn, rows=None: [])
+    lost_at_each_start: list[bool] = []
 
     def registered(channel: str) -> None:
         with db.connect() as conn:
             row = db.get_by_channel(conn, channel, unread_only=False)
             assert row is not None
+            lost_at_each_start.append(ended.lost(row.metadata))
             metadata = {k: v for k, v in row.metadata.items() if k != "ended"}
             db.add(conn, channel, "started", metadata=metadata, switch_source="tmux")
 
@@ -282,7 +329,8 @@ def test_a_lemon_that_registered_before_failing_stays_lost_for_the_next_restore(
     with pytest.raises(SystemExit):
         _restore(monkeypatch, set(), registered, closed)
 
-    assert closed == ["@main", "@main", "@work", "@work"]  # each attempt's own window only
+    assert sorted(closed) == ["@main", "@main", "@work", "@work"]  # each attempt's own window
+    assert lost_at_each_start == [True] * 4
     rows = _rows()
     assert all(ended.failed(row.metadata) for row in rows.values())
     monkeypatch.setattr(server, "started", lambda socket: 900)  # a running, current server

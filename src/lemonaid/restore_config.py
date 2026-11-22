@@ -8,7 +8,7 @@ AUTO = ("off", "ask", "on")
 
 @dataclass(frozen=True)
 class RestoreConfig:
-    parallel: int = 4  # lemons started at once; each batch is verified before the next
+    parallel: int = 4  # lemons starting at once; the next starts as soon as one runs
     verify_seconds: float = 60.0  # how long a started lemon has to show up running in its pane
     auto: str = "ask"  # what a new server with lost lemons does: nothing, an inbox row, or restore
 

@@ -38,12 +38,12 @@ def _session_order(row: db.Notification) -> tuple[int, ...]:
 def place(
     rows: abc.Iterable[db.Notification], live: abc.Mapping[str, abc.Set[int]]
 ) -> tuple[list[tuple[db.Notification, Spot]], list[db.Notification]]:
-    """(each placeable row with its spot, in the order to start them; the rows with no
-    recorded window).
+    """(each placeable row with its spot, in the order to make their windows; the rows
+    with no recorded window).
 
-    The lemon heard from most recently keeps a contested window. Sessions start in the
-    order tmux made them, and windows by index, so a new session's first window is the
-    one that creates it.
+    The lemon heard from most recently keeps a contested window. Sessions are made in the
+    order tmux first made them, and windows by index, so a new session's first window is
+    the one that creates it.
     """
     recent_first = sorted(rows, key=lambda r: max(r.created_at, r.turn_at or 0.0), reverse=True)
     unplaced = [row for row in recent_first if _recorded(row) is None]

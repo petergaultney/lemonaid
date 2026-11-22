@@ -40,10 +40,14 @@ class Terminal(ty.NamedTuple):
         [abc.Iterable[db.Notification]],
         tuple[list[tuple[db.Notification, Spot]], list[tuple[db.Notification, str]]],
     ]
-    """(each lost row it can place, with its spot, in the order to start them; each row it
-    can't, with why)."""
+    """(each lost row it can place, with its spot, in the order to make their windows; each
+    row it can't, with why)."""
+    reserve: abc.Callable[[abc.Sequence[tuple[Spot, str, str]]], None]
+    """Make each spot's window ahead of its lemon, given its cwd and name, in the order
+    given, so the layout comes back in that order whatever order the lemons start in."""
+    release: abc.Callable[[Spot], None]  # close the window reserved for a lemon not started there
     open: abc.Callable[[Spot, str, abc.Mapping[str, str]], tuple[str, str]]
-    """Open a spot's window: (the window it made or reused, why not or "")."""
+    """Open a spot's window, or take the one reserved for it: (the window, why not or "")."""
     type: abc.Callable[[str, str], str]  # type a line into the window made; why not, or ""
     close: abc.Callable[[str], None]  # close a window restore made, and only such a window
     running: abc.Callable[[abc.Sequence[Lemon]], set[str]]

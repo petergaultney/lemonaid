@@ -16,7 +16,7 @@ from ..brief import attached, identity
 from ..config import Config, load_config
 from ..inbox import db, ended
 from ..launch.restart import native
-from . import auto, dismiss, front_ends, inbox_report, loss, plan, report, run, starts, wake
+from . import asked, auto, dismiss, front_ends, inbox_report, loss, plan, report, run, starts, wake
 
 _DEFAULT_WAIT_SECONDS = 180
 
@@ -112,22 +112,47 @@ class _Done(ty.NamedTuple):
 
 
 def _restore_group(
-    each: _Planned, config: Config, args: argparse.Namespace, deadline: float
+    each: _Planned,
+    config: Config,
+    args: argparse.Namespace,
+    deadline: float,
+    done: abc.Callable[[report.Placed | report.Result], None],
 ) -> _Done:
+    """Restore one front end's lemons, each made ready as soon as it runs; *done* hears of
+    each lemon restore is through with."""
     terminal = each.group.terminal
     progress = _progress if not args.json else _quiet
     started_at = time.time()
-    started, failed = starts.start(
-        each.plan.lemons,
-        terminal,
-        config.restore.parallel,
-        config.restore.verify_seconds,
-        progress,
+    started: list[run.Lemon] = []
+    settled: list[report.Placed | report.Result] = []
+    terminal.reserve(
+        [
+            (lemon.spot, lemon.launch.cwd, lemon.row.name or lemon.channel)
+            for lemon in each.plan.lemons
+        ]
     )
-    with db.connect() as conn:
-        placed, unsettled = wake.settle_all(
-            conn, started, lambda lemon: lemon.spot.where, config, each.group.prompt
-        )
+    try:
+        for found in starts.start(
+            each.plan.lemons,
+            terminal,
+            config.restore.parallel,
+            config.restore.verify_seconds,
+            progress,
+            asked.channels,
+        ):
+            if isinstance(found, run.Lemon):
+                started.append(found)
+                with db.connect() as conn:
+                    ready = wake.settle(conn, found, found.spot.where, config, each.group.prompt)
+            else:
+                ready = found
+            settled.append(ready)
+            done(ready)
+    finally:
+        for lemon in each.plan.lemons:
+            terminal.release(lemon.spot)
+
+    placed = [s for s in settled if isinstance(s, report.Placed)]
     waited = (
         report.wait(placed, started_at, deadline, _activity, terminal.seen, progress)
         if args.wait > 0
@@ -142,8 +167,7 @@ def _restore_group(
                 if row.channel in each.running
             ),
             *waited,
-            *unsettled,
-            *failed,
+            *(s for s in settled if isinstance(s, report.Result)),
             *each.plan.skipped,
         ],
     )
@@ -167,7 +191,8 @@ def _restore(
         return waiting, False
 
     deadline = time.time() + args.wait
-    done = [_restore_group(each, config, args, deadline) for each in planned]
+    counted = auto.counter(lost)
+    done = [_restore_group(each, config, args, deadline, counted) for each in planned]
     started = [lemon for each in done for lemon in each.started]
     results = [*(r for each in done for r in each.results), *unable]
     running = sorted(r.channel for r in results if r.outcome == report.RUNNING)
@@ -237,9 +262,11 @@ def cmd_restore(args: argparse.Namespace) -> None:
 
             auto.restoring(conn, lost)
         waiting: list[db.Notification] = []
+        asked.clear()
         try:
             waiting, missing = _restore(args, config, lost)
         finally:
+            asked.clear()
             with db.connect() as conn:
                 auto.ask(conn, waiting)
 
@@ -288,10 +315,14 @@ DESCRIPTION = (
     "windows it lacks and nothing in it is touched. Each is resumed with the model and "
     "effort it was started with. A lemon recorded on another tmux server than the one restore "
     "opens windows on is not restored.\n\n"
-    "Lemons start a few at a time ([restore] parallel). Each counts as restored only when "
+    "Every window is made first, in the order tmux first made its session, then lemons start "
+    "a few at a time ([restore] parallel), the one heard from last first, and the next as soon "
+    "as one runs. Selecting a lemon still lost in the inbox, the grove or with `lemonaid go` "
+    "has it started next. Each counts as restored only when "
     "its own conversation runs in its window; one that doesn't is stopped and started once "
-    "more, then reported. A restored lemon whose push scout runs gets its subscriptions back "
-    "with no prompt; one that can't be pushed to is prompted to rearm its brief's waiters.\n\n"
+    "more, then reported. As soon as it runs, a restored lemon whose push scout runs gets its "
+    "subscriptions back with no prompt; one that can't be pushed to is prompted to rearm its "
+    "brief's waiters.\n\n"
     "It waits for each prompted lemon to be heard from, reports every lemon, and lists the "
     "ones not back to work in one inbox row (lemonaid:restore). It exits 1 if any is not."
 )

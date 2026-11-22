@@ -13,7 +13,17 @@ from ..inbox import db
 from ..launch import window as launch_window
 from ..log import get_logger
 from ..restore import run
-from . import home, inspect, own_pane, placement, readiness, restore_relink, server
+from . import (
+    home,
+    inspect,
+    keep_indices,
+    own_pane,
+    placement,
+    readiness,
+    restore_relink,
+    restore_reserve,
+    server,
+)
 
 _log = get_logger("tmux.restore")
 
@@ -136,7 +146,8 @@ def close_window(window: str) -> None:
     if window.startswith("%"):
         return
 
-    _run("tmux", "kill-window", "-t", window)
+    if why := keep_indices.run(window, "kill-window", "-t", window):
+        _log.warning("could not close window %s: %s", window, why)
 
 
 def _exists(session: str) -> bool:
@@ -144,9 +155,14 @@ def _exists(session: str) -> bool:
 
 
 def open_window(
-    to: run.Spot, cwd: str, environment: abc.Mapping[str, str], start: bool = True
+    to: run.Spot,
+    cwd: str,
+    environment: abc.Mapping[str, str],
+    start: bool = True,
+    argv: abc.Sequence[str] = (),
 ) -> tuple[str, str]:
-    """Open *spot*'s window in *cwd*: (the window id it made, why not or "").
+    """Open *spot*'s window in *cwd*, running *argv* rather than a shell when given: (the
+    window id it made, why not or "").
 
     Without *start*, a missing session is made only on a server that runs: tmux's `-N`
     refuses to start one, however the server went away since anyone checked.
@@ -175,6 +191,7 @@ def open_window(
             cwd,
             *new,
             *environment_args,
+            *argv,
         )
         return made, why
 
@@ -194,6 +211,7 @@ def open_window(
         height,
         *new,
         *environment_args,
+        *argv,
     )
     if why:
         return "", f"could not create its session: {why}"
@@ -201,7 +219,9 @@ def open_window(
     # tmux refuses to move a window onto its own index, which is where base-index puts
     # it when the two agree.
     if _first_index(spot.session) != spot.index and (
-        why := _run("tmux", "move-window", "-s", made, "-t", f"={spot.session}:{spot.index}")
+        why := keep_indices.run(
+            made, "move-window", "-s", made, "-t", f"={spot.session}:{spot.index}"
+        )
     ):
         close_window(made)
         return "", why
@@ -219,9 +239,15 @@ def up() -> bool:
 
 
 def terminal(start: bool) -> run.Terminal:
+    reserving = restore_reserve.windows(
+        lambda to, cwd, environment, argv: open_window(to, cwd, environment, start, argv),
+        close_window,
+    )
     return run.Terminal(
         place,
-        lambda to, cwd, environment: open_window(to, cwd, environment, start),
+        reserving.reserve,
+        reserving.release,
+        reserving.open,
         type_line,
         close_window,
         restore_relink.running,

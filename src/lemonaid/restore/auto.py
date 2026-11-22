@@ -8,6 +8,7 @@ restores at once. A lock makes two triggers, or a trigger and a person, one run.
 
 import contextlib
 import fcntl
+import os
 import pathlib
 import sqlite3
 import subprocess
@@ -16,8 +17,7 @@ from collections import abc
 
 from ..inbox import db, ended
 from ..log import LOG_PATH
-from ..watch import cursors
-from . import loss
+from . import loss, report
 
 ASK_CHANNEL = "lemonaid:restore-lost"
 _LOCK_TRIES = 20
@@ -25,7 +25,8 @@ _LOCK_PAUSE_SECONDS = 0.05
 
 
 def _lock_path() -> pathlib.Path:
-    return cursors.root().parent / "restore.lock"
+    state = os.environ.get("LEMONAID_STATE_DIR") or "~/.local/state/lemonaid"
+    return pathlib.Path(state).expanduser() / "restore.lock"
 
 
 @contextlib.contextmanager
@@ -84,16 +85,39 @@ def ask(conn: sqlite3.Connection, lost: abc.Sequence[db.Notification]) -> None:
     )
 
 
+def _restoring(lost: abc.Sequence[db.Notification]) -> str:
+    return f"Restoring {len(lost)} lemons lost with their terminal at {_when(lost)}"
+
+
 def restoring(conn: sqlite3.Connection, lost: abc.Sequence[db.Notification]) -> None:
     """Show, in the same row, that a restore is under way."""
     if lost:
-        db.add(
-            conn,
-            ASK_CHANNEL,
-            f"Restoring {len(lost)} lemons lost with their terminal at {_when(lost)}...",
-            name="restore",
-            status="read",
-        )
+        db.add(conn, ASK_CHANNEL, _restoring(lost) + "...", name="restore", status="read")
+
+
+def counter(
+    lost: abc.Sequence[db.Notification],
+) -> abc.Callable[[report.Placed | report.Result], None]:
+    """Count each lemon restore is through with in that row: how many are back, and that
+    selecting one still lost starts it next."""
+    back = failed = 0
+
+    def count(each: report.Placed | report.Result) -> None:
+        nonlocal back, failed
+        if isinstance(each, report.Result) and each.outcome == report.NOT_RESTORED:
+            failed += 1
+        else:
+            back += 1
+        with db.connect() as conn:
+            db.update_message(
+                conn,
+                ASK_CHANNEL,
+                f"{_restoring(lost)}: {back} back"
+                + (f", {failed} not restored" if failed else "")
+                + ". Select a lemon still lost to have it started next.",
+            )
+
+    return count
 
 
 def clear(conn: sqlite3.Connection) -> None:

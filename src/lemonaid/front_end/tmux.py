@@ -11,7 +11,7 @@ from ..launch import window
 from ..launch.restart import pane, process
 from ..lemon_watchers import watcher
 from ..log import get_logger
-from ..restore import run
+from ..restore import asked, run
 from ..tmux import command_popup, rename, restore
 from . import interface
 
@@ -72,6 +72,9 @@ def show(
         return False
 
     if session is None or pane_id is None:
+        if asked.ask(metadata.get("channel", ""), metadata, metadata.get("name", "")):
+            return False  # the restore running now starts it; resuming it too would run it twice
+
         if on_resume is None:
             return tmux.recreate.recreate(metadata, config)
 
