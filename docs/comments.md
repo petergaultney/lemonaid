@@ -259,7 +259,8 @@ require("lma").setup({
   -- these are the defaults
   keys = {
     comment = "<leader>cc", resolve = "<leader>cr", thread = "<leader>ct", panel = "<leader>cp",
-    delete = "<leader>cx", move = "<leader>cm", autosave = "<leader>cw",
+    delete = "<leader>cx", move = "<leader>cm", autosave = "<leader>cw", unread = "<leader>cu",
+    next_unread = "]u", prev_unread = "[u",
   },
   autosave = false, -- save the file after each comment
   -- true in a buffer without threads leaves the comment and panel keys to the
@@ -282,24 +283,32 @@ server to the buffers already open.
   threads again, at most once per version of the buffer. A Markdown window hides markers only while its `'conceallevel'` is
   above 0, so a renderer that raises it while it draws decides when.
 - **Comment.** `<leader>cc` on code opens a small window to write a comment on the
-  line or the selection; `:w` sends it and `q` keeps it as a draft. In the panel or a
-  thread float, the same key replies to the comment under the cursor, about the
+  line or the selection; `:w` sends it and `q` keeps it as a draft. In the panel, the
+  same key replies to the comment under the cursor, about the
   selected part of it if there is a selection.
 - **Read.** `<leader>cp` opens the panel, every thread of the buffer beside it;
   moving through it lights up each thread's text, and `Enter` jumps there.
-  `<leader>ct` shows the thread under the cursor in a float, and pressing it again
-  moves into the float.
-- **Resolve.** `<leader>cr` resolves the thread under the cursor, or in the panel or
-  a float, the comment under the cursor and its replies.
-- **Delete.** `<leader>cx` deletes the thread under the cursor, or in the panel or a
-  float, the comment under the cursor and its replies, after asking.
+  `<leader>ct` on a thread's anchor moves you to that thread in the panel, onto its
+  first unread comment if it has one, opening the panel if it is closed.
+- **Resolve.** `<leader>cr` resolves the thread under the cursor, or in the panel, the
+  comment under the cursor and its replies.
+- **Delete.** `<leader>cx` deletes the thread under the cursor, or in the panel, the
+  comment under the cursor and its replies, after asking.
 - **Move.** `<leader>cm` with a selection moves a thread's anchor to it, asking which
   thread when the file has several.
-- **Replies.** A lemon's comment that arrives while you work is announced, and its
-  thread's sign shows `●` until you move into the thread or show it with `<leader>ct`.
-  A reply written while the file was closed, which its inbox row lists, is unread when
-  the file opens; each one you visit drops off the row, and the row is marked read once
-  it lists none.
+- **Replies.** A lemon's comment that arrives while you work is unread until you read
+  it in the panel: moving the cursor onto it there reads it, and nothing in the file
+  does. Its thread's sign shows `●` by the anchor, and in the panel the dot is beside
+  each unread comment. A line at the bottom says what arrived and how many comments in
+  the file you haven't read, with `lma` yellow while any are, and counts down as you
+  read. In the panel, `]u` and `[u` jump to the next or previous unread comment and
+  read it; in the file, they jump to the next or previous thread with one.
+  `<leader>cu` shows only threads with unread comments in the panel, opening it if it
+  is closed, for every buffer until you press it again; a thread you read meanwhile
+  stays until you turn the filter off. A reply under a resolved comment is unread too:
+  the panel shows the resolved comments around it while you read it. A reply written
+  while the file was closed, which its inbox row lists, is unread when the file opens;
+  each one you read drops off the row, and the row is marked read once it lists none.
 - **Saving.** `<leader>cw` turns on saving the file once the server confirms a comment,
   reply, resolve, delete or move, so a lemon hears of it at once; it is off when nvim
   starts, so a batch of comments goes out on one `:w`. A failed save is reported and

@@ -1,5 +1,5 @@
--- A thread as lines of text, for the panel and the float.  Each comment is a header (its
--- author and time) and its body below, indented by its depth in the thread:
+-- A thread as lines of text, for the panel.  Each comment is a header (its author
+-- and time) and its body below, indented by its depth in the thread:
 --
 --   Sam Lee · 11-19 19:40
 --     why not `yield_results` here?
@@ -32,8 +32,9 @@ local function byte_of(text, char)
 end
 
 -- Appends one thread's lines to `out` = { lines, hls, rows }, each line indented by
--- `indent` spaces.  `with_resolved` false leaves resolved comments out.
-function M.thread(out, thread, indent, with_resolved)
+-- `indent` spaces.  `with_resolved` false leaves resolved comments out.  `unread(comment)`,
+-- when given, marks the comments it is true for with a dot before the author.
+function M.thread(out, thread, indent, with_resolved, unread)
   local by_id = {}
   for _, comment in ipairs(thread.comments) do by_id[comment.id] = comment end
   -- each comment's body lines, so a reply's span can light up its parent's text
@@ -52,10 +53,12 @@ function M.thread(out, thread, indent, with_resolved)
     if with_resolved or not comment.resolved then
       local pad = (" "):rep(indent + 2 * comment.depth)
       local arrow = comment.depth > 0 and "↳ " or ""
+      local dot = unread and unread(comment) and "● " or ""
       local stamp = " · " .. when(comment.at) .. (comment.resolved and " · resolved" or "")
-      local header = pad .. arrow .. comment.author .. stamp
+      local header = pad .. arrow .. dot .. comment.author .. stamp
       local row = add(header, { comment = comment, thread = thread })
-      local author_start = #pad + #arrow
+      if dot ~= "" then hl(row, #pad + #arrow, #pad + #arrow + #dot, "LmaUnread") end
+      local author_start = #pad + #arrow + #dot
       hl(row, author_start, author_start + #comment.author, comment.resolved and "LmaResolved" or "LmaAuthor")
       hl(row, author_start + #comment.author, #header, "LmaTime")
 

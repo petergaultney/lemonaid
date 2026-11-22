@@ -7,26 +7,27 @@
 --   vim.lsp.enable("lemonaid")
 --
 --   state     each buffer's threads, anchor marks and concealed markers
---   render    a thread as lines, for the panel and the float
+--   render    a thread as lines, for the panel
 --   panel     every thread beside the buffer
---   float     the thread under the cursor
 --   compose   the window you write a comment in
 --   drafts    what you wrote, until the server confirms it
 --   send      the server's commands, reloading once when a lemon wrote the file
 --
 -- One key, <leader>cc by default, comments: on code it anchors a new thread on the line
--- or the selection; in the panel or a float it replies to the comment under the cursor,
--- about the selected part of it when there is a selection.  <leader>cx deletes a comment
+-- or the selection; in the panel it replies to the comment under the cursor, about the
+-- selected part of it when there is a selection.  <leader>ct on a thread's anchor moves
+-- you to it in the panel.  <leader>cx deletes a comment
 -- and its replies, or a whole thread on its anchor; <leader>cm moves a thread to the
 -- selected text; <leader>cw turns on saving the file after each comment, so the lemon
 -- hears of it at once (off by default, so a batch of comments goes out on one :w).
 --
 -- A lemon's reply that arrives while you work is announced and marked unread until you
--- visit its thread; once nothing in the file is unread, its inbox row is marked read.
+-- read it in the panel; once nothing in the file is unread, its inbox row is marked read.
+-- <leader>cu shows only threads with unread comments in the panel; ]u and [u jump to the
+-- next or previous unread comment in the panel, or thread with one in the file.
 
 local compose = require("lma.compose")
 local drafts = require("lma.drafts")
-local float = require("lma.float")
 local panel = require("lma.panel")
 local render = require("lma.render")
 local selection = require("lma.selection")
@@ -38,7 +39,8 @@ local M = {}
 local config = {
   keys = {
     comment = "<leader>cc", resolve = "<leader>cr", thread = "<leader>ct", panel = "<leader>cp",
-    delete = "<leader>cx", move = "<leader>cm", autosave = "<leader>cw",
+    delete = "<leader>cx", move = "<leader>cm", autosave = "<leader>cw", unread = "<leader>cu",
+    next_unread = "]u", prev_unread = "[u",
   },
   -- save the file once the server confirms a comment, reply, resolve or delete
   autosave = false,
@@ -59,17 +61,51 @@ end
 
 local function redraw_views(buf)
   if panel.source() == buf then panel.draw() end
-  float.draw()
+end
+
+-- The unread line: what arrived, if anything, and how many comments in the file you
+-- haven't read, with "lma" yellow while any are.  Shown when a reply arrives and again as
+-- you read; the next message nvim shows replaces it.  It keeps to one screen line, so
+-- nvim never stops to ask for Enter, and only an arrival goes into :messages.
+local function show_unread_line(buf, arrived)
+  local name = vim.fn.fnamemodify(path_of(buf), ":t")
+  local count = state.unread_count(buf)
+  local first = arrived[1]
+  local news = #arrived > 1 and ("%d new replies · "):format(#arrived) or ""
+  local left = count > 0 and ("%d unread in %s"):format(count, name) or ("nothing unread in %s"):format(name)
+  -- a key only where it reaches this file: the panel showing it, or this file in front
+  local in_front = vim.api.nvim_get_current_buf() == buf
+  local in_panel = vim.bo.filetype == "lmapanel"
+  local shown_in_panel = panel.is_open() and panel.source() == buf and (in_front or in_panel)
+  local hint = count == 0 and "" or shown_in_panel and ("  (%s for the next)"):format(config.keys.next_unread)
+    or in_front and not panel.is_open() and ("  (%s to see)"):format(config.keys.panel)
+    or ""
+  -- one screen line: the count stays; the hint goes first, then the reply's text shrinks,
+  -- then only who replied is left
+  local room = vim.v.echospace - 1
+  local function width(...) return vim.fn.strdisplaywidth(table.concat({ "lma: ", ... })) end
+  if #arrived == 1 then
+    local said = first.body:match("^[^\n]*")
+    news = ("%s replied: %s · "):format(first.author, said)
+    if width(news, left, hint) > room then hint = "" end
+    local spare = room - width(("%s replied:  · "):format(first.author), left, hint)
+    if vim.fn.strdisplaywidth(said) > spare then
+      -- by display width, so a wide character counts as the two cells it takes
+      local cut = vim.fn.strcharpart(said, 0, math.max(spare - 1, 0))
+      while cut ~= "" and vim.fn.strdisplaywidth(cut) > spare - 1 do
+        cut = vim.fn.strcharpart(cut, 0, vim.fn.strchars(cut) - 1)
+      end
+      news = cut ~= "" and ("%s replied: %s… · "):format(first.author, cut) or ("%s replied · "):format(first.author)
+    end
+  end
+  if width(news, left, hint) > room then hint = "" end
+  if width(news, left, hint) > room then news = "" end
+  local rest = ": " .. news .. left .. hint
+  vim.api.nvim_echo({ { "lma", count > 0 and "LmaUnread" or "Normal" }, { rest } }, #arrived > 0, {})
 end
 
 local function announce(buf, arrived)
-  if #arrived == 0 then return end
-  local name = vim.fn.fnamemodify(path_of(buf), ":t")
-  local first = arrived[1]
-  local message = #arrived == 1
-      and ("%s replied in %s: %s"):format(first.author, name, (first.body:match("^[^\n]*")))
-    or ("%d new replies in %s"):format(#arrived, name)
-  notify(message .. "  (" .. config.keys.panel .. " to see)")
+  if #arrived > 0 then show_unread_line(buf, arrived) end
 end
 
 function M.on_threads(_, params, ctx)
@@ -86,7 +122,8 @@ function M.on_threads(_, params, ctx)
   local client = vim.lsp.get_client_by_id(ctx.client_id)
   local unread = params.unread ~= vim.NIL and params.unread or nil
   announce(buf, state.set(buf, params.threads, client and client.offset_encoding or "utf-16", unread))
-  panel.follow(buf)
+  -- the panel follows you, not the server: a file updated in the background stays there
+  if vim.api.nvim_get_current_buf() == buf then panel.follow(buf) end
   redraw_views(buf)
 end
 
@@ -157,11 +194,13 @@ local function save_if_auto(buf)
   end
 end
 
--- You've looked at `thread`: its comments are read, and the inbox row drops them, marking
--- itself read once it lists none you haven't seen.
-local function seen(buf, thread)
-  local cleared = state.mark_seen(buf, thread)
+-- You've read `comment` in the panel: the inbox row drops it, marking itself read once it
+-- lists none you haven't seen.
+local function seen(buf, comment)
+  local cleared = state.mark_seen(buf, comment)
   if #cleared > 0 then
+    redraw_views(buf)
+    show_unread_line(buf, {})
     send.run(buf, "lemonaid.seen", function() return { uri = vim.uri_from_bufnr(buf), ids = cleared } end,
       function() end)
   end
@@ -336,9 +375,16 @@ local function move(buf)
   }, moved)
 end
 
--- Keys for a buffer that shows threads (the panel, a float): reply and resolve.
+-- Keys for the panel: reply, resolve, delete, the unread filter and its jumps.
 local function rendered_keys(context)
   return function(rendered_buf)
+    vim.keymap.set("n", config.keys.unread, function() panel.toggle_unread(panel.source()) end,
+      { buffer = rendered_buf, desc = "lma: show only unread threads, or all" })
+    for lhs, step in pairs({ [config.keys.next_unread] = 1, [config.keys.prev_unread] = -1 }) do
+      vim.keymap.set("n", lhs, function()
+        if not panel.visit_unread(step) then notify("nothing unread") end
+      end, { buffer = rendered_buf, desc = "lma: the next or previous unread thread" })
+    end
     vim.keymap.set({ "n", "x" }, config.keys.comment, function()
       local source, rows = context()
       reply(source, rows, rendered_buf)
@@ -368,7 +414,7 @@ state.on_stale = function(buf)
 end
 
 panel.on_open = rendered_keys(panel.context)
-float.on_open = rendered_keys(float.context)
+panel.on_visit = function(source, comment) seen(source, comment) end
 
 -- ── Buffers the server attaches to ───────────────────────────────────
 
@@ -438,9 +484,25 @@ function M.on_attach(_, buf)
     return state.thread_at(buf, cursor[1] - 1, cursor[2])
   end
   vim.keymap.set("n", config.keys.thread, function()
-    float.show(buf)
-    seen(buf, here())
-  end, { buffer = buf, desc = "lma: show the thread here; again to move into it" })
+    local thread = here()
+    if not thread then return notify("no thread here") end
+    panel.show_thread(buf, thread)
+  end, { buffer = buf, desc = "lma: move to the thread here in the panel" })
+  vim.keymap.set("n", config.keys.unread, function() panel.toggle_unread(buf) end,
+    { buffer = buf, desc = "lma: show only unread threads in the panel, or all" })
+  for lhs, step in pairs({ [config.keys.next_unread] = 1, [config.keys.prev_unread] = -1 }) do
+    vim.keymap.set("n", lhs, function()
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      local thread = state.unread_thread(buf, cursor[1] - 1, cursor[2], step)
+      if not thread then
+        -- the anchors are where a jump goes, and an orphaned thread has none
+        return notify(state.unread_count(buf) > 0
+          and ("unread only in orphaned threads (%s to see)"):format(config.keys.panel) or "nothing unread")
+      end
+      local sr, sc = state.anchor_range(buf, thread)
+      vim.api.nvim_win_set_cursor(0, { sr + 1, sc })
+    end, { buffer = buf, desc = "lma: the next thread with an unread comment" })
+  end
   vim.keymap.set("n", config.keys.delete, function()
     local thread = here()
     if thread then delete(buf, thread, thread.root) else notify("no thread here") end
@@ -457,11 +519,6 @@ function M.on_attach(_, buf)
   watch(buf)
   local group = vim.api.nvim_create_augroup("lma_buf_" .. buf, { clear = true })
   vim.api.nvim_create_autocmd("BufEnter", { group = group, buffer = buf, callback = function() panel.follow(buf) end })
-  -- visiting a thread with an unread reply reads it
-  vim.api.nvim_create_autocmd("CursorMoved", {
-    group = group, buffer = buf,
-    callback = function() if state.has_unread(buf) then seen(buf, here()) end end,
-  })
   -- A reload (:edit, :checktime after a lemon writes the file) sets the filetype again, and
   -- its ftplugin maps its own keys over ours; the client stays attached, so map ours again.
   vim.api.nvim_create_autocmd("FileType", { group = group, buffer = buf, callback = function() map_shared_keys(buf) end })

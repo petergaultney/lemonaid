@@ -125,8 +125,8 @@ local function draw_anchor(buf, thread, st, at)
   local mark = {
     end_row = er, end_col = ec,
     hl_group = not resolved and "LmaAnchor" or nil,
-    sign_text = resolved and "✓" or unread and "●" or "┃",
-    sign_hl_group = resolved and "LmaResolved" or unread and "LmaUnread" or "LmaSign",
+    sign_text = unread and "●" or resolved and "✓" or "┃",
+    sign_hl_group = unread and "LmaUnread" or resolved and "LmaResolved" or "LmaSign",
     virt_text = not resolved and not below and { { "  " .. hint, "LmaHint" } } or nil,
     virt_text_pos = "eol",
     right_gravity = false, end_right_gravity = true,
@@ -318,25 +318,57 @@ function M.redraw(buf)
   end
 end
 
--- You have seen `thread`: its comments are read.  Returns the ids that were unread.
-function M.mark_seen(buf, thread)
+-- You have read `comment`.  Returns its id in a list when it was unread, else an empty one.
+function M.mark_seen(buf, comment)
   local st = by_buf[buf]
-  if not (st and thread) then return {} end
-  local cleared = {}
-  for _, comment in ipairs(thread.comments) do
-    st.read[comment.id] = true
-    if st.unread[comment.id] then
-      st.unread[comment.id] = nil
-      cleared[#cleared + 1] = comment.id
-    end
-  end
-  if #cleared > 0 then M.redraw(buf) end
-  return cleared
+  if not (st and comment) then return {} end
+  st.read[comment.id] = true
+  if not st.unread[comment.id] then return {} end
+  st.unread[comment.id] = nil
+  M.redraw(buf)
+  return { comment.id }
 end
 
 function M.has_unread(buf)
   local st = by_buf[buf]
   return st ~= nil and next(st.unread) ~= nil
+end
+
+function M.comment_unread(buf, id)
+  local st = by_buf[buf]
+  return st ~= nil and st.unread[id] == true
+end
+
+function M.unread_count(buf)
+  local st = by_buf[buf]
+  return st and vim.tbl_count(st.unread) or 0
+end
+
+function M.thread_unread(buf, thread)
+  local st = by_buf[buf]
+  return st ~= nil and is_unread(st, thread)
+end
+
+-- The next (`step` 1) or previous (-1) thread from (row, col) with an unread comment, by
+-- where its anchor is now, wrapping around; nil when none is.
+function M.unread_thread(buf, row, col, step)
+  local st = by_buf[buf]
+  if not st then return nil end
+  local found = {}
+  for _, thread in ipairs(st.threads) do
+    local sr, sc = M.anchor_range(buf, thread)
+    if sr and is_unread(st, thread) then found[#found + 1] = { sr, sc, thread } end
+  end
+  if #found == 0 then return nil end
+  table.sort(found, function(x, y) return x[1] < y[1] or (x[1] == y[1] and x[2] < y[2]) end)
+  local function after(x) return x[1] > row or (x[1] == row and x[2] > col) end
+  local function before(x) return x[1] < row or (x[1] == row and x[2] < col) end
+  if step > 0 then
+    for _, x in ipairs(found) do if after(x) then return x[3] end end
+    return found[1][3]
+  end
+  for k = #found, 1, -1 do if before(found[k]) then return found[k][3] end end
+  return found[#found][3]
 end
 
 -- Where a thread's anchor is now: 0-based start row and col, end row and col.

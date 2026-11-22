@@ -22,6 +22,15 @@ end
 local notes = {}
 local real_notify = vim.notify
 vim.notify = function(msg, level) notes[#notes + 1] = msg end
+-- what the client echoes, with the highlight of its first chunk; it goes to notes too
+local echoes = {}
+local real_echo = vim.api.nvim_echo
+vim.api.nvim_echo = function(chunks, history, opts)
+  local said = table.concat(vim.tbl_map(function(c) return c[1] end, chunks))
+  echoes[#echoes + 1] = { text = said, first_hl = chunks[1] and chunks[1][2] }
+  if said ~= "" then notes[#notes + 1] = said end
+  return real_echo(chunks, history, opts)
+end
 
 local function run()
 -- A buffer marked `other_comments` keeps its own comment key, as a vault doc keeps
@@ -586,7 +595,7 @@ drafts.confirmed(confirming)
 vim.uv.fs_close = real_close
 check("the lock goes only after the draft", #closes > 0 and not vim.tbl_contains(closes, true), closes)
 
--- 27. a lemon's reply is announced and unread until you visit its thread
+-- 27. a lemon's reply is announced and unread until you read it in the panel
 local fresh = work .. "/fresh.md"
 vim.fn.writefile({ "# Fresh", "", "a claim here", "" }, fresh)
 vim.cmd("edit " .. fresh)
@@ -602,7 +611,7 @@ local lemon_said = lemonaid("comments", "reply", fresh, "--re", fresh_root, "--a
 check("the lemon's reply exits 0", lemon_said.code == 0, lemon_said.stderr)
 local function announced()
   for i = notes_before + 1, #notes do
-    if notes[i]:find("BraveFig (Author) replied in fresh.md: yes, it is", 1, true) then return true end
+    if notes[i]:find("lma: BraveFig (Author) replied: yes, it is · 1 unread in fresh.md", 1, true) then return true end
   end
 end
 check("a lemon's reply is announced", wait(8000, announced), vim.list_slice(notes, notes_before + 1))
@@ -611,7 +620,11 @@ local fresh_thread = state.find_comment(fbuf, fresh_root)
 local fsr, fsc = state.anchor_range(fbuf, fresh_thread)
 vim.api.nvim_win_set_cursor(0, { fsr + 1, fsc })
 vim.api.nvim_exec_autocmds("CursorMoved", { buffer = fbuf })
-check("visiting the thread reads it", not state.has_unread(fbuf))
+check("visiting its anchor doesn't read it", state.has_unread(fbuf))
+vim.api.nvim_feedkeys(vim.keycode(" ct"), "x", false)
+check("reading it in the panel does", not state.has_unread(fbuf))
+vim.api.nvim_set_current_win(vim.fn.bufwinid(fbuf))
+require("lma.panel").close()
 
 -- 28. with saving turned on, a comment saves the file, so the lemon hears of it at once
 vim.api.nvim_feedkeys(vim.keycode(" cw"), "x", false)
@@ -702,8 +715,10 @@ check("and announced", #notes > notes_before_open, vim.list_slice(notes, notes_b
 local away = state.find_comment(cbuf, closed_root)
 local asr, asc = state.anchor_range(cbuf, away)
 vim.api.nvim_win_set_cursor(0, { asr + 1, asc })
-vim.api.nvim_exec_autocmds("CursorMoved", { buffer = cbuf })
-check("visiting it reads it", not state.has_unread(cbuf))
+vim.api.nvim_feedkeys(vim.keycode(" ct"), "x", false)
+check("reading it in the panel reads it", not state.has_unread(cbuf))
+vim.api.nvim_set_current_win(vim.fn.bufwinid(cbuf))
+require("lma.panel").close()
 check("and the inbox row is marked read", wait(8000, function()
   local listed = lemonaid("inbox", "list", "--json")
   local ok, rows = pcall(vim.json.decode, listed.stdout)
@@ -749,6 +764,301 @@ wait(500)
 local after_move = table.concat(vim.api.nvim_buf_get_lines(cbuf, 1, -1, false), "\n")
 check("a changed selection is not used to move a thread", after_move == before_move,
   { notes = vim.list_slice(notes, notes_before_move + 1) })
+vim.cmd("write")
+
+-- 36. <leader>cu with the panel closed opens it showing only threads with unread comments
+local panel = require("lma.panel")
+panel.close()
+local unread_md = work .. "/unread.md"
+vim.fn.writefile({ "# Unread", "", "first point", "", "second point", "", "third point", "" }, unread_md)
+vim.cmd("edit " .. unread_md)
+local ubuf = vim.api.nvim_get_current_buf()
+wait(8000, function() return state.get(ubuf) ~= nil end)
+for i, row in ipairs({ 3, 5, 7 }) do
+  vim.api.nvim_win_set_cursor(0, { row, 0 })
+  vim.api.nvim_feedkeys(vim.keycode((" ccpoint %d?<Esc>:w<CR>"):format(i)), "x", false)
+  wait(8000, function() return #state.get(ubuf).threads == i end)
+end
+vim.cmd("write")
+local roots = vim.tbl_map(function(t) return t.root.id end, state.get(ubuf).threads)
+local function latest(b, root) local cs = state.find_comment(b, root).comments return cs[#cs].id end
+-- a lemon's reply at the end of the thread; returns its id
+local function lemon_reply(path, b, root, body)
+  local said = lemonaid("comments", "reply", path, "--re", root, "--after", latest(b, root), "--as", "BraveFig (Author)", body)
+  local id = vim.trim(said.stdout)
+  wait(8000, function() return state.comment_unread(b, id) end)
+  return id
+end
+local one = lemon_reply(unread_md, ubuf, roots[1], "answer one")
+check("a reply to the first point is unread", state.comment_unread(ubuf, one))
+local two = lemon_reply(unread_md, ubuf, roots[2], "answer two")
+check("and one to the second", state.comment_unread(ubuf, two))
+local function panel_win_now()
+  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.bo[vim.api.nvim_win_get_buf(w)].filetype == "lmapanel" then return w end
+  end
+end
+local function panel_lines()
+  local w = panel_win_now()
+  return w and vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(w), 0, -1, false) or {}
+end
+local function panel_text() return table.concat(panel_lines(), "\n") end
+local function row_with(needle)
+  for i, l in ipairs(panel_lines()) do if l:find(needle, 1, true) then return i end end
+end
+-- the header row of `id` in the panel
+local function header_of(id)
+  for row, info in pairs(select(2, panel.context())) do
+    if info.comment and info.comment.id == id and not info.body_start
+      and not panel_lines()[row]:find('on "', 1, true) then return row end
+  end
+end
+local function at_cursor()
+  return select(2, panel.context())[vim.api.nvim_win_get_cursor(panel_win_now())[1]]
+end
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+vim.api.nvim_feedkeys(vim.keycode(" cu"), "x", false)
+check("<leader>cu opens the panel", panel_win_now() ~= nil)
+check("filtered, and says so", panel_text():find("Unread only (2 of 3 threads)", 1, true) ~= nil, panel_text())
+check("showing the threads with unread comments", panel_text():find("answer one", 1, true) and panel_text():find("answer two", 1, true), panel_text())
+check("and not the read one", panel_text():find("point 3?", 1, true) == nil, panel_text())
+
+-- 37. the dot is on the unread comment, not on the thread
+check("an unread comment's header has the dot", (panel_lines()[header_of(one)] or ""):find("● BraveFig", 1, true) ~= nil, panel_lines())
+check("its thread's root doesn't", not (panel_lines()[header_of(roots[1])] or ""):find("●", 1, true), panel_lines())
+check("nor its thread's first line", not (panel_lines()[row_with("first point")] or ""):find("●", 1, true), panel_lines())
+
+-- 38. in the file, ]u jumps to a thread with an unread comment and reads nothing
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+vim.api.nvim_feedkeys(vim.keycode("]u"), "x", false)
+local here_thread = state.thread_at(ubuf, vim.api.nvim_win_get_cursor(0)[1] - 1, vim.api.nvim_win_get_cursor(0)[2])
+check("]u in the file lands on a thread with an unread comment", here_thread and here_thread.root.id == roots[1],
+  { vim.api.nvim_win_get_cursor(0), here_thread and here_thread.root.id })
+vim.api.nvim_exec_autocmds("CursorMoved", { buffer = ubuf })
+check("and reads nothing", state.comment_unread(ubuf, one))
+vim.api.nvim_feedkeys(vim.keycode("[u"), "x", false)
+here_thread = state.thread_at(ubuf, vim.api.nvim_win_get_cursor(0)[1] - 1, vim.api.nvim_win_get_cursor(0)[2])
+check("[u wraps to the other one", here_thread and here_thread.root.id == roots[2])
+
+-- 39. in the panel, ]u moves to the next unread comment and reads it; its thread stays, undimmed
+local pwin = panel_win_now()
+local pbuf = vim.api.nvim_win_get_buf(pwin)
+vim.api.nvim_set_current_win(pwin)
+vim.api.nvim_win_set_cursor(pwin, { 1, 0 })
+vim.api.nvim_feedkeys(vim.keycode("]u"), "x", false)
+check("]u in the panel lands on the unread comment", at_cursor() and at_cursor().comment and at_cursor().comment.id == one, at_cursor())
+check("and reads it", not state.comment_unread(ubuf, one))
+check("its dot goes", not (panel_lines()[header_of(one)] or ""):find("●", 1, true), panel_lines())
+check("its thread stays in the filtered panel", panel_text():find("answer one", 1, true) ~= nil, panel_text())
+local resolved_marks = vim.tbl_filter(function(m) return m[4].hl_group == "LmaResolved" end,
+  vim.api.nvim_buf_get_extmarks(pbuf, vim.api.nvim_get_namespaces().lma_panel, 0, -1, { details = true }))
+check("nothing is dimmed", #resolved_marks == 0, resolved_marks)
+
+-- 40. ]u goes comment by comment, within a thread too, and [u back
+local two_b = lemon_reply(unread_md, ubuf, roots[2], "answer two, again")
+vim.api.nvim_win_set_cursor(pwin, { 1, 0 })
+vim.api.nvim_feedkeys(vim.keycode("]u"), "x", false)
+check("]u lands on the thread's first unread comment", at_cursor().comment.id == two, at_cursor().comment.id)
+vim.api.nvim_feedkeys(vim.keycode("]u"), "x", false)
+check("then on the next one in the same thread", at_cursor().comment.id == two_b, at_cursor().comment.id)
+check("both read", not state.comment_unread(ubuf, two) and not state.comment_unread(ubuf, two_b))
+local three = lemon_reply(unread_md, ubuf, roots[3], "answer three")
+local one_b = lemon_reply(unread_md, ubuf, roots[1], "answer one, again")
+vim.api.nvim_win_set_cursor(pwin, { header_of(two_b), 0 })
+panel.at = nil
+vim.api.nvim_feedkeys(vim.keycode("[u"), "x", false)
+check("[u goes back to the previous unread comment", at_cursor().comment.id == one_b, at_cursor().comment.id)
+
+-- 41. a reply that arrives while the filter is on joins the list
+check("a new reply joins the filtered panel", panel_text():find("answer three", 1, true) ~= nil, panel_text())
+check("and the count", panel_text():find("Unread only (3 of 3 threads)", 1, true) ~= nil, panel_text())
+
+-- 42. moving onto a comment in the panel reads it; a cursor that stays put reads nothing
+local four = lemon_reply(unread_md, ubuf, roots[3], "answer three, again")
+vim.api.nvim_win_set_cursor(pwin, { row_with("third point"), 0 })
+vim.api.nvim_exec_autocmds("CursorMoved", { buffer = pbuf })
+check("a thread's first line reads none of it", state.comment_unread(ubuf, three) and state.comment_unread(ubuf, four))
+vim.api.nvim_win_set_cursor(pwin, { row_with("answer three, again"), 0 })
+vim.api.nvim_exec_autocmds("CursorMoved", { buffer = pbuf })
+check("moving onto a comment's body reads it", not state.comment_unread(ubuf, four))
+check("and only it", state.comment_unread(ubuf, three))
+-- the cursor on the blank line below the thread, where the next reply's rows will go
+local below_thread = row_with("answer three, again") + 1
+vim.api.nvim_win_set_cursor(pwin, { below_thread, 0 })
+vim.api.nvim_exec_autocmds("CursorMoved", { buffer = pbuf })
+local five = lemon_reply(unread_md, ubuf, roots[3], "while you sat")
+local sitting = at_cursor()
+check("the new reply is drawn where the cursor sits", sitting and sitting.comment and sitting.comment.id == five,
+  { sitting and sitting.comment and sitting.comment.id, five })
+vim.api.nvim_exec_autocmds("CursorMoved", { buffer = pbuf })
+check("a reply arriving under a cursor that stays put stays unread", state.comment_unread(ubuf, five))
+
+-- 43. ]u reads the comment the cursor is already on
+vim.api.nvim_win_set_cursor(pwin, { header_of(three), 0 })
+panel.at = { header_of(three), 0 }
+vim.api.nvim_feedkeys(vim.keycode("[u"), "x", false)
+vim.api.nvim_feedkeys(vim.keycode("]u"), "x", false)
+vim.api.nvim_feedkeys(vim.keycode("]u"), "x", false)
+check("]u and [u read every unread comment they land on", not state.comment_unread(ubuf, three) and not state.comment_unread(ubuf, five),
+  { three = state.comment_unread(ubuf, three), five = state.comment_unread(ubuf, five) })
+local six = lemon_reply(unread_md, ubuf, roots[3], "the last one")
+vim.api.nvim_win_set_cursor(pwin, { header_of(six), 0 })
+panel.at = { header_of(six), 0 }
+vim.api.nvim_feedkeys(vim.keycode("]u"), "x", false)
+check("]u on the only unread comment, under the cursor already, reads it", not state.comment_unread(ubuf, six))
+vim.api.nvim_set_current_win(vim.fn.bufwinid(ubuf))
+
+-- 44. turning the filter off and on again drops the threads you read
+vim.api.nvim_feedkeys(vim.keycode(" cu"), "x", false)
+check("<leader>cu again shows every thread", panel_text():find("Unread only", 1, true) == nil, panel_text())
+vim.api.nvim_feedkeys(vim.keycode(" cu"), "x", false)
+check("and on again, none are unread", panel_text():find("No unread comments (3 threads)", 1, true) ~= nil, panel_text())
+vim.api.nvim_feedkeys(vim.keycode(" cu"), "x", false)
+
+-- 45. <leader>ct moves to the thread's first unread comment in the panel, and reads it
+panel.close()
+local seven = lemon_reply(unread_md, ubuf, roots[2], "seven")
+local t2r, t2c = state.anchor_range(ubuf, state.find_comment(ubuf, roots[2]))
+vim.api.nvim_win_set_cursor(0, { t2r + 1, t2c })
+vim.api.nvim_feedkeys(vim.keycode(" ct"), "x", false)
+check("<leader>ct opens the panel and moves into it", vim.bo.filetype == "lmapanel")
+check("onto the first unread comment", at_cursor() and at_cursor().comment and at_cursor().comment.id == seven, at_cursor())
+check("and reads it", not state.comment_unread(ubuf, seven))
+vim.api.nvim_set_current_win(vim.fn.bufwinid(ubuf))
+local t1r, t1c = state.anchor_range(ubuf, state.find_comment(ubuf, roots[1]))
+vim.api.nvim_win_set_cursor(0, { t1r + 1, t1c })
+vim.api.nvim_feedkeys(vim.keycode(" ct"), "x", false)
+check("with nothing unread, onto the thread's first line", vim.bo.filetype == "lmapanel"
+  and at_cursor() and at_cursor().thread.root.id == roots[1] and not at_cursor().comment, at_cursor())
+vim.api.nvim_set_current_win(vim.fn.bufwinid(ubuf))
+panel.close()
+
+-- 46. a reply under a resolved comment shows in the panel, and stays once read
+local two_md = work .. "/two.md"
+vim.fn.writefile({ "# Two", "", "early point", "", "resolved point", "" }, two_md)
+vim.cmd("edit " .. two_md)
+local tbuf = vim.api.nvim_get_current_buf()
+wait(8000, function() return state.get(tbuf) ~= nil end)
+vim.api.nvim_win_set_cursor(0, { 3, 0 })
+vim.api.nvim_feedkeys(vim.keycode(" ccearly?<Esc>:w<CR>"), "x", false)
+wait(8000, function() return #state.get(tbuf).threads == 1 end)
+vim.api.nvim_win_set_cursor(0, { 5, 0 })
+vim.api.nvim_feedkeys(vim.keycode(" ccsettled?<Esc>:w<CR>"), "x", false)
+wait(8000, function() return #state.get(tbuf).threads == 2 end)
+vim.cmd("write")
+local early_root, settled_root
+for _, t in ipairs(state.get(tbuf).threads) do
+  if t.root.body == "early?" then early_root = t.root.id else settled_root = t.root.id end
+end
+local resolved = lemonaid("comments", "resolve", two_md, settled_root, "--as", "Caleb Gregory")
+check("the second thread is resolved", resolved.code == 0, resolved.stderr)
+vim.cmd("bwipeout! " .. tbuf)
+local late = vim.trim(lemonaid("comments", "reply", two_md, "--re", settled_root, "--as", "BraveFig (Author)", "a late answer").stdout)
+local two_real = vim.uv.fs_realpath(two_md)
+lemonaid("inbox", "add", "comments:" .. two_real, "BraveFig (Author) in two.md",
+  "--metadata", vim.json.encode({ path = two_real, comments = { late } }))
+vim.cmd("edit " .. two_md)
+tbuf = vim.api.nvim_get_current_buf()
+check("the late reply is unread on open", wait(8000, function()
+  return state.get(tbuf) ~= nil and state.comment_unread(tbuf, late)
+end))
+local signs = vim.tbl_map(function(m) return vim.trim(m[4].sign_text or "") end,
+  vim.api.nvim_buf_get_extmarks(tbuf, state.ns, 0, -1, { details = true }))
+check("its resolved thread's sign says unread", vim.tbl_contains(signs, "●"), signs)
+vim.api.nvim_feedkeys(vim.keycode(" cu"), "x", false)
+check("the filtered panel shows the late reply", panel_text():find("a late answer", 1, true) ~= nil, panel_text())
+pwin = panel_win_now()
+pbuf = vim.api.nvim_win_get_buf(pwin)
+vim.api.nvim_set_current_win(pwin)
+vim.api.nvim_win_set_cursor(pwin, { row_with("a late answer"), 0 })
+vim.api.nvim_exec_autocmds("CursorMoved", { buffer = pbuf })
+check("landing on it reads it", not state.comment_unread(tbuf, late))
+check("and it stays in view", panel_text():find("a late answer", 1, true) ~= nil, panel_text())
+
+-- 47. a thread joining above the cursor doesn't change what the cursor is on
+local on_before = at_cursor()
+lemon_reply(two_md, tbuf, early_root, "early answer")
+check("the early thread joins above", panel_text():find("early answer", 1, true) ~= nil, panel_text())
+local on_after = at_cursor()
+check("the cursor stays on the same comment", on_after and on_before and on_after.comment
+  and on_after.comment.id == on_before.comment.id, { before = on_before and on_before.comment.id, after = on_after and on_after.comment and on_after.comment.id })
+vim.api.nvim_set_current_win(vim.fn.bufwinid(tbuf))
+
+-- 48. closing the panel leaves the filter as it was: the next <leader>cu turns it off
+panel.close()
+vim.api.nvim_feedkeys(vim.keycode(" cu"), "x", false)
+check("<leader>cu after closing turns the filter off", panel_win_now() ~= nil
+  and panel_text():find("Unread only", 1, true) == nil and panel_text():find("early?", 1, true) ~= nil, panel_text())
+panel.close()
+vim.cmd("write")
+
+-- 49. the unread line counts what's left, and is yellow while anything is
+local function last_echo() return echoes[#echoes] or {} end
+lemon_reply(two_md, tbuf, early_root, "count one")
+lemon_reply(two_md, tbuf, early_root, "count two")
+local left = state.unread_count(tbuf)
+check("the line counts the unread comments", left >= 2 and last_echo().text:find(("· %d unread in two.md"):format(left), 1, true) ~= nil,
+  { left, last_echo() })
+check("with lma yellow", last_echo().first_hl == "LmaUnread", last_echo())
+vim.api.nvim_feedkeys(vim.keycode(" cp"), "x", false)
+vim.api.nvim_set_current_win(panel_win_now())
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+vim.api.nvim_feedkeys(vim.keycode("]u"), "x", false)
+check("reading one refreshes it", last_echo().text == ("lma: %d unread in two.md  (]u for the next)"):format(left - 1), last_echo())
+local history_lines = #vim.split(vim.fn.execute("messages"), "\n")
+for _ = 2, left do vim.api.nvim_feedkeys(vim.keycode("]u"), "x", false) end
+check("reading the last says so", last_echo().text == "lma: nothing unread in two.md", last_echo())
+check("reading adds nothing to :messages", #vim.split(vim.fn.execute("messages"), "\n") == history_lines)
+check("and lma isn't yellow", last_echo().first_hl ~= "LmaUnread", last_echo())
+vim.api.nvim_set_current_win(vim.fn.bufwinid(tbuf))
+panel.close()
+
+-- 50. a reply to a file in the background leaves the panel on the file you're reading,
+-- and its line offers no key that wouldn't reach it
+vim.cmd("edit " .. unread_md)
+vim.api.nvim_feedkeys(vim.keycode(" cp"), "x", false)
+pwin = panel_win_now()
+vim.api.nvim_set_current_win(pwin)
+vim.api.nvim_win_set_cursor(pwin, { header_of(roots[1]), 0 })
+vim.api.nvim_exec_autocmds("CursorMoved", { buffer = vim.api.nvim_win_get_buf(pwin) })
+local reading = at_cursor()
+check("tbuf stays loaded in the background", vim.api.nvim_buf_is_loaded(tbuf) and vim.fn.bufwinid(tbuf) == -1)
+lemon_reply(two_md, tbuf, early_root, "from the background")
+check("the panel stays on the file you're reading", panel.source() == ubuf, { panel.source(), ubuf, tbuf })
+check("and the cursor on the same comment", at_cursor() and at_cursor().comment and reading.comment
+  and at_cursor().comment.id == reading.comment.id, at_cursor())
+check("the background file's line offers no key", last_echo().text:find("unread in two.md", 1, true) ~= nil
+  and not last_echo().text:find("for the next", 1, true) and not last_echo().text:find("to see", 1, true), last_echo())
+vim.cmd("tabnew")
+lemon_reply(unread_md, ubuf, roots[1], "from another tab")
+check("nor does a line about the panel's file from another tab", last_echo().text:find("unread in unread.md", 1, true) ~= nil
+  and not last_echo().text:find("for the next", 1, true), last_echo())
+vim.cmd("tabclose")
+vim.api.nvim_set_current_win(vim.fn.bufwinid(ubuf))
+panel.close()
+
+-- 51. a reply too long for the screen line is shortened to fit, so nvim doesn't ask for Enter
+lemon_reply(unread_md, ubuf, roots[2], string.rep("a long first line ", 30))
+check("a long reply's line fits the screen line", vim.fn.strdisplaywidth(last_echo().text) <= vim.v.echospace
+  and last_echo().text:find("unread in unread.md", 1, true) ~= nil and last_echo().text:find("…", 1, true) ~= nil,
+  { width = vim.fn.strdisplaywidth(last_echo().text), space = vim.v.echospace, text = last_echo().text })
+lemon_reply(unread_md, ubuf, roots[2], string.rep("漢字", 100))
+check("so is one in wide characters, keeping some of its text", vim.fn.strdisplaywidth(last_echo().text) <= vim.v.echospace
+  and last_echo().text:find("replied: 漢", 1, true) ~= nil and last_echo().text:find("…", 1, true) ~= nil,
+  { width = vim.fn.strdisplaywidth(last_echo().text), space = vim.v.echospace, text = last_echo().text })
+
+-- 52. ]u in the file says so when the only unread comments are in orphaned threads
+local orphan = work .. "/orphan.md"
+vim.fn.writefile({ "# Orphan", "", "nothing anchored here", "", "<!-- [lma:threads]",
+  '{"id": "LoneOwl", "author": "Caleb Gregory", "at": "2026-11-21T19:40:00Z", "body": "where did it go?"}', "-->" }, orphan)
+vim.cmd("edit " .. orphan)
+local obuf = vim.api.nvim_get_current_buf()
+wait(8000, function() return state.get(obuf) ~= nil end)
+lemon_reply(orphan, obuf, "LoneOwl", "it was removed")
+local notes_before_orphan = #notes
+vim.api.nvim_feedkeys(vim.keycode("]u"), "x", false)
+check("]u says the unread comments are in orphaned threads", vim.iter(vim.list_slice(notes, notes_before_orphan + 1))
+  :any(function(n) return n:find("orphaned", 1, true) ~= nil end), vim.list_slice(notes, notes_before_orphan + 1))
 vim.cmd("write")
 end
 
