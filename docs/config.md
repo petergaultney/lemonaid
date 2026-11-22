@@ -917,6 +917,16 @@ keep_read_days = 7
 
 Gives a lemon whose brief says `po-box: true` a second mailbox in a shared folder that teammates' lemonaids can write. See [PO boxes](po-box.md).
 
+## `[rules]`
+
+```toml
+[rules]
+patterns = "~/notes/rule-patterns.toml"  # unset turns the check off
+report_to = "rules-desk"  # who hears of a match; unset, matches are only logged
+```
+
+Lemonaid's `Stop` hook checks the message each lemon ends its turn with against the patterns last promoted from `patterns` with `lemonaid rules check --promote`, and reports a match to `report_to` with `lemonaid tell`. See [rules.md](rules.md).
+
 ## `[restore]`
 
 How `lemonaid restore` brings lost lemons back; see [tmux.md](tmux.md#bringing-lemons-back-to-work).

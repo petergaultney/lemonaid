@@ -484,7 +484,7 @@ def _repeats_a_question(notification_type: str, existing: db.Notification | None
     )
 
 
-def _final_message(data: dict) -> str:
+def final_message(data: dict) -> str:
     """What Claude ended the turn with, from the hook payload or the transcript."""
     if isinstance(said := data.get("last_assistant_message"), str) and said:
         return said
@@ -509,7 +509,7 @@ def _status_after(notification_type: str, channel: str, data: dict) -> str:
     if not patterns:
         return "unread"
 
-    return auto_read.status_after_turn(patterns, channel, _final_message(data))
+    return auto_read.status_after_turn(patterns, channel, final_message(data))
 
 
 def handle_notification(stdin_data: str | None = None) -> None:
