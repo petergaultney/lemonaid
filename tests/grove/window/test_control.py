@@ -1,7 +1,13 @@
+import os
 import socketserver
+import subprocess
+import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
+
+import pytest
 
 from lemonaid.grove.window import control
 
@@ -26,6 +32,7 @@ def test_the_binding_summons_the_window_on_macos_and_starts_it_when_it_isnt_runn
     )
     assert 'echo "show #{client_tty}" | nc -U "$S"' in mac_bind
     assert 'tmux new-session -d -s _lma_grove_window "lemonaid grove window run"' in mac_bind
+    assert "sleep 3" not in mac_bind  # it waits for the window to listen instead
     assert (other, other_bind, end) == (
         "} {",
         "  bind-key G run-shell -b 'lemonaid tmux popup grove'",
@@ -54,3 +61,49 @@ def test_send_delivers_one_line_and_fails_with_nobody_listening():
     except OSError:
         return
     raise AssertionError("send should fail with no window listening")
+
+
+_FAKE_TMUX = """#!/bin/sh
+echo "$*" >> "$LEMONAID_STATE_DIR/tmux-calls"
+[ "$1" = new-session ] && "$PYTHON" "$LEMONAID_STATE_DIR/window.py" &
+exit 0
+"""
+
+_FAKE_WINDOW = """import socket, sys, time
+from pathlib import Path
+here = Path(sys.argv[0]).parent
+time.sleep(0.5)  # starting up
+with socket.socket(socket.AF_UNIX) as server:
+    server.bind(str(here / "grove-window.sock"))
+    server.listen()
+    server.settimeout(10)
+    conn, _ = server.accept()
+    (here / "shown").write_bytes(conn.makefile("rb").readline())
+    conn.close()
+"""
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="the binding starts the window only on macOS")
+def test_the_binding_shows_a_window_it_starts_as_soon_as_it_listens():
+    state = Path(tempfile.mkdtemp(dir="/tmp"))  # short: a socket path has a length limit
+    (state / "tmux").write_text(_FAKE_TMUX)
+    (state / "tmux").chmod(0o755)
+    (state / "window.py").write_text(_FAKE_WINDOW)
+    mac_bind = control.binding("G").splitlines()[1]
+    shell = mac_bind[mac_bind.index("-b '") + 4 : -1].replace("#{client_tty}", "/dev/ttys009")
+    env = {
+        **os.environ,
+        "LEMONAID_STATE_DIR": str(state),
+        "PATH": f"{state}:{os.environ['PATH']}",
+        "PYTHON": sys.executable,
+    }
+
+    began = time.monotonic()
+    subprocess.run(["sh", "-c", shell], env=env, timeout=15, check=True)
+    assert (state / "shown").read_text() == "show /dev/ttys009\n"
+    assert time.monotonic() - began < 2.5
+    assert (
+        (state / "tmux-calls")
+        .read_text()
+        .startswith("new-session -d -s _lma_grove_window lemonaid grove window run")
+    )

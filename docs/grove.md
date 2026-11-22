@@ -126,7 +126,7 @@ A lemon can do this with you: ask it to set up the grove window, and it follows 
    tmux source-file ~/.tmux.conf
    ```
 
-3. Press `prefix Space` in any pane. The first press starts the window in a hidden tmux session, `_lma_grove_window`, which takes a few seconds; later presses show it at once.
+3. Press `prefix Space` in any pane. The inbox starts the window in a hidden tmux session, `_lma_grove_window`, when it opens, so even the first press shows it at once. With no inbox open yet, the first press starts the window and shows it as soon as it's up.
 
 The key replaces tmux's `next-layout`. Its lines work unchanged on other systems, where it opens the [terminal grove's popup](#the-grove) instead, so one tmux.conf serves every machine. To keep the terminal grove on a key of its own as well, bind its popup to `G` (see [the keys that work from any pane](tmux.md#keys-that-work-from-any-pane)).
 

@@ -85,10 +85,11 @@ def run(config: Config) -> None:
         AppHelper.callAfter(
             native.on_displays_changed, lambda: position.displays_changed(window, shared)
         )
-        threading.Thread(target=_refresher, args=(window, shared), daemon=True).start()
         threading.Thread(target=_serve, args=(window, shared), daemon=True).start()
         _log.info("listening on %s", control.socket_path())
 
+    # The first load runs while WebKit starts; it hands the page the grove once the page is loaded.
+    threading.Thread(target=_refresher, args=(window, shared), daemon=True).start()
     # Private mode, pywebview's default, wipes the WebKit store every unbundled Python app shares, at
     # each start; the page keeps nothing there (window/settings.py keeps its state).
     webview.start(started, private_mode=False)
