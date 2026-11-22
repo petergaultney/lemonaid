@@ -38,6 +38,14 @@ def entries(
     if frame.matching_ids is not None:
         matching = frame.matching_ids
         found = [n for n in [*shown, *folded] if n.id in matching]
+        # a matching reply, read or not, keeps its lemon above it as context
+        lemons_of_found = {frame.attached[n.channel] for n in found if n.channel in frame.attached}
+        context = {n.channel: n for n in [*shown, *folded, *frame.active.rows]}
+        found += [
+            context[lemon]
+            for lemon in sorted(lemons_of_found - {n.channel for n in found})
+            if lemon in context
+        ]
         laid_out, _ = sections.layout(
             found,
             [],
@@ -57,13 +65,20 @@ def entries(
             ungrouped_first=ungrouped_first,
             parents=frame.parents if parents_first else {},
             lead_first=lead_first,
+            attached=frame.attached,
             current=frame.active.rows,
             empty_groups=False,
         )
+        # a matching reply keeps its lemon above it, as it does in the main table
+        lemons_of_matches = {
+            frame.attached[n.channel]
+            for n in frame.other
+            if n.id in matching and n.channel in frame.attached
+        }
         return (
             laid_out,
             folded,
-            [n for n in frame.other if n.id in matching],
+            [n for n in frame.other if n.id in matching or n.channel in lemons_of_matches],
         )
 
     laid_out, folded = sections.layout(
@@ -80,6 +95,21 @@ def entries(
         ungrouped_first=ungrouped_first,
         parents=frame.parents if parents_first else {},
         lead_first=lead_first,
+        attached=frame.attached,
         current=frame.active.rows,
     )
     return laid_out, folded, frame.other
+
+
+def still_folded(
+    folded: abc.Sequence[db.Notification],
+    entries: abc.Sequence[Entry],
+    attached: abc.Mapping[str, str],
+) -> list[db.Notification]:
+    """*folded* without the lemons an unread reply brought back out of the fold into *entries*."""
+    brought_back = {
+        attached[e.notification.channel]
+        for e in entries
+        if isinstance(e, sections.Row) and e.notification.channel in attached
+    }
+    return [n for n in folded if n.channel not in brought_back]

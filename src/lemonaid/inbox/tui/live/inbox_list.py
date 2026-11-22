@@ -388,8 +388,9 @@ class InboxList(Vertical):
             lead_first=self.config.tui.group_lead_first,
         )
         if zoomed:
-            entries = inbox_keys.in_grove_order(entries, self.grove, self.zoom[0])
+            entries = inbox_keys.in_grove_order(entries, self.grove, self.zoom[0], frame.attached)
         drawn = [e for e in entries if isinstance(e, sections.Row)]
+        all_folded = inbox_entries.still_folded(all_folded, entries, frame.attached)
         self.drawn = [e.notification if isinstance(e, sections.Row) else None for e in entries]
         unread_count = len({e.notification.id for e in drawn if e.notification.is_unread})
         self.headers = {e.key: e for e in entries if isinstance(e, sections.Header)}

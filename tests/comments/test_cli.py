@@ -314,29 +314,31 @@ def test_a_lemon_s_reply_shows_in_the_inbox_until_it_is_seen(
 
     brief = _brief(tmp_path)
     monkeypatch.setattr("lemonaid.brief.command.own_brief", lambda args: (brief, ""))
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:hilly")
     _run("add", str(code), "--lines", "4", "--as", "caleb.gregory", "why?")
     root = capsys.readouterr().out.strip()
     with db.connect() as conn:
-        after_a_person_s_comment = db.get_by_channel(conn, notice.channel(code))
+        after_a_person_s_comment = db.get_by_channel(conn, notice.channel(code, "claude:hilly"))
 
     _run("reply", str(code), "--re", root, "--self", "because\nmore")
     first = capsys.readouterr().out.strip()
     with db.connect() as conn:
-        shown = db.get_by_channel(conn, notice.channel(code))
+        shown = db.get_by_channel(conn, notice.channel(code, "claude:hilly"))
     second_status = _run("reply", str(code), "--re", first, "--self", "and another thing")
     said = capsys.readouterr()
     second = said.out.strip()
     assert second_status == 0, said.err
     notice.seen(code, [first])
     with db.connect() as conn:
-        after_seeing_one = db.get_by_channel(conn, notice.channel(code))
+        after_seeing_one = db.get_by_channel(conn, notice.channel(code, "claude:hilly"))
     unseen_after_one = notice.unread_ids(code)
     notice.seen(code, [second])
     with db.connect() as conn:
-        after_seeing_both = db.get_by_channel(conn, notice.channel(code))
+        after_seeing_both = db.get_by_channel(conn, notice.channel(code, "claude:hilly"))
 
     assert after_a_person_s_comment is None
-    assert shown is not None and shown.message == "HillyHad (Author) in a.py: because"
+    assert shown is not None and shown.message == "HillyHad (Author): because"
+    assert notice.lemon_of(shown) == "claude:hilly"
     assert after_seeing_one is not None and unseen_after_one == [second]
     assert after_seeing_both is None
 

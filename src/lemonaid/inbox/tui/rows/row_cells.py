@@ -7,6 +7,7 @@ from datetime import datetime
 from rich.style import Style
 from rich.text import Text
 
+from ....comments import notice
 from ... import db
 from ..utils import styled_cell
 from . import pr_numbers
@@ -54,7 +55,9 @@ def time_cell(
 
 
 def _decorated_name(n: db.Notification, emojis: abc.Mapping[str, str]) -> str:
-    """The session's name, after its emoji when it has one."""
+    """The session's name, after its emoji when it has one; a reply row's file and count."""
+    if notice.is_notice(n):
+        return notice.label(n)
     decoration = emojis.get(n.channel, "")
     return f"{decoration} {n.name or ''}".rstrip() if decoration else n.name or ""
 

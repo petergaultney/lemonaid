@@ -136,9 +136,23 @@ def _reply(a: argparse.Namespace) -> int:
 
 
 def _tell_the_inbox(a: argparse.Namespace, comment_id: str | None, body: str) -> None:
-    """A lemon's comment (`--self`) shows in the inbox; a person's, written with `--as`, doesn't."""
+    """A lemon's comment (`--self`) shows in the inbox, under that lemon; a person's, written
+    with `--as`, doesn't."""
     if a.use_self and comment_id:
-        notice.replied(a.target, a.author, comment_id, body)
+        notice.replied(a.target, a.author, comment_id, body, _own_channel())
+
+
+def _own_channel() -> str:
+    """The calling lemon's inbox channel, or "" when nothing names it, which leaves its reply
+    row under no lemon."""
+    from ..brief import lemon
+    from ..inbox import db
+
+    with db.connect() as conn:
+        try:
+            return lemon.self_channel(conn)
+        except LookupError:
+            return ""
 
 
 def own_signature(target: pathlib.Path) -> str:

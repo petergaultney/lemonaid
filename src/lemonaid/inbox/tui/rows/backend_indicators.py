@@ -11,6 +11,7 @@ _DEFAULT_BACKEND_LABELS = {
     "claude": "Anthropic",
     "codex": "OpenAI",
     "openclaw": "🦞",
+    "comments": "",  # a lemon's reply row has no model of its own
 }
 
 

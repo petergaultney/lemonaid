@@ -150,11 +150,18 @@ lemonaid comments strip <path>
   written into, under the writers' lock and through the editor server alike.
 - `add --quote` anchors on that text within `--lines`, where it must appear once. Only
   Markdown can anchor part of a line; in Python an anchor covers whole lines.
-- A lemon's `add` or `reply --self` also puts a row in the lemonaid inbox, one per file
-  (channel `comments:<path>`), so the person hears of it with the file closed. The row
-  lists the replies they haven't seen; the editor marks those unread when the file
-  opens and drops each one the person visits, and the row is marked read once it lists
-  none. Activating the row in `lma` opens the file with `lemonaid editor open --focus`,
+- A lemon's `add` or `reply --self` also puts a row in the lemonaid inbox, one per
+  file and lemon (channel `comments:<lemon's channel>|<path>`), so the person hears of
+  it with the file closed. `lma` draws the row right under that lemon, in its groups,
+  as `↳ 💬 <file> · N unread`, wherever the lemon's own row is drawn, the other
+  terminals' pane included, where Enter on it still opens the file. A row with replies
+  to read brings its lemon back into view when the lemon is folded or hidden, and
+  shows under a pinned lemon in a collapsed group; a read one folds away with its
+  lemon, and one the inbox's fold took stays folded. A row whose lemon is gone, has no
+  terminal, or that names none, shows on its own while it has replies to read. The row
+  lists the replies the person hasn't seen; the editor marks those unread when the
+  file opens and drops each one the person reads, and the row is marked read once it
+  lists none. Activating the row opens the file with `lemonaid editor open --focus`,
   or with the system's opener when no editor server answers.
 - A write follows a symlink and changes the file it names, whose extension decides its
   kind. If the file changes while a command computes, whether an editor saved it or

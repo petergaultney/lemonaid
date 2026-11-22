@@ -49,9 +49,12 @@ def _births(conn: sqlite3.Connection, channels: abc.Iterable[str]) -> dict[str, 
 
 
 def from_frame(conn: sqlite3.Connection, frame: inbox_frame.Frame) -> Inputs:
+    """The grove's inputs from the inbox's last frame. Like `read`, it leaves out rows with no
+    terminal, such as a lemon's reply rows, which the inbox draws but which aren't lemons."""
     active = frame.active
+    lemons = [n for n in active.rows if n.switch_source is not None]
     return Inputs(
-        rows=list(active.rows),
+        rows=lemons,
         cards=dict(active.cards),
         memberships=dict(active.memberships),
         groups=list(frame.groups),
@@ -59,7 +62,7 @@ def from_frame(conn: sqlite3.Connection, frame: inbox_frame.Frame) -> Inputs:
         emojis=dict(frame.emojis),
         lemon_ids=brief.identity.by_channel(conn),
         parents=dict(frame.parents),
-        births=_births(conn, (n.channel for n in active.rows)),
+        births=_births(conn, (n.channel for n in lemons)),
         hidden=active.hidden_briefs,
         numbers=dict(frame.numbers),
     )
