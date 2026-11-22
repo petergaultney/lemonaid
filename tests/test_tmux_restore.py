@@ -22,6 +22,7 @@ def _recording(monkeypatch, fails: str = "", sessions: tuple[str, ...] = ()) -> 
 
     monkeypatch.setattr(restore, "_output", output)
     monkeypatch.setattr(restore, "_run", lambda *a: output(*a)[1])
+    monkeypatch.setattr(restore.keep_indices, "run", lambda target, *a: output("tmux", *a)[1])
     return argv
 
 

@@ -13,6 +13,7 @@ from . import cmux, front_end
 from .brief import lemon, store
 from .inbox import db, ended
 from .log import get_logger
+from .restore import asked
 from .tmux import jump_target, navigation, server
 
 _log = get_logger("go")
@@ -56,6 +57,9 @@ def _tmux(command: list[str], *args: str) -> str:
 
 
 def _pane(command: list[str], found: db.Notification) -> str:
+    if told := asked.ask(found.channel, found.metadata, found.name or ""):
+        raise LookupError(told)
+
     jump_target.require_identity(found.metadata)
     return jump_target.resolve(found.metadata, _tmux(command, *jump_target.QUERY))
 

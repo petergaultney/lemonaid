@@ -824,7 +824,7 @@ How `lemonaid restore` brings lost lemons back; see [tmux.md](tmux.md#bringing-l
 ```toml
 [restore]
 auto = "ask"          # "off", "ask" or "on": what a trigger does when lemons were lost
-parallel = 4          # lemons started at once; each batch is proven running before the next
+parallel = 4          # lemons starting at once; the next starts as soon as one runs
 verify_seconds = 60   # how long a started lemon has to show up running in its window
 ```
 

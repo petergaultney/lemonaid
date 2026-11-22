@@ -749,14 +749,25 @@ harness's own arguments when its session starts, and puts `--model` and `--effor
 `resume_command` sets them. A lemon whose transcript is gone is not started, since a
 resume would open an empty conversation under its name.
 
-Lemons start `[restore] parallel` at a time (4 by default; see
-[config](config.md#restore)). One counts as restored only when its own Claude or Codex
+Restore first makes every window it will start a lemon in, in the order tmux first made
+their sessions and then by index, so sessions and windows come back in the order they had.
+Until its lemon starts, a window says which lemon is coming and runs no shell, so nothing
+typed there runs.
+
+Then lemons start `[restore] parallel` at a time (4 by default; see
+[config](config.md#restore)), the one heard from most recently first, and the next one
+starts as soon as one is running. Selecting a lemon still lost, in the inbox, the grove or
+with `lemonaid go`, has the restore start it next; nothing else resumes a lost lemon while
+a restore runs. The inbox row that says a restore is under way counts the lemons back.
+
+A lemon counts as restored only when its own Claude or Codex
 process runs in the window it was given. One that doesn't within
 `verify_seconds` is stopped and started once more; if it fails again its window is
 closed, its row stays lost with the reason, and it is listed in the inbox's one
 `lemonaid:restore` row.
 
-A resumed lemon comes back with none of its background tasks. One whose push scout
+A resumed lemon comes back with none of its background tasks, and gets back what it needs
+as soon as it runs, while the rest still start. One whose push scout
 runs, and whose session takes what the scout pushes, gets its subscriptions back with
 no prompt (`subscribed`). Only a lemon that can't be pushed to is prompted, typed into
 its composer: to rearm the waiters its brief lists, and, when its brief's Status was

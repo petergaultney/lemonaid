@@ -16,10 +16,12 @@ from ..inbox import db
 Owners = abc.Mapping[str, set[str]]  # a session or thread id, and the ttys running it
 
 
-def running() -> dict[str, set[str]] | None:
-    """The ttys each running lemon is on, or None if `ps` couldn't say."""
-    claude = live_sessions.by_tty()
-    codex = processes.thread_ttys()
+def running(
+    harnesses: abc.Set[str] = frozenset({"claude", "codex"}),
+) -> dict[str, set[str]] | None:
+    """The ttys each running lemon of *harnesses* is on, or None if `ps` couldn't say."""
+    claude = live_sessions.by_tty() if "claude" in harnesses else {}
+    codex = processes.thread_ttys() if "codex" in harnesses else {}
     if claude is None or codex is None:
         return None
 

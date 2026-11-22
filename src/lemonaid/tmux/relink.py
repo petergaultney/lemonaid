@@ -71,19 +71,21 @@ def survey(
     conn: sqlite3.Connection, rows: abc.Iterable[db.Notification] | None = None
 ) -> list[Relink] | None:
     """Relink *rows* (every active tmux row by default) from the lemons running now; None if
-    tmux or `ps` can't say."""
+    tmux or `ps` can't say. Only the harnesses *rows* name are asked, since asking each one
+    costs a scan of every process."""
     try:
         panes = recorded_pane.pane_metadata()
     except navigation.TmuxUnavailable as e:
         _log.warning("not relinking: cannot list tmux panes: %s", e)
         return None
 
-    owners = lemon_owners.running()
+    rows = list(db.get_active(conn, switch_source="tmux") if rows is None else rows)
+    owners = lemon_owners.running({row.channel.partition(":")[0] for row in rows})
     if owners is None:
         _log.warning("not relinking: cannot tell which lemons are running")
         return None
 
-    return plan(db.get_active(conn, switch_source="tmux") if rows is None else rows, owners, panes)
+    return plan(rows, owners, panes)
 
 
 _LABELS = {RELINKED: "relink", FORGOTTEN: "forget pane"}

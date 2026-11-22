@@ -68,3 +68,23 @@ def test_applying_twice_changes_nothing_the_second_time():
         rows = {n.channel: n.metadata for n in db.get_active(conn)}
     assert rows["claude:b7396389"]["tty"] == "/dev/ttys001"
     assert "tty" not in rows["codex:crowded"]
+
+
+def test_a_survey_of_claude_rows_never_scans_for_codex_processes(monkeypatch):
+    """Restore surveys every round of starts, and each harness scanned costs a pass over
+    every process."""
+    hq = _row("claude:b7396389", session_id="b7396389-full", tty="/dev/ttys021")
+
+    def codex_scan():
+        raise AssertionError("scanned for Codex processes")
+
+    monkeypatch.setattr(relink.recorded_pane, "pane_metadata", lambda: _PANES)
+    monkeypatch.setattr(
+        relink.lemon_owners.live_sessions, "by_tty", lambda: {"/dev/ttys001": {"b7396389-full"}}
+    )
+    monkeypatch.setattr(relink.lemon_owners.processes, "thread_ttys", codex_scan)
+
+    with db.connect() as conn:
+        [result] = relink.survey(conn, [hq]) or []
+
+    assert result.state == relink.RELINKED

@@ -1,5 +1,5 @@
-"""`starts.start` leaves alone a lemon that came back without restore, however close the two
-starts come."""
+"""`starts.start`: lemons start a few at a time, the one asked for or heard from last first,
+and one that came back without restore is left alone, however close the two starts come."""
 
 import threading
 import time
@@ -45,11 +45,16 @@ def _terminal(opened: list[str], on_open=lambda spot: None) -> run.Terminal:
 
 
 def _start(lemons, terminal, parallel=2):
-    return starts.start(lemons, terminal, parallel, 0.05, lambda line: None, poll=0.01)
+    found = list(starts.start(lemons, terminal, parallel, 0.05, lambda line: None, poll=0.01))
+    return (
+        [each for each in found if isinstance(each, run.Lemon)],
+        [each for each in found if isinstance(each, report.Result)],
+    )
 
 
-def test_a_lemon_resumed_while_an_earlier_one_in_its_batch_starts_is_left_alone():
-    first, second = _lemon("claude:a"), _lemon("claude:b")
+def test_a_lemon_resumed_while_another_starts_is_left_alone():
+    second = _lemon("claude:b")
+    first = _lemon("claude:a")  # heard from last, so it starts first
     opened: list[str] = []
 
     def resume_b(spot) -> None:
@@ -87,3 +92,47 @@ def test_a_resume_already_launching_holds_restore_off_until_it_is_recorded():
     assert opened == []
     assert started == []
     assert [r.outcome for r in results] == [report.RUNNING]
+
+
+def test_a_slow_lemon_holds_up_no_other():
+    """With two starting at once, the third starts as soon as the second runs, while the
+    first is still coming up."""
+    c, b, a = _lemon("claude:c"), _lemon("claude:b"), _lemon("claude:a")
+    opened: list[str] = []
+    terminal = _terminal(opened)._replace(
+        running=lambda lemons: {
+            lemon.channel
+            for lemon in lemons
+            if lemon.channel != "claude:a" or "claude:c:2" in opened
+        }
+    )
+
+    order = []
+    for each in starts.start([a, b, c], terminal, 2, 5, lambda line: None, poll=0.01):
+        order.append((each.channel, list(opened)))
+
+    assert [channel for channel, _ in order] == ["claude:b", "claude:a", "claude:c"]
+    assert order[1][1] == ["claude:a:2", "claude:b:2", "claude:c:2"]  # c began before a ran
+
+
+def test_a_lemon_asked_for_starts_next_and_the_rest_most_recently_heard_from_first():
+    oldest, middle, newest = _lemon("claude:a"), _lemon("claude:b"), _lemon("claude:c")
+    opened: list[str] = []
+
+    def asked() -> frozenset[str]:
+        return frozenset({"claude:a"}) if opened else frozenset()
+
+    started = list(
+        starts.start(
+            [oldest, middle, newest],
+            _terminal(opened),
+            1,
+            0.05,
+            lambda line: None,
+            asked,
+            poll=0.01,
+        )
+    )
+
+    assert opened == ["claude:c:2", "claude:a:2", "claude:b:2"]
+    assert [lemon.channel for lemon in started] == ["claude:c", "claude:a", "claude:b"]
