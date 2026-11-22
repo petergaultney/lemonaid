@@ -1518,6 +1518,12 @@ restart`) with the lemon and pid that ran it, or "a process outside lemonaid" fo
 `pkill` pattern or the harness. If you didn't stop it yourself, rearm it, unless it says your
 watcher follows it from your brief's `## Watching`.
 
+## Rule checks at the end of your turn
+
+When your user's config names a pattern file (`[rules] patterns`), lemonaid's Stop hook checks the message you end your turn with against it. A match may be reported to the lemon `[rules] report_to` names, with your channel as the return address; you aren't told. A `tell` pattern also holds your stop once, with the rule and what to do now. Do that, then end your turn; if your message doesn't break the rule, end it as it was.
+
+If you keep the pattern file, `lemonaid rules check` lists every problem in it, `lemonaid rules check --promote` puts it live once there are none, and `lemonaid rules replay [ID...] --since 14d` lists what its patterns would have matched in past turns. See [rules](rules.md).
+
 ## Watching a document for comments
 
 `lemonaid watch doc --wait <doc> --me <your name> --once` blocks until a comment

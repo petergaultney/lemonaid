@@ -1,5 +1,6 @@
 """Stop hook: require the unified watcher for subscribed briefs in both harnesses,
-and catch broken brief edits before the turn ends.
+catch broken brief edits before the turn ends, and check the lemon's final message
+against `[rules] patterns` (`rules/end_of_turn.py`).
 """
 
 import json
@@ -13,6 +14,7 @@ from ..inbox import db
 from ..inbox.channel import UnidentifiedSession
 from ..log import get_logger
 from ..messages import store, waiter
+from ..rules import end_of_turn
 from ..watch import children_waiter, codex_scout, push_scout, wait_requirements, wait_state
 from . import session_brief
 
@@ -107,7 +109,14 @@ def handle(stdin_data: str | None = None, grace: float = 3.0, harness: str = "cl
     except json.JSONDecodeError:
         data = {}
 
-    reason = reason_to_block(data, grace, harness)
+    reason = "\n\n".join(
+        reason
+        for reason in (
+            end_of_turn.reason_to_block(data, harness),
+            reason_to_block(data, grace, harness),
+        )
+        if reason
+    )
     if not reason:
         return
 

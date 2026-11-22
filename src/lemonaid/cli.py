@@ -29,6 +29,7 @@ import lemonaid.opencode.cli
 import lemonaid.places.cli
 import lemonaid.po_box.cli
 import lemonaid.restore.cli
+import lemonaid.rules.cli
 import lemonaid.skills.cli
 import lemonaid.tasks.cli
 import lemonaid.tasks.inspection.service
@@ -179,6 +180,7 @@ def main() -> None:
     lemonaid.places.cli.setup_parser(subparsers)
     lemonaid.audit.cli.setup_parser(subparsers)
     lemonaid.restore.cli.setup_parser(subparsers)
+    lemonaid.rules.cli.setup_parser(subparsers)
     lemonaid.brief.cli.setup_parser(subparsers)
     lemonaid.skills.cli.setup_parser(subparsers)
     lemonaid.tasks.cli.setup_parser(subparsers)

@@ -21,6 +21,7 @@ from . import (
     palette,
     po_box_config,
     restore_config,
+    rules_config,
     status_registry,
     tasks_config,
     watch_config,
@@ -453,6 +454,7 @@ class Config:
     restore: restore_config.RestoreConfig = field(default_factory=restore_config.RestoreConfig)
     web: web_config.WebConfig = field(default_factory=web_config.WebConfig)
     skill_sources: tuple[source_config.Source, ...] = ()
+    rules: rules_config.RulesConfig = field(default_factory=rules_config.RulesConfig)
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -937,6 +939,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         restore=restore_config.parse(data.get("restore", {})),
         codex=codex_config.parse(data.get("codex", {})),
         web=web_config.parse(data.get("web", {})),
+        rules=rules_config.parse(data.get("rules", {})),
     )
 
 

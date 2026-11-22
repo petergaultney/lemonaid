@@ -1,9 +1,12 @@
 """A Claude lemon with a brief cannot end its turn until its mailbox waiter holds the lock."""
 
 import argparse
+import datetime as dt
 import json
+import os
 import threading
 import time
+import types
 from pathlib import Path
 
 import pytest
@@ -16,7 +19,9 @@ from lemonaid.hooks import stop_check
 from lemonaid.inbox import db
 from lemonaid.lineage import links
 from lemonaid.messages import cli, store, waiter
+from lemonaid.rules import end_of_turn, patterns, snapshot
 from lemonaid.watch import children_waiter, registry
+from tests.rules import shared
 
 _SESSION = "abcd1234-0000-0000-0000-000000000000"
 
@@ -309,3 +314,43 @@ def test_the_reminder_names_only_the_calling_harnesss_mechanism(monkeypatch):
     assert "## Waiters" not in claude + codex
     assert "--codex-thread" not in codex
     assert "escalated" in codex and "escalated" not in claude
+
+
+def test_a_tell_pattern_holds_the_stop_once_beside_the_waiter_reason(monkeypatch, capsys, tmp_path):
+    source = shared.write(tmp_path / "rules", {**shared.MERGE_ASK, "mode": "tell"})
+    snapshot.promote(source, patterns.load(source).patterns, dt.datetime.now(dt.UTC))
+    shared.configure(Path(os.environ["LEMONAID_CONFIG"]), source)
+    monkeypatch.setattr(
+        end_of_turn, "print_mode", types.SimpleNamespace(is_print_session=lambda: False)
+    )
+    _briefed()
+
+    blocked = _stop(capsys, last_assistant_message="Ready to merge?")
+
+    assert blocked is not None
+    assert blocked["reason"].startswith("Your final message matches `merge-ask`")
+    assert "lemonaid watch --self" in blocked["reason"]
+    assert _stop(capsys, last_assistant_message="Ready to merge?", stop_hook_active=True) is None
+
+
+def test_the_waiter_check_still_runs_when_a_pattern_runs_out_of_time(monkeypatch, capsys, tmp_path):
+    slow = {
+        **shared.REVIEWER_ASK,
+        "mode": "tell",
+        "say": "x",
+        "regex": r"(a|aa)+$",
+        "match": ["aa"],
+    }
+    source = shared.write(tmp_path / "rules", slow)
+    snapshot.promote(source, patterns.load(source).patterns, dt.datetime.now(dt.UTC))
+    shared.configure(Path(os.environ["LEMONAID_CONFIG"]), source)
+    monkeypatch.setattr(end_of_turn, "_SEARCH_SECONDS", 0.05)
+    _briefed()
+    started = time.monotonic()
+
+    blocked = _stop(capsys, last_assistant_message="a" * 10000 + "!")
+
+    assert time.monotonic() - started < 2
+    assert blocked is not None
+    assert "No unified watcher is armed" in blocked["reason"]
+    assert "matches `reviewer-ask`" not in blocked["reason"]
