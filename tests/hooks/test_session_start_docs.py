@@ -32,6 +32,26 @@ def test_a_fresh_history_gets_the_doc_and_its_imports(monkeypatch, capsys, sourc
     assert "ROOT" in text and "RULES" in text
 
 
+def test_docs_classic_names_the_root_in_place_of_codex_context_doc(monkeypatch, capsys, tmp_path):
+    (tmp_path / "root.md").write_text("ROOT")
+    (tmp_path / "old.md").write_text("OLD")
+    Path(os.environ["LEMONAID_CONFIG"]).write_text(
+        f'[docs]\nclassic = "{tmp_path / "root.md"}"\n'
+        f'[codex]\ncontext_doc = "{tmp_path / "old.md"}"\n'
+    )
+
+    text = _start(monkeypatch, capsys, "startup")
+
+    assert "ROOT" in text and "OLD" not in text
+
+
+@pytest.mark.usefixtures("context_doc")
+def test_a_lemon_given_packages_gets_classic_until_packages_are_built(monkeypatch, capsys):
+    monkeypatch.setenv("LEMONAID_DOCS", "packages")
+
+    assert "RULES" in _start(monkeypatch, capsys, "startup")
+
+
 @pytest.mark.usefixtures("context_doc")
 @pytest.mark.parametrize("source", ["resume", "fork"])
 def test_a_history_that_already_holds_it_gets_nothing(monkeypatch, capsys, source):

@@ -342,6 +342,8 @@ Put all lemonaid options before `--`; every token after it passes to the harness
 
 `presets show` prints `lemon`, `shape`, `lemon_window` (zero-based), resolved `windows`, `command`, `environment` and `directory`. The command includes Codex's trust, update and writable-root overrides. `place open --dry-run` and `lemon start --dry-run` print the same fields plus a note that the current directory is used, without directory hooks, tmux queries or brief attachment. Use `presets show --directory PATH` to resolve for the eventual working directory.
 
+`--docs classic|packages` sets which docs this one lemon loads at start, in place of [`[docs] mode`](config.md#docs); it reaches the harness as `LEMONAID_DOCS`, and the session keeps it through resumes. `packages` is not built yet and starts the lemon in `classic`, with a warning.
+
 `--prompt TEXT` reaches the lemon command as one positional argument through its window environment. All startup options affect only creation. If a session already exists, `open` switches to it without starting another harness or sending the prompt.
 
 With `--brief` and no `--prompt`, a new lemon's first prompt is `<title>. Your task file is

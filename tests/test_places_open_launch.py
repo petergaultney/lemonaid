@@ -185,3 +185,34 @@ def test_a_brief_finds_the_new_session_when_another_pane_reports_its_directory(
     with db.connect() as conn:
         [waiting] = conn.execute("SELECT * FROM pending_briefs").fetchall()
     assert (waiting["tmux_session"], waiting["tmux_window"]) == ("feat/new", "1")
+
+
+def test_docs_reaches_the_harness_window_and_no_other(monkeypatch, capsys, tmux, tmp_path):
+    place = tmp_path / "feat" / "new"
+    place.mkdir(parents=True)
+    out = tmp_path / "docs.json"
+    script = tmp_path / "harness"
+    script.write_text(
+        "#!/usr/bin/env python3\nimport json, os\n"
+        f"open({str(out)!r}, 'w').write(json.dumps(os.environ.get('LEMONAID_DOCS')))\n"
+    )
+    script.chmod(0o755)
+    root = PlaceRoot(path=tmp_path, path_of=f"echo {tmp_path}/{{key}}")
+    monkeypatch.setattr(
+        cli,
+        "load_config",
+        lambda: Config(
+            tmux_session=TmuxSessionConfig(
+                templates={"default": ["", str(script)]}, resume_window=1
+            ),
+            places=PlacesConfig(roots=[root]),
+        ),
+    )
+
+    with contextlib.suppress(SystemExit):
+        cli.cmd_open(_args(root=str(tmp_path), docs="packages"))
+
+    assert json.loads(capsys.readouterr().out)["error"] is None
+    assert _wait_for(out)
+    assert json.loads(out.read_text()) == "classic"
+    assert "LEMONAID_DOCS" not in tmux("show-environment", "-t", "feat/new")
