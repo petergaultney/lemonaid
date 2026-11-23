@@ -115,6 +115,14 @@ def test_a_failed_listing_is_unknown(monkeypatch, failure):
     assert _open_threads() is None
 
 
+def test_a_sandboxed_process_does_not_try_ps(monkeypatch):
+    monkeypatch.setattr(process_table, "sandboxed", lambda: True)
+    asked = _ps(monkeypatch, f"11 S+ ttys001 {_STARTED} {_CODEX}")
+
+    assert _open_threads() is None
+    assert asked == []
+
+
 def test_the_shared_daemon_runs_every_thread_it_reported(monkeypatch):
     _record(11, _AUTHOR, "??", at=1_795_000_000)
     _record(11, _REVIEWER, "??", at=1_795_000_100)

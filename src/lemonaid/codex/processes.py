@@ -50,7 +50,10 @@ _latest = _Answer(float("-inf"), None, 0)
 
 
 def _live() -> dict[int, _Live] | None:
-    """Every running Codex process by pid; None if `ps` fails."""
+    """Every running Codex process by pid; None if `ps` fails or can't run here."""
+    if process_table.sandboxed():
+        return None
+
     try:
         found = process_table.listing("pid", "stat", "tty", "lstart", "args", timeout=_TIMEOUT)
     except (OSError, subprocess.SubprocessError) as error:

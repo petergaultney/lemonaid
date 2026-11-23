@@ -1,5 +1,6 @@
 """Every process from one `ps -A`, with terminals named as `ps -t` names them."""
 
+import shutil
 import subprocess
 import sys
 
@@ -46,3 +47,22 @@ def test_a_failed_ps_raises(monkeypatch):
 
     with pytest.raises(subprocess.CalledProcessError):
         process_table.listing("tty", "args", timeout=1)
+
+
+def test_a_sandboxed_process_does_not_try_ps(monkeypatch):
+    monkeypatch.setattr(process_table, "sandboxed", lambda: True)
+    asked = _ps(monkeypatch, "11 ttys001\n")
+
+    with pytest.raises(PermissionError):
+        process_table.listing("pid", "tty", timeout=1)
+    assert asked == []
+
+
+@pytest.mark.skipif(not shutil.which("sandbox-exec"), reason="macOS sandboxes only")
+def test_a_process_knows_when_it_runs_in_a_sandbox():
+    code = "from lemonaid import process_table; print(process_table.sandboxed())"
+    outside = [sys.executable, "-c", code]
+    inside = ["sandbox-exec", "-p", "(version 1)(allow default)", *outside]
+
+    assert subprocess.run(outside, capture_output=True, text=True).stdout.split() == ["False"]
+    assert subprocess.run(inside, capture_output=True, text=True).stdout.split() == ["True"]
