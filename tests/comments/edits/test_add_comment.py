@@ -260,9 +260,9 @@ def test_a_reused_id_is_refused() -> None:
 
 
 def test_a_point_inside_an_existing_marker_goes_after_it() -> None:
-    text = "x\ny\n"
+    text = "a x\ny\n"
     ranged = edits.add_comment(
-        text, "markdown", 0, 1, author="a", body="b", at=_AT, comment_id="Old"
+        text, "markdown", 2, 3, author="a", body="b", at=_AT, comment_id="Old"
     )
     commented = edits.apply(text, ranged.edits)
     inside = commented.index("<!-- [lma:Old] -->") + 5

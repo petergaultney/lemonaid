@@ -15,6 +15,7 @@ An anchor's id is the id of the thread's first comment.
 |---|---|---|
 | `# [lma:SleepRib]`, `# [/lma:SleepRib]` | Python, alone on a line | its line and the line ending after it |
 | `<!-- [lma:SleepRib] -->`, `<!-- [/lma:SleepRib] -->` | Markdown, inline | only itself |
+| `<wbr><!-- [lma:SleepRib] wbr -->` | Markdown, inline, where a comment starts a line's text (see below) | only itself, its own `<wbr>` included |
 | `<!-- [lma:SleepRib]: -->`, `<!-- [/lma:SleepRib]: -->` | Markdown, alone on a line | its line and the line ending after it |
 
 A marker with no closing marker is a point anchor.
@@ -32,6 +33,22 @@ def f():
   for its own line that has other text beside it carries only itself; one on the body's
   last line, which has no line ending, carries just the line. The anchored text runs from
   the end of the opening carrier to the start of the closing one.
+- In Markdown, a comment doesn't change how the document renders. CommonMark reads a
+  line whose text starts with `<!--` as an HTML block rather than Markdown, even a
+  list item's or a block quote's text, or a line in the middle of a paragraph, which
+  it then ends. So lemonaid writes an opening marker after the line's block syntax,
+  next to the text: after a heading's `#`s and inside a table row's first cell as is,
+  and after a list item's or block quote's markers, or at a paragraph line's start,
+  with an empty `<wbr>` in front, spelled `<wbr><!-- [lma:X] wbr -->`. `<wbr>` is a
+  workaround: an HTML word-break opportunity, which renders nothing, so the line no
+  longer starts with `<!--`; it belongs to the marker, which says so with ` wbr`, and
+  goes when the marker does; a `<wbr>` anyone else wrote is left alone. A closing
+  marker goes before a heading's closing `#`s, a trailing backslash or a table row's
+  last `|`. A comment is refused where no marker can be invisible: in YAML
+  frontmatter, on a table's delimiter row, a thematic break, a setext underline or an
+  empty heading. Whatever the rules place, lemonaid renders the document with and
+  without the markers (CommonMark with tables, through markdown-it-py) and refuses the
+  comment if the HTML differs, as on a link reference definition.
 - lemonaid writes inline Markdown markers around the selected text, trimmed of
   whitespace at its ends. It writes the own-line spelling around a fenced block and on a
   line that holds only markers, where an inline marker would change what the others

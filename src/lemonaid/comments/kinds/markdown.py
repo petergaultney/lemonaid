@@ -2,14 +2,29 @@
 threads section is one HTML comment at the end. We find code ourselves: fences at any
 block-quote depth, indented code blocks outside lists, and code spans."""
 
+import html.parser
 import re
 import typing as ty
 
 from .. import lines, model, records
 
+# A `<wbr>` is part of the marker after it only when that marker is an opening one that
+# says so (` wbr`), so a `<wbr>` someone wrote stays theirs: see `_WBR`.
 _MARKER: ty.Final = re.compile(
-    r"<!--[ \t]*\[(?P<close>/)?lma:(?P<id>[A-Za-z][\w-]*)\](?P<own_line>:)?[ \t]*-->"
+    r"(?:<wbr>(?=<!--[ \t]*\[lma:[A-Za-z][\w-]*\][ \t]+wbr[ \t]*-->))?"
+    r"<!--[ \t]*\[(?P<close>/)?lma:(?P<id>[A-Za-z][\w-]*)\](?P<own_line>:)?(?:[ \t]+wbr)?[ \t]*-->"
 )
+# A workaround. CommonMark reads a line whose text starts with `<!--` as an HTML block,
+# not as Markdown, even when the text is a list item's or a block quote's, or a line in
+# the middle of a paragraph (which it then ends): so a marker there would show the line's
+# Markdown raw, or break up its list or paragraph. `<wbr>` (a "word break opportunity", an
+# empty void element) renders nothing, and a line that starts with it is ordinary text.
+# So where a comment starts a list item's, a quote's or a paragraph line's text, its
+# opening marker is written `<wbr><!-- [lma:X] wbr -->`: the ` wbr` says the `<wbr>` is
+# the marker's, so it goes when the marker does, and a `<wbr>` a person wrote never does.
+# A heading's text and a table cell are inline already and need none.
+# See review-tools/v1/implementation/markdown-rendering/ in the project notes.
+_WBR: ty.Final = "<wbr>"
 _SECTION: ty.Final = re.compile(r"^<!-- \[lma:threads\]\r?$", re.M)
 _SECTION_END: ty.Final = "-->"
 _QUOTE_PREFIX: ty.Final = re.compile(r"(?: {0,3}>)*")
@@ -18,6 +33,17 @@ _BLANK: ty.Final = re.compile(r"[ \t\r]*")
 _INDENTED: ty.Final = re.compile(r"(?: {4}|\t)")
 _LIST_ITEM: ty.Final = re.compile(r" {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)")
 _CODE_SPAN: ty.Final = re.compile(r"(`+)(?!`).*?(?<!`)\1(?!`)", re.S)
+# block quote markers and list item markers at the start of a line, nested any way
+_CONTAINERS: ty.Final = re.compile(r"(?: {0,3}>[ \t]?| {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+)*")
+_HEADING: ty.Final = re.compile(r" {0,3}#{1,6}(?:[ \t]+|$)")
+_TABLE_ROW: ty.Final = re.compile(r" {0,3}\|[ \t]*")
+_CLOSING_HASHES: ty.Final = re.compile(r"[ \t]+#+[ \t]*$")
+# a leading byte order mark, then `---` to the next `---` or `...` line, which may be the next
+_FRONTMATTER: ty.Final = re.compile(
+    r"\ufeff?---[ \t]*\r?\n(?:.*?\n)??(?:---|\.\.\.)[ \t]*(?:\r?\n|$)", re.S
+)
+# a line nothing may follow: a thematic break or a setext heading's underline
+_RULE: ty.Final = re.compile(r" {0,3}(?:([-*_])(?:[ \t]*\1){2,}|=+|-+)[ \t]*\r?$")
 
 
 def code_regions(text: str) -> list[model.CodeRegion]:
@@ -111,24 +137,35 @@ def new_section(record_line: str, newline: str) -> str:
 def place_anchor(
     text: str, start: int, end: int, doc: model.Document, comment_id: str
 ) -> list[model.Edit]:
-    """Markers sit inline beside the selected text, trimmed of whitespace at its ends.
-    Around a fenced block, each marker takes a line of its own, spelled for its own line,
-    so the fence still starts its line, and so does one that lands on a line holding only
-    other markers, which an inline marker there would change."""
+    """Markers sit inline beside the selected text, trimmed of whitespace at its ends, after
+    the line's block syntax (see `_opening_inline`). Around a fenced block, each marker
+    takes a line of its own, spelled for its own line, so the fence still starts its line,
+    and so does one that lands on a line holding only other markers, which an inline marker
+    there would change. Whatever the rules place, the document must render as it did, or
+    the comment is refused (`_check_rendering`)."""
+    body_end = doc.section.start if doc.section else len(text)
+    placed = _placed(text, start, end, doc, comment_id)
+    _check_rendering(text[:body_end], [e for e in placed if e.start <= body_end])
+    return placed
+
+
+def _placed(
+    text: str, start: int, end: int, doc: model.Document, comment_id: str
+) -> list[model.Edit]:
     body_end = doc.section.start if doc.section else len(text)
     regions = code_regions(text[:body_end])
     existing, newline = doc.markers, doc.newline
-    if start == end:
-        return [_point(text, start, regions, existing, newline, comment_id)]
-
     while start < end and text[start].isspace():
         start += 1
     while end > start and text[end - 1].isspace():
         end -= 1
+    _refuse_where_no_marker_fits(text, start, max(start, end - 1), regions, _delimiter_rows(text))
     if start == end:
         return [_point(text, start, regions, existing, newline, comment_id)]
     start, end, start_region, end_region = _grown(start, end, regions)
     start, end = _out_of_markers(start, existing), _out_of_markers(end, existing)
+    if not end_region:
+        end = _closing_spot(text, end)
 
     opening_line = f"<!-- [lma:{comment_id}]: -->{newline}"
     if start_region and start_region.block:
@@ -137,9 +174,15 @@ def place_anchor(
         line_start = text.rfind("\n", 0, start) + 1
         opening = model.Edit(line_start, line_start, opening_line)
     else:
-        opening = model.Edit(start, start, f"<!-- [lma:{comment_id}] -->")
+        opening = _opening_inline(text, start, comment_id)
 
     closing_line = f"<!-- [/lma:{comment_id}]: -->"
+    if _RULE.match(_line_at(text, end)):
+        # trailing text would make the rule a paragraph or the underline part of one
+        after = text.find("\n", end)
+        if after == -1:
+            return [opening, model.Edit(len(text), len(text), f"{newline}{closing_line}")]
+        return [opening, model.Edit(after + 1, after + 1, f"{closing_line}{newline}")]
     if end_region and end_region.block:
         after_fence = text.find("\n", end)
         if after_fence == -1:
@@ -238,6 +281,118 @@ def _grown(
     )
 
 
+def _delimiter_rows(text: str) -> frozenset[int]:
+    """The line numbers of the tables' delimiter rows, by a CommonMark parser with tables:
+    a line shaped like one is a delimiter row only when it really makes a table."""
+    if "|" not in text:
+        return frozenset()
+    from markdown_it import MarkdownIt
+
+    tokens = MarkdownIt("commonmark").enable("table").parse(text)
+    return frozenset(t.map[0] + 1 for t in tokens if t.type == "table_open" and t.map)
+
+
+def _refuse_where_no_marker_fits(
+    text: str,
+    first: int,
+    last: int,
+    regions: list[model.CodeRegion],
+    delimiter_rows: frozenset[int],
+) -> None:
+    """Refuse a comment no marker can be invisible in: in YAML frontmatter, which has no
+    HTML comments, so a marker would change its fields; on a table's delimiter row, which
+    any text stops being one; on a thematic break or a setext heading's underline, which
+    hold no text and any text changes; or on a heading with no text."""
+    frontmatter = _FRONTMATTER.match(text)
+    if frontmatter and first < frontmatter.end():
+        raise ValueError("a comment can't go in a file's frontmatter: it would change its fields")
+    for position in {first, last}:
+        if any(r.block and r.start <= position <= r.end for r in regions):
+            continue  # a marker goes outside the code, whatever its lines look like
+        line = _line_at(text, position)
+        rest = line[_CONTAINERS.match(line).end() :]
+        if text.count("\n", 0, position) in delimiter_rows:
+            raise ValueError("a table's delimiter row can't hold a comment; select a row or a cell")
+        if _RULE.match(rest):
+            raise ValueError("a rule or a heading's underline can't hold a comment; select text")
+        heading = _HEADING.match(rest)
+        if heading and not _CLOSING_HASHES.sub("", " " + rest[heading.end() :]).strip():
+            raise ValueError("a heading with no text can't hold a comment")
+
+
+# elements whose content a browser reads as text, where `<!--` is not a comment
+_RAW_TEXT_ELEMENTS: ty.Final = frozenset(
+    {"textarea", "title", "script", "style", "xmp", "iframe", "noembed", "noframes", "plaintext"}
+)
+
+
+class _Shown(html.parser.HTMLParser):
+    """What a reader sees of some HTML: its tags with their attributes, and its text, with
+    comment nodes and empty `<wbr>`s left out. Parsing, not pattern matching, so a marker
+    that landed inside a tag's attribute shows up as a changed attribute."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[tuple[str, ...]] = []
+        # the open element whose content a browser reads as text, to its own end tag
+        self.raw_text: str | None = None
+
+    # Some Python versions' parsers report tags and comments inside a textarea or title as
+    # tags and comments; a browser reads everything up to that element's own end tag as
+    # text (all of the rest, for plaintext), so we decide it ourselves.
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self.raw_text:
+            self.handle_data(self.get_starttag_text() or f"<{tag}>")
+            return
+        if tag in _RAW_TEXT_ELEMENTS:
+            self.raw_text = tag
+        if tag != "wbr" or attrs:  # only the bare `<wbr>` the workaround writes
+            self.parts.append(("start", tag, repr(attrs)))
+
+    def handle_endtag(self, tag: str) -> None:
+        if self.raw_text and (tag != self.raw_text or tag == "plaintext"):
+            self.handle_data(f"</{tag}>")
+            return
+        self.raw_text = None
+        self.parts.append(("end", tag))
+
+    def handle_comment(self, data: str) -> None:
+        if self.raw_text:
+            self.handle_data(f"<!--{data}-->")
+
+    def handle_data(self, data: str) -> None:
+        if self.parts and self.parts[-1][0] == "text":
+            self.parts[-1] = ("text", self.parts[-1][1] + data)
+        else:
+            self.parts.append(("text", data))
+
+
+def _shown(rendered: str) -> list[tuple[str, ...]]:
+    parser = _Shown()
+    parser.feed(rendered)
+    parser.close()
+    # a comment on a line of its own leaves its line break behind as text; whitespace
+    # between blocks never shows, so it doesn't count
+    return [p for p in parser.parts if p[0] != "text" or p[1].strip()]
+
+
+def _check_rendering(body: str, placed: list[model.Edit]) -> None:
+    """Refuse markers that change how the document renders: render it with a CommonMark
+    parser (with tables, as GitHub has) before and after, and compare what a reader sees
+    of each (`_Shown`). The placement rules above should
+    never trip this; it catches what they don't foresee."""
+    from markdown_it import MarkdownIt
+
+    renderer = MarkdownIt("commonmark").enable("table")
+    after = body
+    for edit in sorted(placed, key=lambda e: e.start, reverse=True):
+        after = after[: edit.start] + edit.text + after[edit.end :]
+
+    if _shown(renderer.render(after)) != _shown(renderer.render(body)):
+        raise ValueError("a comment here would change how the document renders")
+
+
 def _point(
     text: str,
     position: int,
@@ -249,20 +404,83 @@ def _point(
     """A point at or inside a fenced block goes on its own line before the fence, and one
     inside a code span goes before the span. A point on a line with no text but markers
     takes a line of its own; anywhere else it sits inline, outside any marker."""
-    inline = f"<!-- [lma:{comment_id}] -->"
     own_line = f"<!-- [lma:{comment_id}]: -->{newline}"
     block = next((r for r in regions if r.block and r.start <= position <= r.end), None)
     if block is not None:
         return model.Edit(block.start, block.start, own_line)
     span = next((r for r in regions if r.start < position < r.end), None)
     if span is not None:
-        return model.Edit(span.start, span.start, inline)
+        return _opening_inline(text, span.start, comment_id)
 
     if _is_marker_only_line(text, position):
         line_start = text.rfind("\n", 0, position) + 1
         return model.Edit(line_start, line_start, own_line)
     position = _out_of_markers(position, existing)
-    return model.Edit(position, position, inline)
+    return _opening_inline(text, position, comment_id)
+
+
+def _content_start(text: str, line_start: int, line_end: int) -> tuple[int, bool]:
+    """Where a line's own text starts, after its block quote and list markers, a heading's
+    `#`s, a table row's leading `|`, and indentation; and whether a marker can go there,
+    inside the heading or the row's first cell, rather than on a line before."""
+    content = _CONTAINERS.match(text, line_start, line_end).end()
+    if inside := _HEADING.match(text, content, line_end) or _TABLE_ROW.match(
+        text, content, line_end
+    ):
+        return inside.end(), True
+    while content < line_end and text[content] in " \t":
+        content += 1
+    return content, False
+
+
+def _closing_spot(text: str, end: int) -> int:
+    """Where a closing marker can go for a selection ending at *end*: a selection that ends
+    in a line's block markers (only the `-` or the `#`) means the line, so it ends with the
+    line's text; and a selection that ends with a line's trailing backslash ends before it,
+    so the backslash still breaks the line rather than escaping the marker."""
+    line_start = text.rfind("\n", 0, end - 1) + 1 if end else 0
+    line_end = text.find("\n", line_start)
+    line_end = len(text) if line_end == -1 else line_end
+    content, _ = _content_start(text, line_start, line_end)
+    if end <= content and text[content:line_end].strip():
+        end = line_start + len(text[line_start:line_end].rstrip(" \t\r"))
+    rest_of_line = text[end:line_end]
+    is_table_row = _TABLE_ROW.match(text, _CONTAINERS.match(text, line_start, line_end).end())
+    if is_table_row and not rest_of_line.strip(" \t\r") and text[:end].endswith("|"):
+        # inside the last cell: text after a row's last `|` can stop a header being one
+        end = len(text[: end - 1].rstrip(" \t"))
+    heading = _HEADING.match(text, _CONTAINERS.match(text, line_start, line_end).end(), line_end)
+    if heading and not rest_of_line.strip(" \t\r"):
+        # before a heading's closing `#`s, which are only its closing sequence while they end it
+        closing_hashes = _CLOSING_HASHES.search(text, heading.end(), end)
+        if closing_hashes:
+            end = closing_hashes.start()
+    if end and text[end - 1] == "\\" and not rest_of_line.strip(" \t\r"):
+        end -= 1
+    return end
+
+
+def _line_at(text: str, position: int) -> str:
+    line_start = text.rfind("\n", 0, position) + 1
+    line_end = text.find("\n", position)
+    return text[line_start : len(text) if line_end == -1 else line_end]
+
+
+def _opening_inline(text: str, position: int, comment_id: str) -> model.Edit:
+    """An opening marker at *position*, after the line's block syntax when the comment
+    starts there: after a heading's `#`s and inside a table row's first cell as it is, and
+    after a list item's or block quote's markers, or at a paragraph line's start, with the
+    `<wbr>` workaround in front (see `_WBR`), so the line's text doesn't start with `<!--`."""
+    marker = f"<!-- [lma:{comment_id}] -->"
+    line_start = text.rfind("\n", 0, position) + 1
+    line_end = text.find("\n", position)
+    line_end = len(text) if line_end == -1 else line_end
+    content, inline_already = _content_start(text, line_start, line_end)
+    if position > content:
+        return model.Edit(position, position, marker)
+    if inline_already:
+        return model.Edit(content, content, marker)
+    return model.Edit(content, content, f"{_WBR}<!-- [lma:{comment_id}] wbr -->")
 
 
 def _out_of_markers(position: int, existing: tuple[model.Marker, ...]) -> int:

@@ -252,7 +252,8 @@ def test_a_relay_thread_in_a_file_with_a_threads_section_is_reported(tmp_path, s
     doc = tmp_path / "review.md"
     doc.write_text("# Review\n")
     _in_file_comment(doc, author="MotorHoe (Author)", comment_id="Mine")
-    doc.write_text(doc.read_text().replace("# Review\n", "# Review\n" + _ASK + "\n", 1))
+    first, rest = doc.read_text().split("\n", 1)
+    doc.write_text(f"{first}\n{_ASK}\n{rest}")
     w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
     sent: list[str] = []
 
@@ -267,9 +268,8 @@ def test_a_plain_criticmarkup_comment_is_reported(tmp_path, state_dir, with_sect
     doc.write_text("# Review\n")
     if with_section:
         _in_file_comment(doc, author="MotorHoe (Author)", comment_id="Mine")
-    doc.write_text(
-        doc.read_text().replace("# Review\n", "# Review\n\n{==a claim==}{>>save it?<<}\n", 1)
-    )
+    first, rest = doc.read_text().split("\n", 1)
+    doc.write_text(f"{first}\n\n{{==a claim==}}{{>>save it?<<}}\n{rest}")
     w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
     sent: list[str] = []
 

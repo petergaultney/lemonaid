@@ -188,13 +188,13 @@ def test_commenting_on_a_last_line_with_no_newline_leaves_one(
 
 def test_a_marker_keeps_its_removal_rule_after_the_text_beside_it_is_deleted() -> None:
     added = edits.add_comment(
-        "x\n", "markdown", 0, 0, author="a", body="b", at=_AT, comment_id="Point"
+        "a x\n", "markdown", 2, 2, author="a", body="b", at=_AT, comment_id="Point"
     )
-    commented = edits.apply("x\n", added.edits).replace("-->x", "-->", 1)
+    commented = edits.apply("a x\n", added.edits).replace("-->x", "-->", 1)
 
     result = edits.strip(commented, "markdown")
 
-    assert result == "\n"
+    assert result == "a \n"
 
 
 def test_an_own_line_marker_with_text_beside_it_removes_only_itself() -> None:
