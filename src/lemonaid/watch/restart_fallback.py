@@ -3,9 +3,8 @@
 import time
 from collections import abc
 
-from ..codex import channels
 from ..log import get_logger
-from . import codex_waiter, push_scout, registry, stopping
+from . import lemon_restart, push_scout, registry, stopping
 
 _log = get_logger("watch.restart_fallback")
 
@@ -32,15 +31,7 @@ def _start_scout(waiter: registry.Waiter) -> bool | None:
     if push_scout.FLAG not in waiter.command.split():
         return None
 
-    lemon_id = waiter.targets[0]
-    if waiter.channel.startswith("claude:"):
-        return push_scout.ensure(waiter.channel.removeprefix("claude:"), lemon_id)
-
-    if waiter.channel.startswith("codex:"):
-        thread = channels.thread(waiter.channel)
-        return codex_waiter.ensure(waiter.channel, thread, lemon_id)
-
-    return None
+    return lemon_restart.start_scout(waiter.channel, waiter.targets[0])
 
 
 def replace(waiters: abc.Iterable[registry.Waiter]) -> abc.Iterator[str]:

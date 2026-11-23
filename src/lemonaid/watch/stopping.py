@@ -32,11 +32,19 @@ def _wait_for_exit(waiter: registry.Waiter, grace: float) -> None:
         time.sleep(0.05)
 
 
-def stop(waiter: registry.Waiter, by: str, grace: float = 2.0) -> None:
+def stop(
+    waiter: registry.Waiter,
+    by: str,
+    grace: float = 2.0,
+    *,
+    command: str = "lemonaid watch stop",
+    followed: bool = False,
+) -> None:
     """SIGTERMs `waiter` for the lemon `by` if it still holds its entry, then waits up to `grace` seconds for it.
 
-    The note naming `by` exists only while the stop is in flight, so a later
-    signal from elsewhere is never blamed on this one.
+    The note naming `by` and `command` exists only while the stop is in flight, so a
+    later signal from elsewhere is never blamed on this one. `followed` tells the
+    waiter its lemon's watcher follows what it watched, so it needs no rearm.
     """
     if waiter.hosted:
         _log.info("%s stops the hosted scout of %s", by, ", ".join(waiter.targets))
@@ -49,8 +57,10 @@ def stop(waiter: registry.Waiter, by: str, grace: float = 2.0) -> None:
     if not waiter_lock.held(path):
         return
 
-    stop_sender.record(path, by)
-    _log.info("%s stops %s waiter pid %s of %s", by, waiter.kind, waiter.pid, waiter.channel)
+    stop_sender.record(path, by, command, followed)
+    _log.info(
+        "%s stops %s waiter pid %s of %s", by or command, waiter.kind, waiter.pid, waiter.channel
+    )
     try:
         os.kill(waiter.pid, signal.SIGTERM)
         _wait_for_exit(waiter, grace)

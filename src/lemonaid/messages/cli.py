@@ -213,6 +213,7 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
                     (lemon_id,),
                     channel,
                     shlex.join(getattr(args, "invocation", None) or _MAILBOX_WATCH),
+                    lemon=lemon_id,
                 ),
             ):
                 result = store.watch_next(

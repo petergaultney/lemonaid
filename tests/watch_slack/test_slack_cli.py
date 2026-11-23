@@ -4,7 +4,7 @@ import argparse
 
 from lemonaid.slack import api, session, signed_out
 from lemonaid.slack_config import SlackConfig
-from lemonaid.watch import cursors, slack_cli, slack_events, wait_state
+from lemonaid.watch import cursors, registry, slack_cli, slack_events, wait_state
 
 from ..slack.shared import LINK, SESSION, THREAD, Slack, reply
 
@@ -81,3 +81,23 @@ def test_a_watcher_starting_mid_fetch_still_gets_each_message_the_foreground_pri
     )
     watcher()
     assert len(heard) == 1 and "a new reply" in heard[0] and "an old reply" not in heard[0]
+
+
+def test_while_it_follows_it_is_registered_as_its_lemons_waiter(monkeypatch, capsys):
+    monkeypatch.setattr(api, "call", Slack(replies=[reply("1794857980.000001", "a reply")]))
+    monkeypatch.setattr(session, "load", lambda: SESSION)
+    monkeypatch.setattr(cursors, "owner", lambda me, codex_thread="": "lemon.Ann")
+    monkeypatch.setattr(slack_cli, "_EVERY", 0)
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:ann")
+    seen = []
+
+    def armed(lemon_id: str, grace: float = 0) -> bool:
+        seen.append([(w.kind, w.channel, w.targets) for w in registry.running()])
+        return len(seen) > 1
+
+    monkeypatch.setattr(wait_state, "is_armed", armed)
+
+    assert slack_cli.run(_args(LINK)) == 0
+
+    assert seen == [[], [("slack", "claude:ann", THREAD.target)]]
+    assert list(registry.running()) == []

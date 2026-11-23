@@ -120,6 +120,7 @@ def run(args: argparse.Namespace) -> int:
                 version=restart.version(),
                 restartable=True,
                 code=code,
+                lemon=lemon_id,
             ),
         ):
             pr_poller.ensure_running()

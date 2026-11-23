@@ -36,6 +36,7 @@ from . import (
     cursors,
     delivery,
     push_scout,
+    registry,
     slack_events,
     wait_state,
 )
@@ -105,16 +106,17 @@ def run(a: argparse.Namespace) -> int:
         load_config().slack,
     )
     try:
-        while not (a.once and delivered):
-            poll()
-            if problems:
-                print(f"stopped: {problems[0]}")
-                return 1
+        with registry.watching(a, "slack", a.link.target):
+            while not (a.once and delivered):
+                poll()
+                if problems:
+                    print(f"stopped: {problems[0]}")
+                    return 1
 
-            time.sleep(_EVERY)
-            if owner and wait_state.is_armed(owner):
-                print(_handed_over(owner, a.link.noun))
-                return 0
+                time.sleep(_EVERY)
+                if owner and wait_state.is_armed(owner):
+                    print(_handed_over(owner, a.link.noun))
+                    return 0
     except KeyboardInterrupt:
         pass
     return 0

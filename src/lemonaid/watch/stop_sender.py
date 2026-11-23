@@ -14,8 +14,15 @@ def _path(entry: pathlib.Path) -> pathlib.Path:
     return entry.with_suffix(".stop")
 
 
-def record(entry: pathlib.Path, channel: str) -> None:
-    _path(entry).write_text(json.dumps({"pid": os.getpid(), "channel": channel}))
+def record(
+    entry: pathlib.Path, channel: str, command: str = "lemonaid watch stop", followed: bool = False
+) -> None:
+    """*followed*: the lemon's watcher follows what the waiter watched, so it needs no rearm."""
+    _path(entry).write_text(
+        json.dumps(
+            {"pid": os.getpid(), "channel": channel, "command": command, "followed": followed}
+        )
+    )
 
 
 def clear(entry: pathlib.Path) -> None:
@@ -27,10 +34,23 @@ def requested(entry: pathlib.Path) -> bool:
     return _path(entry).is_file()
 
 
-def describe(entry: pathlib.Path) -> str:
-    """Who stopped the waiter whose registry entry is `entry`."""
+def _note(entry: pathlib.Path) -> dict:
     try:
         note = json.loads(_path(entry).read_text())
-        return f"`lemonaid watch stop`, run by {note['channel'] or 'an unknown lemon'} (pid {note['pid']})"
-    except (OSError, ValueError, TypeError, KeyError):
+    except (OSError, ValueError):
+        return {}
+    return note if isinstance(note, dict) else {}
+
+
+def describe(entry: pathlib.Path) -> str:
+    """Who stopped the waiter whose registry entry is `entry`."""
+    note = _note(entry)
+    if "pid" not in note:
         return "a process outside lemonaid (a kill or pkill, or the harness)"
+
+    by = f", run by {note['channel']}" if note.get("channel") else ""
+    return f"`{note.get('command', 'lemonaid watch stop')}`{by} (pid {note['pid']})"
+
+
+def followed(entry: pathlib.Path) -> bool:
+    return _note(entry).get("followed") is True
