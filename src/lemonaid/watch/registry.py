@@ -16,7 +16,7 @@ import time
 import typing as ty
 from collections import abc
 
-from ..brief import lemon
+from ..brief import identity, lemon
 from ..codex import channels
 from ..inbox import db
 from . import scout_roster, stop_sender, termination, waiter_lock
@@ -33,6 +33,7 @@ KINDS = (
     "file",
     "command",
     "briefs",
+    "slack",
 )
 _OLD_KINDS = {"inbox": "mailbox"}  # as waiters from before 0.142 registered themselves
 
@@ -57,6 +58,7 @@ class Waiter:
     code_paths: tuple[str, ...] = ()
     started: float = 0.0  # when it registered; a restart in place registers again
     hosted: bool = False  # a push scout the scout host runs; `pid` is the host's
+    lemon: str = ""  # Lemon-ID of the lemon that started it, which a /clear leaves unchanged
 
 
 def root() -> pathlib.Path:
@@ -96,6 +98,7 @@ def registered(
     version: str = "",
     restartable: bool = False,
     code: tuple[str, tuple[str, ...]] = ("", ()),
+    lemon: str = "",
 ) -> abc.Iterator[Waiter]:
     """Lists this process as a running waiter until the block exits."""
     waiter = Waiter(
@@ -111,6 +114,7 @@ def registered(
         sys.prefix,
         *code,
         started=time.time(),
+        lemon=lemon,
     )
     _registry().mkdir(parents=True, exist_ok=True)
     path = entry(waiter.pid)
@@ -125,7 +129,11 @@ def registered(
         lock.flush()
         with termination.reported(
             lambda: termination.stopped_message(
-                waiter.kind, waiter.targets, waiter.command, stop_sender.describe(path)
+                waiter.kind,
+                waiter.targets,
+                waiter.command,
+                stop_sender.describe(path),
+                stop_sender.followed(path),
             ),
             entry(waiter.pid),
         ):
@@ -237,10 +245,14 @@ def watching(
     a: ty.Any, kind: str, targets: abc.Iterable[str], codex_thread: str = "", repo: str = ""
 ) -> ty.ContextManager[Waiter]:
     """`registered` for a waiter started from the CLI arguments `a`."""
+    channel = owner_channel(getattr(a, "channel", "") or "", codex_thread)
+    with db.connect() as conn:
+        lemon_id = identity.by_channel(conn).get(channel, "") if channel else ""
     return registered(
         kind,
         targets,
-        owner_channel(getattr(a, "channel", "") or "", codex_thread),
+        channel,
         shlex.join(getattr(a, "invocation", None) or ["lemonaid", *sys.argv[1:]]),
         repo,
+        lemon=lemon_id,
     )

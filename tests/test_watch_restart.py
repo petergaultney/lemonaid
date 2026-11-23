@@ -11,10 +11,11 @@ import threading
 
 import pytest
 
-from lemonaid.brief import attached, store
+from lemonaid.brief import attached, identity, store
 from lemonaid.inbox import db
 from lemonaid.watch import (
     batch_wait,
+    lemon_restart,
     registry,
     restart,
     restart_cli,
@@ -252,7 +253,17 @@ def test_an_idle_wait_stops_for_a_restart(tmp_path):
     )
 
 
+def _known(lemon_id: str) -> None:
+    """A lemon whose brief is attached to no session."""
+    path = store.briefs_dir() / f"{lemon_id}.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"# {lemon_id}\n\nBrief-ID: {lemon_id}\n\n## Watching\n")
+    with db.connect() as conn:
+        identity.ensure(conn, path)
+
+
 def test_the_command_restarts_named_or_all_watchers(monkeypatch, capsys):
+    _known("a.Bee")
     waiters = [
         _waiter(1, lemon="a.Bee"),
         _waiter(
@@ -261,6 +272,9 @@ def test_the_command_restarts_named_or_all_watchers(monkeypatch, capsys):
             restartable=False,
             channel="claude:old",
             command="lemonaid watch --self --push",
+        ),
+        registry.Waiter(
+            3, "codex:a", "file", ("/x",), "lemonaid watch file --wait /x", "/", lemon="a.Bee"
         ),
     ]
     monkeypatch.setattr(registry, "running", lambda: iter(waiters))
@@ -274,17 +288,20 @@ def test_the_command_restarts_named_or_all_watchers(monkeypatch, capsys):
 
     stopped = []
     monkeypatch.setattr(restart_fallback, "stuck", lambda asked, wait: [])
-    monkeypatch.setattr(restart_fallback.stopping, "stop", lambda w, by: stopped.append(w.pid))
+    monkeypatch.setattr(restart_fallback.stopping, "stop", lambda w, by, **_: stopped.append(w.pid))
     monkeypatch.setattr(restart_fallback.push_scout, "ensure", lambda session, lemon: True)
 
     assert run("a.Bee", "--wait", "0") == 0
-    assert "pid 1" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "pid 1" in out
+    assert "pid 3, running: no watcher runs" in out  # its watcher hasn't armed yet
     assert run("--all", "--wait", "0") == 0
     out = capsys.readouterr().out
     assert "pid 1" in out and "1 older watchers" in out
     assert "b.Cow: replaced scout pid 2" in out
     assert stopped == [2]
     assert run() == 2
+    assert run("nobody.Known") == 2
 
 
 def test_a_watcher_that_stays_registered_is_stopped_and_its_scout_started_again(monkeypatch):
@@ -302,7 +319,7 @@ def test_a_watcher_that_stays_registered_is_stopped_and_its_scout_started_again(
         lambda session, lemon: started.append((session, lemon)) or True,
     )
     monkeypatch.setattr(
-        restart_fallback.codex_waiter,
+        lemon_restart.codex_waiter,
         "ensure",
         lambda channel, thread, lemon: started.append((channel, thread, lemon)) or True,
     )

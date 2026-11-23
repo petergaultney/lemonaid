@@ -1392,7 +1392,7 @@ described in [Codex setup](codex.md#3-allow-brief-and-message-commands-under-the
 ### Stopping your waiters
 
 `lemonaid watch stop --self` stops every waiter you started (`mailbox watch`, `watch pr`,
-`doc`, `file` and `briefs`) and removes each from your brief's `## Watching`. Name one to stop
+`doc`, `file`, `briefs`, `slack` and the rest) and removes each from your brief's `## Watching`. Name one to stop
 only that: `lemonaid watch stop --self pr 12`, `... doc <path>`, `... mailbox`. Each waiter
 registers under your channel while it runs and holds that entry locked, so `stop` signals
 only processes that are still your waiters. A waiter started before lemonaid 0.90.1 isn't
@@ -1405,15 +1405,24 @@ pattern matches every lemon's waiter on the machine.
 waiter or push scout into the installed lemonaid without dropping what it has detected; you
 need not rearm it. A new lemonaid version does this for every older waiter by itself.
 
+`lemonaid watch restart <Lemon-ID>` restarts every waiter that lemon has, so a parent can
+reset a child's waiters without the child doing anything; `--self` does the same for you.
+It restarts the lemon's watcher, or starts a push scout if it has none. Then it stops each
+waiter the lemon started by hand (`watch pr`, `watch slack` and the rest) whose source the
+running watcher reads from the brief, and leaves any other running. `--all` restarts
+watchers only. `watch stop` stops only your own waiters. Steps:
+[watch.md](watch.md#restarting-one-lemons-waiters).
+
 A watcher that doesn't restart within `--wait` seconds (default 30), or that predates the
 restart signal, is stopped, and its push scout is started again; any other stopped waiter
 prints the command its lemon rearms. Steps:
 [watch.md](watch.md#restarting-watchers-after-an-upgrade).
 
 A waiter stopped by SIGTERM prints who stopped it and the command that rearms it, then exits
-143 (Claude Code reports the task as exit 144). Who is the lemon and pid that ran `watch stop`,
-or "a process outside lemonaid" for a `kill`, a `pkill` pattern or the harness. If you didn't
-stop it yourself, rearm it.
+143 (Claude Code reports the task as exit 144). Who is the command (`watch stop` or `watch
+restart`) with the lemon and pid that ran it, or "a process outside lemonaid" for a `kill`, a
+`pkill` pattern or the harness. If you didn't stop it yourself, rearm it, unless it says your
+watcher follows it from your brief's `## Watching`.
 
 ## Watching a document for comments
 

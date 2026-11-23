@@ -619,13 +619,15 @@ The entry survives one-shot events, interrupted waits, and delivery failures so 
 
 ```bash
 lemonaid watch stop --self              # every waiter you started
-lemonaid watch stop --self pr 12        # one kind and target: a PR number, a path, a Lemon-ID
+lemonaid watch stop --self pr 12        # one kind and target: a PR number, a path, a Lemon-ID, a Slack channel ID
 lemonaid watch stop --self mailbox        # your `lemonaid mailbox watch --self`
 ```
 
-While it runs, each waiter (`mailbox watch` and every `watch` kind but `openclaw`) keeps a file under `$LEMONAID_STATE_DIR/waiters/` locked. The file holds its pid, the channel of the lemon that started it, what it watches, and the command that rearms it. `stop` signals only waiters registered under the caller's channel whose file is still locked, so it never reaches another lemon's waiter or a process that has since reused the pid. It waits for each to exit, then removes the stopped waiters from the caller's `## Watching`. Waiters started by lemonaid before 0.90.1 aren't registered; stop those by their task or pid.
+While it runs, each waiter (`mailbox watch` and every `watch` kind but `openclaw`) keeps a file under `$LEMONAID_STATE_DIR/waiters/` locked. The file holds its pid, the channel and Lemon-ID of the lemon that started it, what it watches, and the command that rearms it. `stop` signals only waiters registered under the caller's channel whose file is still locked, so it never reaches another lemon's waiter or a process that has since reused the pid. It waits for each to exit, then removes the stopped waiters from the caller's `## Watching`. Waiters started by lemonaid before 0.90.1 aren't registered; stop those by their task or pid.
 
-A waiter stopped by SIGTERM, from `stop` or anything else, prints which waiter it was, who stopped it and the command that rearms it, then exits 143. Who is the lemon and pid that ran `watch stop`, or "a process outside lemonaid" for a `kill`, a `pkill` pattern or the harness; the lemonaid log records the same line. Never `pkill -f` a waiter command: the pattern matches every lemon's waiter on the machine.
+A waiter stopped by SIGTERM, from `stop` or anything else, prints which waiter it was, who stopped it and the command that rearms it, then exits 143. Who is the command (`watch stop` or `watch restart`) with the lemon and pid that ran it, or "a process outside lemonaid" for a `kill`, a `pkill` pattern or the harness; the lemonaid log records the same line. Never `pkill -f` a waiter command: the pattern matches every lemon's waiter on the machine.
+
+`watch stop` takes only the caller's own waiters. To reset another lemon's waiters, use [`watch restart <Lemon-ID>`](#restarting-one-lemons-waiters), which leaves that lemon watching what its brief lists. To end one of its watches for good, remove the line from its brief with `lemonaid brief waiter rm --channel <its channel> "<part of the command>"`, then restart it.
 
 ## A brief's subscriptions
 
@@ -964,6 +966,35 @@ To confirm a watcher runs the new version, run `lemonaid watch restart --all` ag
 prints no "older watchers" line once every watcher takes the signal. The registry file
 `$LEMONAID_STATE_DIR/waiters/<pid>.json` (default `~/.local/state/lemonaid/waiters/`)
 of a restarted watcher also records the new `version`.
+
+### Restarting one lemon's waiters
+
+`lemonaid watch restart <Lemon-ID>...`, run by you or by a lemon's parent, restarts
+every waiter the named lemons have, without them doing anything. `--self` does the same
+for the caller. Name a lemon by Lemon-ID, channel or brief name, and a lemon whose brief
+is attached to no session by its Lemon-ID.
+
+1. The lemon's watcher or push scout restarts, as with `--all`.
+2. A lemon with no watcher gets a push scout started for the session its brief is
+   attached to. If none can start, `watch restart` says why.
+3. Once the lemon's watcher runs (it waits up to `--wait` seconds, longer while the scout
+   host restarts), each waiter the lemon started by hand (`watch pr`, `watch doc`,
+   `watch slack` and the rest) is stopped if the watcher reads the same source from the
+   brief. A started waiter records itself under `## Watching`, so this is the usual case.
+   The stopped waiter prints that the lemon's watcher follows it and that the lemon
+   shouldn't rearm it.
+
+A hand-started waiter the watcher wouldn't follow keeps running, and `watch restart`
+says so: every one, when no watcher runs, and otherwise one whose line is gone from the
+brief, or one the watcher reads differently. A watcher resolves a relative path against
+its own directory, and it doesn't read a `watch pr` with no repo in its command (unless
+the PR is in the brief's `## PRs` table) or a `watch doc --watch-list`.
+
+A hand-started waiter is found by the channel or Lemon-ID it registered under, so one
+started before a `/clear` is still found. One run where lemonaid can't tell which lemon
+started it (a terminal of its own, without `--channel`) registers under no lemon; stop
+it by its pid. `--all` restarts only watchers and leaves hand-started waiters running,
+since stopping them would wake every lemon that has one.
 
 ### Reconciling scouts
 

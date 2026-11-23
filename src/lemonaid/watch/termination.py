@@ -15,11 +15,15 @@ from . import stop_sender
 _log = get_logger("watch.registry")
 
 
-def stopped_message(kind: str, targets: abc.Iterable[str], command: str, sender: str) -> str:
-    return (
-        f"This {kind} waiter ({', '.join(targets)}) was stopped by SIGTERM "
-        f"from {sender}. If you didn't stop it yourself, rearm it with `{command}`."
+def stopped_message(
+    kind: str, targets: abc.Iterable[str], command: str, sender: str, followed: bool = False
+) -> str:
+    then = (
+        "Your watcher follows it from your brief's `## Watching`; don't rearm it."
+        if followed
+        else f"If you didn't stop it yourself, rearm it with `{command}`."
     )
+    return f"This {kind} waiter ({', '.join(targets)}) was stopped by SIGTERM from {sender}. {then}"
 
 
 @contextlib.contextmanager

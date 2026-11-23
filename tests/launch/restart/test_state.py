@@ -145,7 +145,7 @@ def test_already_armed_claude_mailbox_waiter_leaves_cutover_message_pending(
     pending, tokens = [], []
 
     @contextlib.contextmanager
-    def armed(*a):
+    def armed(*a, **_):
         tokens.append(state.reserve({**shared.plan(), "channel": channel}))
         pending.append(store.send(mailbox, "must remain pending", "test"))
         yield
