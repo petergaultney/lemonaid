@@ -229,6 +229,24 @@ def test_a_brief_also_waits_on_the_launch_token_in_the_lemon_s_environment(
     assert (waiting["tmux_session"], waiting["tmux_window"]) == ("work", "4")
 
 
+@pytest.mark.parametrize(("asked", "got"), [("classic", "classic"), ("packages", "classic")])
+def test_docs_hands_the_lemon_its_mode_in_its_environment(capsys, tmux, monkeypatch, asked, got):
+    config = Config(
+        tmux_session=TmuxSessionConfig(
+            templates={"default": ["", "printenv LEMONAID_DOCS"]}, resume_window=1
+        )
+    )
+    monkeypatch.setattr(cli, "load_config", lambda: config)
+    parser = argparse.ArgumentParser()
+    cli.add_parser(parser.add_subparsers())
+    args = parser.parse_args(["start", "--no-check", "work:4", "--docs", asked])
+
+    args.func(args)
+
+    assert f"\n{got}" in _screen(tmux, "work:4", f"\n{got}")
+    assert ("isn't available yet" in capsys.readouterr().err) == (asked != got)
+
+
 def test_no_target_in_tmux_opens_the_next_window_of_your_session_and_says_where(
     capsys, tmux, monkeypatch, tmp_path
 ):

@@ -1,13 +1,14 @@
 """SessionStart guidance for the one watcher attached lemons arm each turn."""
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
 
 import lemonaid.tasks.briefs.session
 
-from .. import brief
+from .. import brief, docs
 from ..brief.handoff import clear as handoff_clear
 from ..codex import startup, thread_name
 from ..config import load_config
@@ -137,11 +138,16 @@ def context(data: dict, harness: str) -> str:
 
 
 def _docs(data: dict, harness: str) -> str:
+    """The classic docs for a Codex history that doesn't hold them; Claude loads its own."""
+    config = load_config()
+    mode = docs.mode.session_mode(
+        harness, data.get("session_id") or "", os.environ.get(docs.mode.ENV, ""), config.docs.mode
+    )
     if harness != "codex" or data.get("source", "startup") not in _DOCS_SOURCES:
         return ""
 
-    root = load_config().codex.context_doc
-    return context_docs.expand(root) if root else ""
+    root = docs.mode.classic_root(config)
+    return context_docs.expand(root) if root and mode == "classic" else ""
 
 
 def handle(harness: str) -> None:
