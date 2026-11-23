@@ -5,12 +5,26 @@ listings that overlap wait on one another: five at once take two seconds each. D
 numbers cost nothing, so on macOS it lists those and they are named here from `/dev`.
 """
 
+import ctypes
+import functools
 import os
 import stat
 import subprocess
 import sys
 
 _WORDS = {"lstart": 5}  # columns ps writes as several words: "Mon Nov 23 11:19:05 2026"
+
+
+@functools.cache
+def sandboxed() -> bool:
+    """Whether this process runs in a macOS sandbox, such as a Codex lemon's shell, where
+    running the setuid `ps` fails with `Operation not permitted`."""
+    if sys.platform != "darwin":
+        return False
+
+    check = ctypes.CDLL("/usr/lib/libSystem.B.dylib").sandbox_check
+    check.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+    return check(os.getpid(), None, 0) == 1
 
 
 def _terminal_names() -> dict[int, str]:
@@ -41,8 +55,12 @@ def listing(*columns: str, timeout: float | None) -> list[list[str]]:
     """Each process's `ps -A -ww -o` *columns*, the last split off whole, with its terminal
     as `ps -t` names it (`ttys004`, `pts/3`, `??`) in the place of a `tty` column.
 
-    Raises `OSError` or `subprocess.SubprocessError` when `ps` can't say.
+    Raises `OSError` or `subprocess.SubprocessError` when `ps` can't say, and
+    `PermissionError` without running it in a sandbox.
     """
+    if sandboxed():
+        raise PermissionError("a sandbox refuses to run ps")
+
     tty_column = "tdev" if sys.platform == "darwin" else "tty"
     spec = ",".join(f"{tty_column if c == 'tty' else c}=" for c in columns)
     result = subprocess.run(
