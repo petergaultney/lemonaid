@@ -31,6 +31,8 @@ class Running(ty.NamedTuple):
     thread: str
     tty: str  # "" under the shared daemon
     executable: str
+    pid: int
+    started: str  # as `ps` writes it
 
 
 class _Live(ty.NamedTuple):
@@ -127,7 +129,9 @@ def _running() -> list[Running] | None:
         threads = reported.get(pid) or [(_resumed(found.argv), found.argv[0])]
         for thread, executable in threads if daemon else threads[-1:]:
             if thread:
-                result.append(Running(thread, "" if daemon else found.tty, executable))
+                result.append(
+                    Running(thread, "" if daemon else found.tty, executable, pid, found.started)
+                )
     return result
 
 
@@ -145,6 +149,25 @@ def running(max_age: float = 0.0) -> list[Running] | None:
         if _latest.count == seen and time.monotonic() - _latest.at >= max_age:
             _latest = _Answer(time.monotonic(), _running(), seen + 1)
         return _latest.running
+
+
+def owner(thread: str, max_age: float = 0.0) -> Running | None:
+    """The process running *thread*; None when none does or the processes couldn't be listed."""
+    return next((each for each in running(max_age) or [] if each.thread == thread), None)
+
+
+def switched(found: Running) -> bool:
+    """Whether the terminal process *found* has since reported another thread, as `/clear`
+    makes it, from what its hooks recorded; it runs no `ps`."""
+    if not found.tty:  # the shared daemon runs every thread it reported
+        return False
+
+    reported = [
+        (when, thread)
+        for when, thread, identity in _recorded(_epoch(found.started))
+        if (identity.pid, identity.started) == (found.pid, found.started)
+    ]
+    return bool(reported) and max(reported)[1] != found.thread
 
 
 def open_threads(max_age: float = 0.0) -> set[str] | None:

@@ -13,6 +13,7 @@ from lemonaid.launch.restart import state
 
 _thread_ttys = processes.thread_ttys
 _open_threads = processes.open_threads
+_owner = processes.owner
 
 _AUTHOR = "01a1f6f1-0000-7000-8000-000000000000"
 _REVIEWER = "01a1f6f1-0000-7000-8000-000000000001"
@@ -83,6 +84,27 @@ def test_the_thread_a_process_reported_last_is_the_one_it_runs(monkeypatch):
     _ps(monkeypatch, f"11 S+ ttys001 {_STARTED} {_CODEX}")
 
     assert _thread_ttys() == {_REVIEWER: {"/dev/ttys001"}}
+
+
+def test_a_terminal_process_has_switched_once_it_reports_another_thread(monkeypatch):
+    _record(11, _AUTHOR, "ttys001", at=1_795_000_000)
+    _ps(monkeypatch, f"11 S+ ttys001 {_STARTED} {_CODEX}")
+    found = _owner(_AUTHOR)
+
+    assert found == processes.Running(_AUTHOR, "ttys001", _CODEX, 11, _STARTED)
+    assert not processes.switched(found)
+    _record(11, _REVIEWER, "ttys001", at=1_795_000_100)  # after /clear
+    assert processes.switched(found)
+
+
+def test_the_shared_daemon_never_switches_threads(monkeypatch):
+    _record(11, _AUTHOR, "??", at=1_795_000_000)
+    _ps(monkeypatch, f"11 Ss ?? {_STARTED} {_CODEX} app-server --listen unix://")
+    found = _owner(_AUTHOR)
+    _record(11, _REVIEWER, "??", at=1_795_000_100)
+
+    assert found is not None
+    assert not processes.switched(found)
 
 
 def test_a_resumed_process_no_hook_has_reported_runs_the_thread_it_resumed(monkeypatch):

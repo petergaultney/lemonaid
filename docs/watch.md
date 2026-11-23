@@ -858,8 +858,8 @@ after a minute with none.
 
 On macOS (and BSD) the host's scouts sleep on kqueue events instead of polling. An idle
 scout wakes when its brief, its mailbox directory, a watched doc or file, its children's
-briefs, its Claude session's listing or the session's process changes,
-and otherwise checks everything every 45 seconds, so a missed event delays a batch by at
+briefs, its Claude session's listing or the session's process changes, or the Codex
+process running its thread exits, and otherwise checks everything every 45 seconds, so a missed event delays a batch by at
 most that long. After a change, a scout polls at its usual intervals until the change
 settles. PR and repo watches keep their own intervals, and elsewhere the scouts keep
 today's timers. A Codex
@@ -867,8 +867,11 @@ lemon's scout queues each batch into its thread with `codex queue`, run with the
 executable of the Codex process that runs the thread (falling back to `codex` on
 `PATH`, which the scout host may not share with the lemon), and checks before each
 delivery that some Codex process (a terminal or the shared daemon) still runs the thread,
-and exits when none does or the brief is detached. When `ps` can't be read, the scout counts
-the thread as live and keeps delivering. See [Codex setup](codex.md) for what starts it. A Codex lemon that
+and exits when none does or the brief is detached. Between deliveries, where kqueue is
+available, it lists processes only to find the one running its thread; after that it learns
+from kqueue when that process exits, and every 30 seconds reads what its hooks recorded to
+notice a `/clear` that moved it to another thread. Elsewhere it lists every 30 seconds.
+When `ps` can't be read, the scout counts the thread as live and keeps delivering. See [Codex setup](codex.md) for what starts it. A Codex lemon that
 runs the one-shot `lemonaid watch --self --codex-thread` while its scout runs is told
 `push scout running; nothing to rearm`. The rest of this section describes the Claude scout.
 

@@ -5,15 +5,18 @@ lemon never rearms a watcher. `codex_waiter` registers it; it holds the same loc
 unified watcher.
 """
 
+import subprocess
 import time
 from collections import abc
 from pathlib import Path
 
 from ..brief import identity
 from ..codex import channels, processes
-from ..log import LOG_PATH
-from . import batch_text, codex_waiter, delivery, push_scout
+from ..launch.restart import process
+from ..log import LOG_PATH, get_logger
+from . import batch_text, codex_waiter, delivery, process_exit, push_scout
 
+_log = get_logger("watch.codex_scout")
 _NEXT = "queues the next batch into this thread"
 _ALIVE_EVERY = 30.0
 
@@ -24,18 +27,48 @@ def thread_alive(thread: str) -> bool:
     return open_threads is None or thread in open_threads
 
 
-def liveness(thread: str) -> abc.Callable[[], bool]:
-    """A cheap `thread_alive` for a loop: the first check comes `_ALIVE_EVERY` seconds in,
-    leaving a starting session time to report itself."""
+def _follow(thread: str) -> tuple[processes.Running | None, abc.Callable[[], bool] | None]:
+    """The process running *thread*, and whether it has exited since.
+
+    The listing may be two seconds old, so once its pid is watched, a process that took the
+    pid since counts as the owner having exited.
+    """
+    owner = processes.owner(thread, delivery.LISTED_WITHIN)
+    exited = process_exit.watch(owner.pid) if owner else None
+    if owner is None or exited is None or exited():
+        return owner, exited
+
+    try:
+        found = process.inspect(owner.pid)
+    except (OSError, subprocess.SubprocessError) as error:
+        _log.warning("could not confirm Codex process %d: %s", owner.pid, error)
+        return owner, None  # listed every `_ALIVE_EVERY` seconds instead
+
+    return owner, exited if found and found.started == owner.started else lambda: True
+
+
+def liveness(thread: str) -> tuple[abc.Callable[[], bool], tuple[int, ...]]:
+    """A cheap `thread_alive` for a loop, and the pid whose exit should wake the loop.
+
+    Without kqueue it lists processes every `_ALIVE_EVERY` seconds, as it does once its
+    process is gone. The first check comes that long after the start, leaving a starting
+    session time to report itself.
+    """
+    owner, exited = _follow(thread)
     checked, alive = time.monotonic(), True
 
     def still() -> bool:
-        nonlocal checked, alive
+        nonlocal owner, exited, checked, alive
+        if exited is not None and exited():
+            exited, checked = None, float("-inf")
         if time.monotonic() - checked >= _ALIVE_EVERY:
-            checked, alive = time.monotonic(), thread_alive(thread)
+            checked = time.monotonic()
+            if owner is None or exited is None or processes.switched(owner):
+                owner, exited = _follow(thread)
+                alive = owner is not None or thread_alive(thread)
         return alive
 
-    return still
+    return still, (owner.pid,) if owner else ()
 
 
 def to_thread(thread: str) -> delivery.Deliver:
