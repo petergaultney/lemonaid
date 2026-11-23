@@ -19,6 +19,9 @@ def _ask(task_id: str) -> str:
             " `blocked` for your user, `merge` when only your user's merge remains, `approve`"
             " for your user's approval, `review` for a teammate's review, `running` while a long"
             " process runs. A Status covers every task you hold.",
+            "- A set time (a launch window, a cooldown): keep the task and name the time:"
+            f" `lemonaid task wait-until {task_id} TIME --reason TEXT`, where TIME is a duration"
+            " such as `45m` or an ISO time. Until then you aren't challenged; set no Status for it.",
             "- CI on the task's PR: give the task its PR, and the inspector waits while CI runs:"
             f" `lemonaid task set-url {task_id} PR_URL --reason TEXT`.",
             "- Nobody, because the work is finished: close it, naming where the result is:"

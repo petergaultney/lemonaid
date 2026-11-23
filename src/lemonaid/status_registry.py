@@ -55,7 +55,8 @@ DEFAULTS = (
     Status(
         "running",
         "nobody's move; you are minding a long pipeline or process, named under"
-        " `### Running` in `## Now` (your own test suite is not one)",
+        " `### Running` in `## Now` (your own test suite is not one, and neither is a timer you set;"
+        " for a set time use `lemonaid task wait-until`)",
         "#00838f",
         "#4fc3cc",
         "#00707a",

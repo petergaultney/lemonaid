@@ -394,3 +394,36 @@ def test_a_status_the_assignees_on_your_own_pr_contradict_is_challenged(status, 
 )
 def test_assignees_agree_or_are_unknown_or_on_a_teammates_pr(status, pr):
     assert ("challenge", "status-claim") not in _kinds(_claim(status, **pr))
+
+
+def _timed(until: str) -> dict[str, str]:
+    return task(**{"wait_until.at": until, "wait_until.reason": "launch window"})
+
+
+def test_a_declared_time_is_a_wait_until_then_and_the_idle_rule_resumes_after():
+    quiet = idle(since="2026-10-31T11:30:00Z")
+
+    waiting = _evaluate([_timed("2026-10-31T18:00:00Z")], quiet)
+
+    assert waiting[0][:5] == (
+        "wait",
+        "t1",
+        "progress",
+        "waiting-until",
+        "until 2026-10-31T18:00:00Z",
+    )
+    assert waiting[0][5] == "2026-10-31T18:00:00Z"
+    assert _kinds(_evaluate([_timed("2026-10-31T11:59:00Z")], quiet)) == [("challenge", "progress")]
+
+
+def test_a_declared_time_does_not_hide_a_contradicted_status():
+    contradicted = [
+        *idle(since="2026-10-31T11:30:00Z")[:2],
+        *brief_says(status="merge", held="t1"),
+        fact("pr", _URL, "state", "OPEN"),
+        fact("pr", _URL, "draft", "true"),
+    ]
+
+    assert _kinds(
+        _evaluate([{**_timed("2026-10-31T18:00:00Z"), "subject_url": _URL}], contradicted)
+    ) != [("wait", "progress")]
