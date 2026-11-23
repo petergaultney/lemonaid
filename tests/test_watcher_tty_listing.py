@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from lemonaid import process_table
 from lemonaid.lemon_watchers import tty_processes, watcher
 from lemonaid.tmux import navigation
 
@@ -73,24 +74,24 @@ def test_by_tty_says_nothing_when_ps_cannot(monkeypatch, run):
 def test_by_tty_names_macos_device_numbers_from_dev(monkeypatch):
     out = "   ??  /sbin/launchd\n 16/1  -fish\n 16/1  claude --resume abc\n 16/9  closed since\n"
     asked = []
-    monkeypatch.setattr(tty_processes.sys, "platform", "darwin")
+    monkeypatch.setattr(process_table.sys, "platform", "darwin")
     monkeypatch.setattr(
         subprocess,
         "run",
         lambda *a, **kw: asked.append(a[0]) or subprocess.CompletedProcess(a, 0, out, ""),
     )
-    monkeypatch.setattr(tty_processes, "_terminal_names", lambda: {os.makedev(16, 1): "ttys001"})
+    monkeypatch.setattr(process_table, "_terminal_names", lambda: {os.makedev(16, 1): "ttys001"})
 
     assert tty_processes.by_tty() == {
         "??": ["/sbin/launchd", "closed since"],
         "ttys001": ["-fish", "claude --resume abc"],
     }
-    assert asked == [["ps", "-A", "-o", "tdev=,args="]]
+    assert asked == [["ps", "-A", "-ww", "-o", "tdev=,args="]]
 
 
 def test_by_tty_asks_linux_ps_for_terminal_names(monkeypatch):
     asked = []
-    monkeypatch.setattr(tty_processes.sys, "platform", "linux")
+    monkeypatch.setattr(process_table.sys, "platform", "linux")
     monkeypatch.setattr(
         subprocess,
         "run",
@@ -100,29 +101,13 @@ def test_by_tty_asks_linux_ps_for_terminal_names(monkeypatch):
     )
 
     assert tty_processes.by_tty() == {"pts/3": ["vim"]}
-    assert asked == [["ps", "-A", "-o", "tty=,args="]]
-
-
-@pytest.mark.skipif(sys.platform != "darwin", reason="ps -o tdev is macOS's")
-def test_device_numbers_name_every_process_as_ps_does():
-    def column(name: str) -> dict[str, str]:
-        out = subprocess.run(["ps", "-A", "-o", f"pid=,{name}="], capture_output=True, text=True)
-        return dict(line.split() for line in out.stdout.splitlines() if line.strip())
-
-    names = tty_processes._terminal_names()
-    tdevs, ttys = column("tdev"), column("tty")
-    both = tdevs.keys() & ttys.keys()
-
-    assert both
-    assert {pid: tty_processes._tty_name(tdevs[pid], names) for pid in both} == {
-        pid: ttys[pid] for pid in both
-    }
+    assert asked == [["ps", "-A", "-ww", "-o", "tty=,args="]]
 
 
 def _listing_with(monkeypatch, pid: int) -> list[list[str]]:
     asked: list[list[str]] = []
     out = f"{pid}  pts/3  claude --resume abc\n1  ??  /sbin/launchd\n"
-    monkeypatch.setattr(tty_processes.sys, "platform", "linux")
+    monkeypatch.setattr(process_table.sys, "platform", "linux")
     monkeypatch.setattr(
         subprocess,
         "run",
@@ -143,7 +128,7 @@ def test_a_listing_is_reused_while_its_harnesses_run(monkeypatch):
     again = reused.by_tty(False, 110.0)
 
     assert first == again == {"pts/3": ["claude --resume abc"], "??": ["/sbin/launchd"]}
-    assert asked == [["ps", "-A", "-o", "pid=,tty=,args="]]
+    assert asked == [["ps", "-A", "-ww", "-o", "pid=,tty=,args="]]
 
 
 def test_a_listing_is_taken_again_once_a_harness_in_it_exits(monkeypatch):

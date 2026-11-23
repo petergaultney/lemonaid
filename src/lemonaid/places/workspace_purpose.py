@@ -4,6 +4,7 @@ import shlex
 import subprocess
 from pathlib import Path
 
+from .. import process_table
 from . import windows
 
 _HARNESSES = {"claude", "codex", "opencode", "openclaw"}
@@ -14,27 +15,22 @@ def lemon_panes(name: str) -> set[str] | None:
     if panes is None:
         return None
     try:
-        result = subprocess.run(
-            ["ps", "-axo", "tty=,args="], capture_output=True, text=True, check=True, timeout=5
-        )
+        listed = process_table.listing("tty", "args", timeout=5)
     except (OSError, subprocess.SubprocessError):
         return None
 
     ttys: set[str] = set()
-    for line in result.stdout.splitlines():
-        parts = line.strip().split(None, 1)
-        if len(parts) != 2:
-            continue
+    for tty, args in listed:
         try:
-            argv = shlex.split(parts[1])
+            argv = shlex.split(args)
         except ValueError:
-            argv = parts[1].split()
+            argv = args.split()
         if not argv:
             continue
         executable = Path(argv[0]).name
         script = Path(argv[1]).stem if len(argv) > 1 else ""
         if executable in _HARNESSES or (executable in {"node", "nodejs"} and script in _HARNESSES):
-            ttys.add(parts[0].removeprefix("/dev/"))
+            ttys.add(tty.removeprefix("/dev/"))
 
     return {
         pane

@@ -5,6 +5,7 @@ import subprocess
 
 import pytest
 
+from lemonaid import process_table
 from lemonaid.codex import processes
 from lemonaid.launch.restart import state
 
@@ -38,15 +39,18 @@ def _record(pid: int, thread: str, tty: str, started: str = _STARTED, at: float 
         os.utime(state.root() / name, (at, at))
 
 
-def _ps(monkeypatch, *rows: str, returncode: int = 0) -> None:
-    """`ps -A` lists *rows*, each `pid stat tty lstart args`."""
+def _ps(monkeypatch, *rows: str, returncode: int = 0) -> list[list[str]]:
+    """`ps -A` lists *rows*, each `pid stat tty lstart args`; the listings asked for."""
+    asked: list[list[str]] = []
     monkeypatch.setattr(
         subprocess,
         "run",
-        lambda argv, **kwargs: subprocess.CompletedProcess(
+        lambda argv, **kwargs: asked.append(argv)
+        or subprocess.CompletedProcess(
             argv, returncode, stdout="".join(f"{row}\n" for row in rows), stderr=""
         ),
     )
+    return asked
 
 
 def test_each_recorded_live_process_names_its_thread_and_terminal(monkeypatch):
@@ -116,3 +120,13 @@ def test_the_shared_daemon_runs_every_thread_it_reported(monkeypatch):
 
     assert _open_threads() == {_AUTHOR, _REVIEWER}
     assert _thread_ttys() == {}
+
+
+def test_macos_terminals_are_named_from_their_device_numbers(monkeypatch):
+    _record(11, _AUTHOR, "ttys001")
+    monkeypatch.setattr(process_table.sys, "platform", "darwin")
+    monkeypatch.setattr(process_table, "_terminal_names", lambda: {os.makedev(16, 1): "ttys001"})
+    asked = _ps(monkeypatch, f"11 S+ 16/1 {_STARTED} {_CODEX}")
+
+    assert _thread_ttys() == {_AUTHOR: {"/dev/ttys001"}}
+    assert asked == [["ps", "-A", "-ww", "-o", "pid=,stat=,tdev=,lstart=,args="]]

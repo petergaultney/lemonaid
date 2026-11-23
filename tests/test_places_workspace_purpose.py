@@ -1,5 +1,4 @@
 import subprocess
-from types import SimpleNamespace
 
 from lemonaid.places import workspace_purpose
 
@@ -18,13 +17,16 @@ def test_live_harnesses_map_to_panes_without_counting_helpers(monkeypatch):
     monkeypatch.setattr(
         workspace_purpose.subprocess,
         "run",
-        lambda *args, **kwargs: SimpleNamespace(
+        lambda argv, **kwargs: subprocess.CompletedProcess(
+            argv,
+            0,
             stdout="ttys001 /opt/bin/codex --no-daemon\n"
             "ttys002 claude\n"
             "ttys003 node /opt/bin/codex.js\n"
             "ttys004 node /opt/bin/build.js\n"
             "?? /opt/bin/codex app-server\n"
-            "ttys004 /opt/bin/codex-code-mode-host\n"
+            "ttys004 /opt/bin/codex-code-mode-host\n",
+            stderr="",
         ),
     )
     assert workspace_purpose.lemon_panes("job") == {"%1", "%2", "%3"}
