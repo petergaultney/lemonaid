@@ -73,7 +73,7 @@ def test_a_scout_keeps_watching_an_archived_session_whose_thread_runs(monkeypatc
         conn.commit()
     alive = [True]
     monkeypatch.setattr(delivery, "codex_setup_problem", lambda *_: "")
-    monkeypatch.setattr(codex_scout, "liveness", lambda thread: lambda: alive[0])
+    monkeypatch.setattr(codex_scout, "liveness", lambda thread: (lambda: alive[0], ()))
     watched = []
 
     def wait(*positional, **keywords):

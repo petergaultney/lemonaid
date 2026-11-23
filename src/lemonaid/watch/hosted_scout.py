@@ -59,9 +59,8 @@ def _harness(registration: scout_roster.Registration) -> _Harness | str:
         if problem := delivery.codex_setup_problem(delivery.codex_executable(thread)):
             return problem
 
-        return _Harness(
-            codex_scout.to_thread(thread), codex_scout.liveness(thread), f"codex-{thread}", None
-        )
+        alive, pids = codex_scout.liveness(thread)
+        return _Harness(codex_scout.to_thread(thread), alive, f"codex-{thread}", None, ((), pids))
 
     session = push_scout.session(registration.channel.removeprefix("claude:"), wait=30)
     if problem := push_scout.problem(session):
