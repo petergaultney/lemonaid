@@ -8,7 +8,7 @@ import dataclasses
 from typing import Any
 
 from ..model import Block, Plot
-from . import labels, lead_spot, new_spots, room, sizes
+from . import labels, lead_spot, letters, new_spots, room, sizes
 
 _FORGET_SPOTS_AFTER = 30 * 86400
 
@@ -170,18 +170,9 @@ def stand_trees(
         _untangle(block, short, drawn, plot, spots, now)
     drawn = _spaced(block, grown, drawn, spots, plot)
     standing: dict[str, Standing] = {}
-    held: set[str] = set()  # letters live trees in the block already hold
+    letters.settle(block.trees, spots, short)
     for tree in block.trees:
         spot = spots[tree.key]
-        if (
-            spot["letter"] not in labels.LETTERS
-            or spot["letter"] in held
-            or (spot["letter"] == labels.LEAD_LETTER and not tree.lead)
-        ):
-            spot["letter"] = labels.pick_letter(
-                short[tree.key], {s["letter"] for s in spots.values() if s is not spot}
-            )
-        held.add(spot["letter"])
         spot["label"] = short[tree.key]  # for its stump to show for a while once it goes
         letter = labels.LEAD_LETTER if tree.lead else spot["letter"]
         stands = lead_spot.standing_at(tree, spots)
