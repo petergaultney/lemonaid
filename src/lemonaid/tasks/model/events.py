@@ -82,6 +82,7 @@ def _changes(state: State, event: Event) -> State:
             | "dependency_added"
             | "dependency_resolved"
             | "result"
+            | "wait_until"
             | "recheck_requested"
         ):
             return {}

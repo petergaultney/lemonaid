@@ -56,6 +56,36 @@ def result(
     return {"task_id": task, "revision": state["revision"]}
 
 
+def wait_until(
+    conn: sqlite3.Connection,
+    task: str,
+    expected: int,
+    until: float,
+    reason: str,
+    actor: str,
+    request_id: str,
+    at: float,
+) -> dict[str, ty.Any]:
+    """Record that the holder waits for the time *until*, replacing an earlier such wait."""
+    if not reason.strip():
+        raise ValueError("waiting for a time needs a reason")
+
+    if until <= at:
+        raise ValueError("that time has already passed")
+
+    _, state = ledger.append(
+        conn,
+        task,
+        expected,
+        "wait_until",
+        {"until": until, "reason": reason.strip()},
+        actor,
+        request_id,
+        at,
+    )
+    return {"task_id": task, "revision": state["revision"], "until": until}
+
+
 def request_recheck(
     conn: sqlite3.Connection, task: str, expected: int, actor: str, request_id: str, at: float
 ) -> dict[str, ty.Any]:

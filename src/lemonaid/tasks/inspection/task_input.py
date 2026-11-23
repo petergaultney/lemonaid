@@ -5,6 +5,7 @@ The result is a `corpus.Snapshot`, so live evaluation and offline replay feed a 
 same records.
 """
 
+import json
 import sqlite3
 import typing as ty
 from collections import abc
@@ -68,6 +69,21 @@ def _recheck(conn: sqlite3.Connection, task_id: str) -> dict[str, str]:
     )
 
 
+def _wait_until(conn: sqlite3.Connection, state: ty.Mapping[str, ty.Any]) -> dict[str, str]:
+    """`wait_until.at` and `wait_until.reason` from the holder's latest declared time wait
+    since the current assignment."""
+    row = conn.execute(
+        "SELECT data FROM task_events WHERE task_id = ? AND kind = 'wait_until'"
+        " AND event_id > ? ORDER BY revision DESC LIMIT 1",
+        (state["task_id"], state["assignment_event_id"]),
+    ).fetchone()
+    if not row:
+        return {}
+
+    data = json.loads(row["data"])
+    return {"wait_until.at": live.stamp(data["until"]), "wait_until.reason": data["reason"]}
+
+
 def fields(
     conn: sqlite3.Connection,
     state: ty.Mapping[str, ty.Any],
@@ -96,6 +112,7 @@ def fields(
             for child in dependencies.waits_for(conn, state["task_id"])
         },
         **{f"dependency.{child}": "released" for child in releases},
+        **_wait_until(conn, state),
         **_recheck(conn, state["task_id"]),
         **(_closing(conn, state) if state["lifecycle"] == "closed" else {}),
     }
