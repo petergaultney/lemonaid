@@ -14,6 +14,7 @@ import time
 import typing as ty
 from pathlib import Path
 
+from .. import process_table
 from ..launch.restart import process, state
 from ..log import get_logger
 
@@ -36,25 +37,16 @@ class _Live(ty.NamedTuple):
 def _live() -> dict[int, _Live] | None:
     """Every running Codex process by pid; None if `ps` fails."""
     try:
-        result = subprocess.run(
-            ["ps", "-A", "-ww", "-o", "pid=,stat=,tty=,lstart=,args="],  # -ww: whole args
-            capture_output=True,
-            text=True,
-            timeout=_TIMEOUT,
-        )
+        found = process_table.listing("pid", "stat", "tty", "lstart", "args", timeout=_TIMEOUT)
     except (OSError, subprocess.SubprocessError) as error:
         _log.debug("could not list Codex processes: %s", error)
         return None
 
-    if result.returncode:
-        return None
-
-    live = {}
-    for fields in (line.split() for line in result.stdout.splitlines()):
-        if len(fields) < 9 or fields[1].startswith("Z") or Path(fields[8]).name != "codex":
-            continue
-        live[int(fields[0])] = _Live(" ".join(fields[3:8]), fields[2], fields[8:])
-    return live
+    return {
+        int(pid): _Live(started, tty, args.split())
+        for pid, stat, tty, started, args in found
+        if not stat.startswith("Z") and Path(args.split()[0]).name == "codex"
+    }
 
 
 def _resumed(argv: list[str]) -> str:

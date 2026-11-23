@@ -14,7 +14,7 @@ import typing as ty
 from collections import abc
 from pathlib import Path
 
-from .. import handlers
+from .. import handlers, process_table
 from ..claude import session_socket
 from ..codex import channels as codex_channels
 from ..codex import daemon_setup, processes, queued
@@ -73,18 +73,13 @@ def _tty_commands(tty: str) -> list[str] | None:
 def _every_tty() -> dict[str, list[str]] | None:
     """The command of every process on each tty, from one `ps`, or None if it could not say."""
     try:
-        result = subprocess.run(["ps", "-A", "-o", "tty=,comm="], capture_output=True, text=True)
-    except OSError:
-        return None
-
-    if result.returncode != 0:
+        listed = process_table.listing("tty", "comm", timeout=None)
+    except (OSError, subprocess.SubprocessError):
         return None
 
     found: dict[str, list[str]] = {}
-    for line in result.stdout.splitlines():
-        tty, _, command = line.strip().partition(" ")
-        if tty and command.strip():
-            found.setdefault(tty, []).append(command.strip())
+    for tty, command in listed:
+        found.setdefault(tty, []).append(command)
     return found
 
 
