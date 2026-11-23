@@ -29,6 +29,7 @@ from .tmux_world import (
     inbox_row,
     lemonaid,
     restore_all,
+    resumed,
     tmux,
     wait,
     window,
@@ -161,6 +162,7 @@ def test_a_channel_cleared_before_the_loss_is_replaced_and_only_its_successor_re
     found = inbox_row("OLD")
     assert found is not None and found.is_archived
     assert channel("OLD") not in {r["channel"] for r in restored["lemons"]}
+    assert sorted(restored["restored"]) == sorted(channel(name) for name in WHERE)
 
 
 def test_a_lemon_that_cant_be_pushed_to_is_prompted_to_rearm_its_waiters(world):
@@ -317,6 +319,7 @@ def test_two_triggers_at_once_restore_once(world):
     _auto("on")
     crash(world)
     tmux("new-session", "-d", "-s", "fresh")
+    before = world.pids()
 
     runs = [
         subprocess.Popen(
@@ -332,5 +335,4 @@ def test_two_triggers_at_once_restore_once(world):
         channel for out in outputs if out.strip() for channel in json.loads(out)["restored"]
     ]
     assert sorted(restored) == sorted(channel(name) for name in [*WHERE, "OLD"])  # each once
-    for name in WHERE:
-        assert world.running(name) is not None, name
+    resumed(world, before, restored)

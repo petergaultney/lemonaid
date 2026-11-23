@@ -109,15 +109,15 @@ def _on_b_tty(world: World) -> None:
     had, as it usually does, and the watcher records the pane on that tty for every row
     there. Make it so, since that is the case being checked.
     """
-    pid = (world.running("OLD") or {}).get("pid")
-    if pid:
-        os.kill(pid, signal.SIGKILL)
-        wait("OLD to die", lambda: world.running("OLD") is None)
-        with db.connect() as conn:
-            brief = attached.by_channel(conn, [channel("OLD")])[channel("OLD")]
-        lemon_id = identity.read(brief.read_text())
-        # A scout pushing into a dead session counts as listening until it notices.
-        wait("OLD's scout to stop", lambda: not wait_state.is_armed(lemon_id))
+    running = world.running("OLD")
+    assert running is not None
+    os.kill(running["pid"], signal.SIGKILL)
+    wait("OLD to die", lambda: world.running("OLD") is None)
+    with db.connect() as conn:
+        brief = attached.by_channel(conn, [channel("OLD")])[channel("OLD")]
+    lemon_id = identity.read(brief.read_text())
+    # A scout pushing into a dead session counts as listening until it notices.
+    wait("OLD's scout to stop", lambda: not wait_state.is_armed(lemon_id))
     old, b = inbox_row("OLD"), inbox_row("B")
     assert old is not None and b is not None
     location = {

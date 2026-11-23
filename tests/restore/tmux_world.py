@@ -84,6 +84,9 @@ class World(ty.NamedTuple):
 
         return found if alive(found["pid"]) else None
 
+    def pids(self) -> dict[str, int | None]:
+        return {name: (self.running(name) or {}).get("pid") for name in IDS}
+
     def start(self, name: str, target: str) -> dict:
         """Start lemon *name* in *target*, with a brief of its own unless it is C."""
         tmux("send-keys", "-t", target, f"claude --session-id {IDS[name]}", "Enter")
@@ -250,12 +253,26 @@ def crash(world: World) -> None:
     time.sleep(max(0.0, math.floor(heard) + 1 - time.time()))
 
 
-def restore_all(world: World, seconds: int = 0) -> dict:
-    before = {name: (world.running(name) or {}).get("pid") for name in WHERE}
-    result = lemonaid("restore", "--wait", str(seconds), "--json")
-    for name in WHERE:
+def resumed(
+    world: World, before: abc.Mapping[str, int | None], restored: abc.Iterable[str]
+) -> None:
+    """Wait until each lemon in *restored* (channels) runs as a new process whose
+    SessionStart hooks have finished.
+
+    Restore counts a lemon back as soon as its process runs in its window, which can be
+    before those hooks run, and a hook that runs late records the lemon's pane over
+    whatever a test recorded there.
+    """
+    names = {channel(name): name for name in IDS}
+    for name in (names[each] for each in restored):
         wait(
             f"{name} to be resumed",
             lambda name=name: (found := world.running(name)) and found["pid"] != before[name],
         )
-    return json.loads(result.stdout)
+
+
+def restore_all(world: World, seconds: int = 0) -> dict:
+    before = world.pids()
+    result = json.loads(lemonaid("restore", "--wait", str(seconds), "--json").stdout)
+    resumed(world, before, result["restored"])
+    return result
