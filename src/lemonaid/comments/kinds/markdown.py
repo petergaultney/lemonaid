@@ -23,7 +23,7 @@ _MARKER: ty.Final = re.compile(
 # opening marker is written `<wbr><!-- [lma:X] wbr -->`: the ` wbr` says the `<wbr>` is
 # the marker's, so it goes when the marker does, and a `<wbr>` a person wrote never does.
 # A heading's text and a table cell are inline already and need none.
-# See review-tools/v1/implementation/markdown-rendering/ in the project notes.
+# docs/comments.md, under Anchors, has the rules.
 _WBR: ty.Final = "<wbr>"
 _SECTION: ty.Final = re.compile(r"^<!-- \[lma:threads\]\r?$", re.M)
 _SECTION_END: ty.Final = "-->"
@@ -169,7 +169,7 @@ def _placed(
 
     opening_line = f"<!-- [lma:{comment_id}]: -->{newline}"
     if start_region and start_region.block:
-        opening = model.Edit(start, start, opening_line)
+        opening = model.Edit(start, start, _indent_of(text, start) + opening_line)
     elif _is_marker_only_line(text, start):
         line_start = text.rfind("\n", 0, start) + 1
         opening = model.Edit(line_start, line_start, opening_line)
@@ -187,7 +187,11 @@ def _placed(
         after_fence = text.find("\n", end)
         if after_fence == -1:
             return [opening, model.Edit(end, end, f"{newline}{closing_line}")]
-        return [opening, model.Edit(after_fence + 1, after_fence + 1, f"{closing_line}{newline}")]
+        indent = _indent_of(text, text.rfind("\n", 0, after_fence) + 1)
+        return [
+            opening,
+            model.Edit(after_fence + 1, after_fence + 1, f"{indent}{closing_line}{newline}"),
+        ]
     if _is_marker_only_line(text, end):
         line_start = text.rfind("\n", 0, end) + 1
         return [opening, model.Edit(line_start, line_start, f"{closing_line}{newline}")]
@@ -313,8 +317,9 @@ def _refuse_where_no_marker_fits(
         rest = line[_CONTAINERS.match(line).end() :]
         if text.count("\n", 0, position) in delimiter_rows:
             raise ValueError("a table's delimiter row can't hold a comment; select a row or a cell")
-        if _RULE.match(rest):
-            raise ValueError("a rule or a heading's underline can't hold a comment; select text")
+        if position == first and _RULE.match(rest):
+            # a closing marker can go on a line of its own after one; an opening one can't
+            raise ValueError("a comment can't start on a rule or a heading's underline")
         heading = _HEADING.match(rest)
         if heading and not _CLOSING_HASHES.sub("", " " + rest[heading.end() :]).strip():
             raise ValueError("a heading with no text can't hold a comment")
@@ -407,7 +412,7 @@ def _point(
     own_line = f"<!-- [lma:{comment_id}]: -->{newline}"
     block = next((r for r in regions if r.block and r.start <= position <= r.end), None)
     if block is not None:
-        return model.Edit(block.start, block.start, own_line)
+        return model.Edit(block.start, block.start, _indent_of(text, block.start) + own_line)
     span = next((r for r in regions if r.start < position < r.end), None)
     if span is not None:
         return _opening_inline(text, span.start, comment_id)
@@ -458,6 +463,15 @@ def _closing_spot(text: str, end: int) -> int:
     if end and text[end - 1] == "\\" and not rest_of_line.strip(" \t\r"):
         end -= 1
     return end
+
+
+def _indent_of(text: str, line_start: int) -> str:
+    """The spaces and tabs a fence line starts with: a marker on a line of its own beside a
+    fenced block takes the fence's, so a fence inside a list item stays inside it. Beside
+    an indented code block, none: indented like the code, the marker would be code."""
+    line = _line_at(text, line_start)
+    indent = line[: len(line) - len(line.lstrip(" \t"))]
+    return indent if _FENCE_OPENER.match(line.lstrip(" \t")) else ""
 
 
 def _line_at(text: str, position: int) -> str:

@@ -45,14 +45,17 @@ def f():
   goes when the marker does; a `<wbr>` anyone else wrote is left alone. A closing
   marker goes before a heading's closing `#`s, a trailing backslash or a table row's
   last `|`. A comment is refused where no marker can be invisible: in YAML
-  frontmatter, on a table's delimiter row, a thematic break, a setext underline or an
-  empty heading. Whatever the rules place, lemonaid renders the document with and
-  without the markers (CommonMark with tables, through markdown-it-py) and refuses the
-  comment if the HTML differs, as on a link reference definition.
+  frontmatter, on a table's delimiter row or an empty heading, or starting on a
+  thematic break or a setext underline (one that ends on either gets its closing
+  marker on a line of its own after it). Whatever the rules place, lemonaid renders
+  the document with and without the markers (CommonMark with tables, through markdown-
+  it-py) and refuses the comment if the HTML differs, as on a link reference
+  definition.
 - lemonaid writes inline Markdown markers around the selected text, trimmed of
-  whitespace at its ends. It writes the own-line spelling around a fenced block and on a
-  line that holds only markers, where an inline marker would change what the others
-  remove. It never writes inside an existing marker or between a CR and its LF.
+  whitespace at its ends. It writes the own-line spelling around a fenced block,
+  indented like the fence so a fence inside a list item stays inside it, and on a line
+  that holds only markers, where an inline marker would change what the others remove.
+  It never writes inside an existing marker or between a CR and its LF.
 - A Python point anchor covers the line below it. A Markdown point anchor is a position.
 - Ranges may nest or overlap.
 - Markers inside Python strings and Markdown code (code spans, fenced blocks at any

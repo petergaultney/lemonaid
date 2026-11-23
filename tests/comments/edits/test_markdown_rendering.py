@@ -132,8 +132,8 @@ def test_the_anchor_starts_at_the_selected_text(selected: str, anchored: str) ->
     [
         (_DOC, _DELIMITER_ROW, "delimiter row"),
         ("> | a | b |\n> |---|---|\n> | c | d |\n", "> |---|---|", "delimiter row"),
-        (_DOC, "***", "rule"),
-        (_DOC, "--------------", "rule"),
+        (_DOC, "***", "start on a rule"),
+        (_DOC, "--------------", "start on a rule"),
         ("##\n\ntext\n", "##", "heading with no text"),
         ("# ###\n\ntext\n", "# ###", "heading with no text"),
         ("---\ntype: Brief\n---\n\nBody.\n", "---", "frontmatter"),
@@ -362,3 +362,41 @@ def test_a_pipe_line_that_makes_no_table_is_not_refused_as_a_delimiter() -> None
     commented = edits.apply(text, added.edits)
 
     assert _rendered(commented) == _rendered(text)
+
+
+_CODE_IN_A_LIST = "- item\n\n  ```toml\n  x = 1\n  ```\n- next\n"
+
+
+@pytest.mark.parametrize(
+    ("selected", "point"), [("x = 1", False), ("```toml", False), ("x = 1", True)]
+)
+def test_code_in_a_list_item_takes_a_comment_and_stays_in_the_item(
+    selected: str, point: bool
+) -> None:
+    start = _CODE_IN_A_LIST.index(selected)
+    end = start if point else start + len(selected)
+    added = edits.add_comment(_CODE_IN_A_LIST, "markdown", start, end, author="a", body="b", at=_AT)
+
+    commented = edits.apply(_CODE_IN_A_LIST, added.edits)
+
+    assert _rendered(commented) == _rendered(_CODE_IN_A_LIST)
+    assert edits.strip(commented, "markdown") == _CODE_IN_A_LIST
+
+
+@pytest.mark.parametrize(
+    ("text", "selected"),
+    [
+        ("A paragraph.\n\n---\n\nAfter.\n", "A paragraph.\n\n---"),
+        ("Title\n-----\n\nBody.\n", "Title\n-----"),
+    ],
+)
+def test_a_selection_ending_on_a_rule_or_underline_is_accepted(text: str, selected: str) -> None:
+    start = text.index(selected)
+    added = edits.add_comment(
+        text, "markdown", start, start + len(selected), author="a", body="b", at=_AT
+    )
+
+    commented = edits.apply(text, added.edits)
+
+    assert _rendered(commented) == _rendered(text)
+    assert edits.strip(commented, "markdown") == text
