@@ -2,9 +2,10 @@
 
 import argparse
 import dataclasses
+import sys
 from pathlib import Path
 
-from .. import launch_token
+from .. import docs, launch_token
 from ..config import Config
 from . import command, handoff, options
 
@@ -42,12 +43,15 @@ def plan(args: argparse.Namespace, config: Config, directory: Path) -> tuple[Pla
         command.codex_writable_roots(config.tmux_session),
         handoff.session_title(given),
     )
+    docs_environment, warning = docs.mode.launch_environment(getattr(args, "docs", ""))
+    if warning:
+        print(f"Warning: {warning}", file=sys.stderr)
     token = launch_token.new() if given.brief else ""
     return Plan(
         resolved.lemon,
         given,
         typed,
-        {**environment, **({launch_token.ENV: token} if token else {})},
+        {**environment, **docs_environment, **({launch_token.ENV: token} if token else {})},
         token,
     ), ""
 

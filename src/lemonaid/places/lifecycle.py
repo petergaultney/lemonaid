@@ -6,6 +6,7 @@ first, or is about to be released - so they share one path.
 """
 
 import dataclasses
+from collections import abc
 from pathlib import Path
 
 from .. import tmux
@@ -41,8 +42,9 @@ def _spawn(
     harness: str,
     prompt: str,
     title: str,
+    environment: abc.Mapping[str, str] | None = None,
 ) -> Opened:
-    """A new session from the *harness* template.
+    """A new session from the *harness* template, its harness window started with *environment*.
 
     The name comes from the spawn, not from looking the directory up again: a
     pane in another session can report the same directory, as lemonaid's scratch
@@ -56,6 +58,7 @@ def _spawn(
         template_name=harness,
         initial_prompt=prompt,
         title=title,
+        environment=environment,
     )
     return Opened(tmux.session.spawned_name(session_name, str(directory)), True, error)
 
@@ -68,6 +71,7 @@ def open_place(
     harness: str = "default",
     prompt: str = "",
     title: str = "",
+    environment: abc.Mapping[str, str] | None = None,
 ) -> Opened:
     """Switch to a session rooted at *directory*, creating one if none exists."""
     session, pane_id = tmux.navigation.get_pane_for_cwd(str(directory))
@@ -82,7 +86,7 @@ def open_place(
     if session and pane_id:
         return _switch(session, pane_id, attach)
 
-    return _spawn(directory, config, session_name, attach, harness, prompt, title)
+    return _spawn(directory, config, session_name, attach, harness, prompt, title, environment)
 
 
 def open_session(
@@ -153,6 +157,7 @@ def open_key(
     harness: str = "default",
     prompt: str = "",
     title: str = "",
+    environment: abc.Mapping[str, str] | None = None,
 ) -> tuple[Path | None, Opened]:
     """Get a session for *key* under *root*, acquiring its directory if needed.
 
@@ -175,4 +180,5 @@ def open_key(
         harness=harness,
         prompt=prompt,
         title=title,
+        environment=environment,
     )

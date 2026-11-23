@@ -57,22 +57,40 @@ start shell commands. Configure each harness's own keybindings to submit with Ct
 before enabling it here; see [Claude's keybindings](https://code.claude.com/docs/en/keybindings)
 and [Codex's TUI keymap](https://learn.chatgpt.com/docs/config-file/config-basic#tui-keymap).
 
+## `[docs]`
+
+Which docs a lemon loads when its session starts.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `mode` | `"classic"` | The docs mode of a lemon started without `--docs`: `classic` or `packages`. |
+| `classic` | `""` | A Markdown file whose `@` imports name the always-loaded docs; unset gives Codex none. |
+
+```toml
+[docs]
+mode = "classic"
+classic = "~/notes/always-loaded.md"
+```
+
+In `classic` mode a lemon loads the docs `classic` names, the same in every session. Claude
+Code loads them itself, when `~/.claude/CLAUDE.md` imports the `classic` file, so a lemon
+keeps them through compaction. Codex has no `@` imports, so lemonaid's Codex SessionStart
+hook expands the file the way Claude Code does and passes the text to Codex: on a new
+thread, after `/clear` and after compaction, but not on resume or fork, whose history
+already holds it. See [codex.md](codex.md#always-loaded-docs) for the hook setting it needs.
+
+`packages` is not built yet: a lemon given it starts in `classic`, and lemonaid logs the
+fallback.
+
+`lemonaid lemon start --docs MODE` and `lemonaid place open --docs MODE` set the mode for
+one lemon. Its harness gets the mode in `LEMONAID_DOCS`, and the SessionStart hook records
+it for the session, so a resume started without the variable keeps it.
+
 ## `[codex]`
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `context_doc` | `""` | A Markdown file lemonaid gives every Codex session at start, with the files its `@` imports name; unset gives none. |
-
-```toml
-[codex]
-context_doc = "~/.claude/CLAUDE.md"
-```
-
-Codex has no `@` imports of its own, so this lets one file (Claude Code's `CLAUDE.md`, for
-instance) list the always-loaded docs for both harnesses. lemonaid's Codex SessionStart hook
-expands it the way Claude Code does and passes the text to Codex: on a new thread, after
-`/clear` and after compaction, but not on resume or fork, whose history already holds it.
-See [codex.md](codex.md#always-loaded-docs) for the hook setting it needs.
+| `context_doc` | `""` | The older name for [`[docs] classic`](#docs), read when that is unset. |
 
 ## `[wezterm]`
 

@@ -202,7 +202,7 @@ See [recovery](recovery.md#a-codex-lemon-whose-messages-codex-holds) to bring th
 
 ### Always-loaded docs
 
-With [`[codex] context_doc`](config.md#codex) set, the SessionStart hook passes that file and
+With [`[docs] classic`](config.md#docs) set, the SessionStart hook passes that file and
 the files its `@` imports name to every new Codex thread, and again after `/clear` and after
 each compaction (Codex reruns SessionStart then, so the docs return when compaction drops
 them). An import is `@path` at the start of a line or after a space, outside code; it is
