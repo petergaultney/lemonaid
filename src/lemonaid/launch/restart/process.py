@@ -85,11 +85,11 @@ def on_tty(tty: str) -> list[Identity]:
         check=False,
     )
     if result.returncode and result.stderr.strip() and "no processes found" not in result.stderr:
-        if not Path(tty).exists() and any(
+        if any(
             text in result.stderr
             for text in ("No such file or directory", "TTY could not be found")
         ):
-            return []
+            return []  # it closed; a device by its name now belongs to another terminal
 
         raise ValueError(f"Cannot inventory terminal processes: {result.stderr.strip()}")
 
