@@ -163,6 +163,17 @@ def test_archive_and_revive_are_audited_with_where_the_brief_went_and_why():
     )
 
 
+def test_a_brief_another_database_records_stays_and_records_nothing(monkeypatch, tmp_path):
+    path, lemon_id = brief("theirs")
+    message(lemon_id, LONG_AGO)
+    monkeypatch.setattr(db, "get_db_path", lambda: tmp_path / "sandbox.db")
+    with db.connect() as conn, pytest.raises(ValueError, match="not a brief this database records"):
+        archive.archive(conn, path, LONG_AGO, why="by hand")
+
+    assert path.exists() and messages.mailbox_for_id(lemon_id).is_dir()
+    assert events.entries(0) == []
+
+
 def test_a_refused_archive_records_nothing():
     path, _ = brief("held")
     session(path, "claude:held", live=True)
