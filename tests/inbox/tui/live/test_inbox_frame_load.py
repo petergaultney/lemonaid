@@ -171,3 +171,21 @@ def test_attention_mode_keeps_a_reply_to_read_out_of_the_fold(tmp_path):
     assert notice.channel(doc, "claude:here") in shown
     assert "claude:here" in folded  # the layout brings it back above its reply
     assert notice.channel(doc, "claude:away") not in shown
+
+
+def test_a_reply_row_already_read_leaves_the_inbox(tmp_path):
+    from lemonaid.comments import notice
+
+    with db.connect() as conn:
+        db.add(conn, "claude:here", "msg", "here", {"cwd": "/w"}, switch_source="tmux")
+    read_doc, unread_doc = tmp_path / "read.md", tmp_path / "unread.md"
+    notice.replied(read_doc, "Here (Author)", "One", "ok", lemon="claude:here")
+    notice.replied(unread_doc, "Here (Author)", "Two", "ok", lemon="claude:here")
+    notice.seen(read_doc, ["One"])
+
+    with db.connect() as conn:
+        frame = _load_in_tmux(conn)
+
+    channels = [n.channel for n in frame.active.rows]
+    assert notice.channel(read_doc, "claude:here") not in channels
+    assert notice.channel(unread_doc, "claude:here") in channels

@@ -176,12 +176,15 @@ lemonaid comments strip <path>
   as `↳ 💬 <file> · N unread`, wherever the lemon's own row is drawn, the other
   terminals' pane included, where Enter on it still opens the file. A row with replies
   to read brings its lemon back into view when the lemon is folded or hidden, and
-  shows under a pinned lemon in a collapsed group; a read one folds away with its
-  lemon, and one the inbox's fold took stays folded. A row whose lemon is gone, has no
-  terminal, or that names none, shows on its own while it has replies to read. The row
-  lists the replies the person hasn't seen; the editor marks those unread when the
-  file opens and drops each one the person reads, and the row is marked read once it
-  lists none. Activating the row opens the file with `lemonaid editor open --focus`,
+  shows under a pinned lemon in a collapsed group. A row whose lemon is gone, has no
+  terminal, or that names none, shows on its own. The row lists the replies the person
+  hasn't seen; the editor marks those unread when the file opens and drops each one
+  the person reads, and the row is marked read once it lists none, and then leaves the
+  inbox (history keeps it). A reply removed from the file (stripped or deleted) is
+  dropped from its row too, since it can't be read any more: when `lemonaid comments
+  strip` writes the file, and when an editor saves a buffer that has lost it, so a strip
+  sent to an unsaved buffer counts once the buffer is saved. Only comments the file
+  held are dropped, and none when its threads can't be read whole. Activating the row opens the file with `lemonaid editor open --focus`,
   or with the system's opener when no editor server answers.
 - A write follows a symlink and changes the file it names, whose extension decides its
   kind. If the file changes while a command computes, whether an editor saved it or
@@ -375,6 +378,10 @@ is staged.
 Put your preferences for guides in `~/.lemons/skills/review-guide/overlay.md`.
 
 ## Known limits
+
+- A lemon's reply written into an editor's unsaved buffer, then removed from that buffer
+  before it is saved, was never in the file, so nothing tells the inbox it is gone; its
+  row stays unread until the person marks it read.
 
 - In Markdown, a code span that runs over several lines, one of which is exactly
   `<!-- [lma:threads]`, is read as the threads section, and `strip` removes it. Write

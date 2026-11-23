@@ -42,11 +42,15 @@ class CommentsServer(LanguageServer):
         # didn't exist). See `sync`.
         self.in_sync: dict[str, str] = {}
         self.disk_baseline: dict[str, str | None] = {}
+        # Every comment the file has held since the editor last saved it, by its text each
+        # time it matched the buffer; None once one of those texts couldn't be read whole.
+        # A save that leaves one out removed it. See `sync.note` and `server.did_save`.
+        self.held_since_save: dict[str, set[str] | None] = {}
         self.bridge: asyncio.Server | None = None
 
     def forget(self, uri: str) -> None:
         """Drop what we remember about a document the editor opened afresh or closed."""
-        for remembered in (self.sent_keys, self.in_sync, self.disk_baseline):
+        for remembered in (self.sent_keys, self.in_sync, self.disk_baseline, self.held_since_save):
             remembered.pop(key(uri), None)
 
 

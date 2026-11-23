@@ -17,6 +17,7 @@ the buffer. Otherwise the command reads and writes the file.
 
 import argparse
 import pathlib
+import sqlite3
 import sys
 import typing as ty
 
@@ -53,7 +54,11 @@ def _read(path: pathlib.Path) -> str:
 
 
 def _rewrite(
-    target: pathlib.Path, change: ty.Callable[[str], tuple[str, _T]], *, retry: bool = True
+    target: pathlib.Path,
+    change: ty.Callable[[str], tuple[str, _T]],
+    *,
+    retry: bool = True,
+    replaced: "_Replaced | None" = None,
 ) -> _T:
     """Apply `change` to the file, which returns the new text and what the command prints,
     and replace the file in one step, so an editor watching it never reads half of it.
@@ -66,7 +71,8 @@ def _rewrite(
     change whose meaning the save may have moved. lemonaid's own writers take turns
     (`file.locked`), so they never lose each other's change. An editor that saves in the instant
     between our last check and the replace can still lose its save; the editor then holds
-    it unsaved.
+    it unsaved. *replaced* runs once the file is replaced, while we still hold the lock,
+    with the text we changed and the text we wrote.
     """
     try:
         with file.locked(target):
@@ -78,6 +84,8 @@ def _rewrite(
                 if file.replace(
                     target, after, unless_changed_from=before, encoding="utf-8", newline=""
                 ):
+                    if replaced is not None:
+                        replaced(before, after, result)
                     return result
                 if not retry:
                     raise _Refused(
@@ -87,6 +95,11 @@ def _rewrite(
     except file.Busy as busy:
         raise _Refused(f"{busy}; try again in a moment") from None
     raise _Refused(f"the file kept changing while we wrote it; tried {_ATTEMPTS} times")
+
+
+# what to do once a write replaced the file: given the text before, the text after, and the
+# command's result
+_Replaced = ty.Callable[[str, str, ty.Any], None]
 
 
 def _body(given: str) -> str:
@@ -119,27 +132,41 @@ def _list(a: argparse.Namespace) -> int:
 
 def _add(a: argparse.Namespace) -> int:
     body = _body(a.body)
+    told: list[str] = []
     comment_id = _carry_out(
-        a.target, operations.Add(a.lines, a.author, body, a.quote or ""), retry=False
+        a.target,
+        operations.Add(a.lines, a.author, body, a.quote or ""),
+        retry=False,
+        replaced=lambda _before, _after, written: told.append(_tell_the_inbox(a, written, body)),
     )
-    _tell_the_inbox(a, comment_id, body)
+    if not told:  # it went to an editor's buffer
+        _tell_the_inbox(a, comment_id, body)
     print(comment_id)
     return 0
 
 
 def _reply(a: argparse.Namespace) -> int:
     body = _body(a.body)
-    comment_id = _carry_out(a.target, operations.Reply(a.re, a.author, body, a.after or ""))
-    _tell_the_inbox(a, comment_id, body)
+    told: list[str] = []
+    comment_id = _carry_out(
+        a.target,
+        operations.Reply(a.re, a.author, body, a.after or ""),
+        replaced=lambda _before, _after, written: told.append(_tell_the_inbox(a, written, body)),
+    )
+    if not told:  # it went to an editor's buffer
+        _tell_the_inbox(a, comment_id, body)
     print(comment_id)
     return 0
 
 
-def _tell_the_inbox(a: argparse.Namespace, comment_id: str | None, body: str) -> None:
+def _tell_the_inbox(a: argparse.Namespace, comment_id: str | None, body: str) -> str:
     """A lemon's comment (`--self`) shows in the inbox, under that lemon; a person's, written
-    with `--as`, doesn't."""
+    with `--as`, doesn't. Written to the file, we post it while we hold the file's lock, so
+    a strip can't remove the comment between the write and the post and leave the row
+    unread for good."""
     if a.use_self and comment_id:
         notice.replied(a.target, a.author, comment_id, body, _own_channel())
+    return comment_id or ""
 
 
 def _own_channel() -> str:
@@ -189,12 +216,30 @@ def _resolve(a: argparse.Namespace) -> int:
 
 
 def _strip(a: argparse.Namespace) -> int:
-    _carry_out(a.target, operations.Strip())
+    """The comments the strip took out of the file can't be read any more, so they leave
+    the inbox, as the text it actually changed says, under the file's lock. A strip sent
+    to an unsaved buffer counts when the editor saves it."""
+    kind = _kind(a.target)
+    failed: list[str] = []
+
+    def drop_from_the_inbox(before: str, after: str, _result: object) -> None:
+        try:
+            notice.removed(a.target, notice.comment_ids(before, kind), after, kind)
+        except (sqlite3.Error, OSError) as error:
+            failed.append(str(error))
+
+    _carry_out(a.target, operations.Strip(), replaced=drop_from_the_inbox)
+    for error in failed:
+        print(f"stripped, but the inbox rows for it weren't updated: {error}", file=sys.stderr)
     return 0
 
 
 def _carry_out(
-    target: pathlib.Path, operation: operations.Operation, *, retry: bool = True
+    target: pathlib.Path,
+    operation: operations.Operation,
+    *,
+    retry: bool = True,
+    replaced: _Replaced | None = None,
 ) -> str | None:
     """Send `operation` to an editor whose buffer of the file has unsaved changes, or else
     write it to the file.
@@ -234,7 +279,7 @@ def _carry_out(
         planned, result = operations.edits_for(operation, text, kind)
         return edits.apply(text, planned), result
 
-    return _rewrite(target, change, retry=retry)
+    return _rewrite(target, change, retry=retry, replaced=replaced)
 
 
 _DIVERGED: ty.Final = (

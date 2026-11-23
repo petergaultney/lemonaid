@@ -839,3 +839,34 @@ def test_a_reply_about_part_of_a_comment_checks_it_still_says_that(
         assert ("about it" in editor.texts[uri]) is written
 
     _drive(env, tmp_path, scenario)
+
+
+def test_a_save_that_removes_a_comment_drops_it_from_the_inbox(env, tmp_path) -> None:
+    from lemonaid.comments import notice
+    from lemonaid.inbox import db
+
+    env["LEMONAID_DB"] = str(db.get_db_path())  # the server's inbox is this test's
+    code = tmp_path / "code.py"
+    code.write_text(
+        "# [lma:Kept]\n"
+        "x = 1\n"
+        "\n"
+        "# [lma:threads]\n"
+        '# {"id": "Kept", "author": "A", "at": "2026-11-19T19:40:00Z", "body": "why?"}\n'
+    )
+    notice.replied(code, "A (Author)", "Kept", "one")
+    notice.replied(code, "A (Author)", "NotYetSaved", "two")  # in another editor's buffer
+
+    async def scenario(editor: _Editor) -> None:
+        uri = editor.open(code)
+        await _until(lambda: bool(editor.threads))
+        editor.save(uri)
+        saved_unchanged = notice.unread_ids(code)
+        editor.change(uri, "x = 1\n")
+        unsaved_without_it = notice.unread_ids(code)
+        editor.save(uri)
+        await _until(lambda: notice.unread_ids(code) == ["NotYetSaved"])
+
+        assert saved_unchanged == unsaved_without_it == ["Kept", "NotYetSaved"]
+
+    _drive(env, tmp_path, scenario)

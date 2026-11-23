@@ -74,6 +74,13 @@ def ordered_active(
     )
 
 
+def _without_read_replies(active: "view.Active") -> "view.Active":
+    """*active* less the reply rows already read: the comment is in its file, and a row
+    for it would only crowd the inbox. History still has them."""
+    rows = [n for n in active.rows if n.is_unread or not notice.is_notice(n)]
+    return dataclasses.replace(active, rows=rows)
+
+
 def _attached(active: "view.Active") -> dict[str, str]:
     """Each reply row whose lemon is live in some terminal, by channel, to that lemon's
     channel. A lemon with no terminal is in neither pane, so its reply shows on its own."""
@@ -140,7 +147,9 @@ def load(
     """
     pinned = frozenset(pins.pinned_positions(conn))
     # Every live session is read once; the main table is those switchable from here.
-    everything = ordered_active(conn, None, config, brief_cache, probe, stalls, now)
+    everything = _without_read_replies(
+        ordered_active(conn, None, config, brief_cache, probe, stalls, now)
+    )
     attached = _attached(everything)
     everything = _with_attached(everything, attached)
     active = _switchable_from(everything, env_filter, attached) if env_filter else everything

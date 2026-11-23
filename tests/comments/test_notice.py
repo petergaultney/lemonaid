@@ -94,3 +94,51 @@ def test_the_label_names_the_file_and_counts_its_unread_replies(tmp_path) -> Non
 
     assert notice.label(unread) == "↳ 💬 guide.md · 2 unread"
     assert notice.label(read) == "↳ 💬 guide.md"
+
+
+def _commented(comment_id: str) -> str:
+    from lemonaid.comments import edits
+
+    text = "Review this.\n"
+    added = edits.add_comment(
+        text,
+        "markdown",
+        0,
+        6,
+        author="a",
+        body="b",
+        at="2026-11-23T10:00:00Z",
+        comment_id=comment_id,
+    )
+    return edits.apply(text, added.edits)
+
+
+def test_a_removed_comment_leaves_its_row_and_a_row_left_empty_is_read(tmp_path) -> None:
+    path = tmp_path / "a.md"
+    notice.replied(path, "A (Author)", "Stripped", "one")
+
+    notice.removed(path, {"Stripped"}, "Review this.\n", "markdown")
+
+    assert notice.unread_ids(path) == []
+
+
+def test_a_comment_the_file_never_held_keeps_its_row(tmp_path) -> None:
+    """A comment written to another editor's unsaved buffer, or added after the strip, was
+    never in the text the strip started from."""
+    path = tmp_path / "a.md"
+    notice.replied(path, "A (Author)", "Stripped", "one")
+    notice.replied(path, "A (Author)", "Elsewhere", "two")
+
+    notice.removed(path, {"Stripped"}, "Review this.\n", "markdown")
+
+    assert notice.unread_ids(path) == ["Elsewhere"]
+
+
+def test_a_comment_whose_record_can_t_be_read_isn_t_taken_for_removed(tmp_path) -> None:
+    path = tmp_path / "a.md"
+    notice.replied(path, "A (Author)", "Broken", "one")
+    after = _commented("Broken").replace('"body": "b"', '"body": b')
+
+    notice.removed(path, {"Broken"}, after, "markdown")
+
+    assert notice.unread_ids(path) == ["Broken"]

@@ -354,3 +354,112 @@ def test_after_compares_replies_in_file_order_not_by_their_times(code, capsys) -
     refused = _run("reply", str(code), "--re", root, "--after", "Known", "--as", "C", "me too")
 
     assert refused == 2 and "Unread" in capsys.readouterr().err
+
+
+def test_strip_marks_the_file_s_replies_read_since_they_can_no_longer_be(
+    code, tmp_path, monkeypatch, capsys
+) -> None:
+    from lemonaid.comments import notice
+
+    brief = _brief(tmp_path)
+    monkeypatch.setattr("lemonaid.brief.command.own_brief", lambda args: (brief, ""))
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:hilly")
+    _run("add", str(code), "--lines", "4", "--as", "caleb.gregory", "why?")
+    root = capsys.readouterr().out.strip()
+    _run("reply", str(code), "--re", root, "--self", "because")
+    unread_before = notice.unread_ids(code)
+
+    _run("strip", str(code))
+
+    assert unread_before != [] and notice.unread_ids(code) == []
+
+
+def test_strip_says_so_when_the_inbox_can_t_be_updated(code, monkeypatch, capsys) -> None:
+    import sqlite3
+
+    from lemonaid.comments import notice
+
+    def unreachable(*args):
+        raise sqlite3.OperationalError("unable to open database file")
+
+    monkeypatch.setattr(notice, "removed", unreachable)
+    _run("add", str(code), "--lines", "4", "--as", "Sam", "why?")
+    capsys.readouterr()
+
+    status = _run("strip", str(code))
+
+    assert status == 0 and "lma:" not in code.read_text()
+    assert "inbox rows for it weren't updated" in capsys.readouterr().err
+
+
+def _locked_with_events(events: list[str]):
+    import contextlib
+
+    from lemonaid import file
+
+    real_locked = file.locked
+
+    @contextlib.contextmanager
+    def locked(path, **kwargs):
+        with real_locked(path, **kwargs):
+            events.append("locked")
+            yield
+            events.append("released")
+
+    return locked
+
+
+def test_a_lemon_s_comment_reaches_the_inbox_while_the_file_is_still_locked(
+    code, tmp_path, monkeypatch, capsys
+) -> None:
+    """Posted after the lock, a strip could take the comment out first, and the late row
+    would stay unread with nothing left to read."""
+    from lemonaid import file
+    from lemonaid.comments import notice
+
+    events: list[str] = []
+    monkeypatch.setattr(file, "locked", _locked_with_events(events))
+    real_replied = notice.replied
+    monkeypatch.setattr(
+        notice, "replied", lambda *args, **kw: (events.append("posted"), real_replied(*args, **kw))
+    )
+    brief = _brief(tmp_path)
+    monkeypatch.setattr("lemonaid.brief.command.own_brief", lambda args: (brief, ""))
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:hilly")
+
+    _run("add", str(code), "--lines", "4", "--self", "why?")
+
+    assert events == ["locked", "posted", "released"]
+
+
+def test_strip_drops_the_comments_it_removed_including_one_written_just_before(
+    code, tmp_path, monkeypatch, capsys
+) -> None:
+    """The comments to drop come from the text the strip changed, under the lock, not from
+    a read before it."""
+    import contextlib
+
+    from lemonaid import file
+    from lemonaid.comments import notice
+
+    brief = _brief(tmp_path)
+    monkeypatch.setattr("lemonaid.brief.command.own_brief", lambda args: (brief, ""))
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:hilly")
+    _run("add", str(code), "--lines", "4", "--self", "first")
+    real_locked = file.locked
+    written_late = []
+
+    @contextlib.contextmanager
+    def another_lemon_writes_first(path, **kwargs):
+        if not written_late:  # the other lemon's add, which takes the lock before the strip
+            written_late.append(True)
+            _run("add", str(code), "--lines", "1", "--self", "second")
+        with real_locked(path, **kwargs):
+            yield
+
+    monkeypatch.setattr(file, "locked", another_lemon_writes_first)
+    capsys.readouterr()
+
+    _run("strip", str(code))
+
+    assert "lma:" not in code.read_text() and notice.unread_ids(code) == []

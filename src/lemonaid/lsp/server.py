@@ -14,6 +14,7 @@ inbox row read.
 """
 
 import asyncio
+import contextlib
 import functools
 import pathlib
 import typing as ty
@@ -62,6 +63,7 @@ def build() -> CommentsServer:
     @server.feature(types.TEXT_DOCUMENT_DID_SAVE)
     def did_save(ls: CommentsServer, params: types.DidSaveTextDocumentParams) -> None:
         if (document := documents.managed(ls, params.text_document.uri)) is not None:
+            _note_removed(ls, document)
             sync.note(ls, document)
 
     @server.feature(types.TEXT_DOCUMENT_DID_CLOSE)
@@ -276,6 +278,20 @@ def _span(raw: object) -> tuple[int, int] | None:
 
 def main() -> None:
     build().start_io()
+
+
+def _note_removed(ls: CommentsServer, document: documents.TextDocument) -> None:
+    """The comments the file held since its last save that this save left out can't be
+    read any more: drop them from its inbox rows. What it holds now is what the next save
+    compares with. An inbox we can't read keeps them."""
+    kind = documents.kind(document)
+    uri = documents.key(document.uri)
+    held = ls.held_since_save.get(uri)
+    ls.held_since_save[uri] = notice.comment_ids(document.source, kind) if kind else None
+    if held is None or kind is None or not document.path:
+        return
+    with contextlib.suppress(Exception):  # an inbox we can't read must not stop the editor
+        notice.removed(pathlib.Path(document.path), held, document.source, kind)
 
 
 def _unread(document: documents.TextDocument) -> list[str]:

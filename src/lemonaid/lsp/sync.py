@@ -6,6 +6,8 @@ from pathlib import Path
 
 from pygls.workspace import TextDocument
 
+from ..comments import notice
+from . import documents
 from .documents import CommentsServer, key
 
 BufferState = ty.Literal["clean", "unsaved", "diverged"]
@@ -24,6 +26,7 @@ def note(ls: CommentsServer, document: TextDocument) -> None:
     if on_disk is not None and _same_text(document.source, on_disk):
         ls.in_sync[key(document.uri)] = document.source
         ls.disk_baseline[key(document.uri)] = on_disk
+        _hold(ls, document, on_disk)
     else:
         ls.disk_baseline.setdefault(key(document.uri), on_disk)
 
@@ -69,3 +72,11 @@ def _disk_text(path: str) -> str | None:
         return Path(path).read_bytes().decode()
     except (OSError, UnicodeDecodeError):
         return None
+
+
+def _hold(ls: CommentsServer, document: TextDocument, text: str) -> None:
+    kind = documents.kind(document)
+    uri = key(document.uri)
+    held = notice.comment_ids(text, kind) if kind else None
+    earlier = ls.held_since_save.get(uri, set())
+    ls.held_since_save[uri] = None if held is None or earlier is None else earlier | held

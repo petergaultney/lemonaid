@@ -14,6 +14,7 @@ import time
 import typing as ty
 
 from ..inbox import db
+from . import model, parse
 
 _PREFIX: ty.Final = "comments:"
 
@@ -91,17 +92,44 @@ def seen(path: pathlib.Path, comment_ids: ty.Iterable[str]) -> None:
         # Read and update every row as one transaction, so a reply posted meanwhile isn't
         # marked read; db's own helpers commit after each row, which would end it early.
         conn.execute("BEGIN IMMEDIATE")
-        for row in _unread_rows(conn, path):
-            listed = _comments(row)
-            left = [c for c in listed if c not in seen_ids]
-            if not left:
-                conn.execute(
-                    "UPDATE notifications SET status = 'read', read_at = ? WHERE id = ?",
-                    (time.time(), row.id),
-                )
-            elif left != listed:
-                conn.execute(
-                    "UPDATE notifications SET metadata = ? WHERE id = ?",
-                    (json.dumps(dict(row.metadata or {}) | {"comments": left}), row.id),
-                )
+        rows = _unread_rows(conn, path)
+        _keep_only(conn, rows, {c for row in rows for c in _comments(row)} - seen_ids)
         conn.commit()
+
+
+def _keep_only(conn: sqlite3.Connection, rows: list[db.Notification], kept: set[str]) -> None:
+    """Each row lists only its comments in *kept*, and is marked read once it lists none."""
+    for row in rows:
+        listed = _comments(row)
+        left = [c for c in listed if c in kept]
+        if not left:
+            conn.execute(
+                "UPDATE notifications SET status = 'read', read_at = ? WHERE id = ?",
+                (time.time(), row.id),
+            )
+        elif left != listed:
+            conn.execute(
+                "UPDATE notifications SET metadata = ? WHERE id = ?",
+                (json.dumps(dict(row.metadata or {}) | {"comments": left}), row.id),
+            )
+
+
+def comment_ids(text: str, kind: model.FileKind) -> set[str] | None:
+    """The comments *text* holds, or None when its threads can't be read whole, since a
+    comment missing from a partial read may only be unreadable."""
+    doc = parse.parse(text, kind)
+    if any(e.kind in ("section", "record") for e in doc.errors):
+        return None
+    return {c.id for c in doc.comments}
+
+
+def removed(path: pathlib.Path, held: set[str] | None, after: str, kind: model.FileKind) -> None:
+    """Of the comments `path` *held*, those not in *after* were removed (stripped or
+    deleted), so the person can't read them any more: drop them from its rows. Only those:
+    a comment it never held (one written to another editor's unsaved buffer, or added
+    since) keeps its row. When either can't be read whole, we drop nothing."""
+    held_after = comment_ids(after, kind)
+    if held is None or held_after is None:
+        return
+    if gone := held - held_after:
+        seen(path, gone)
