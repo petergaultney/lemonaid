@@ -2,6 +2,8 @@
 
 import os
 import subprocess
+import threading
+import time
 
 import pytest
 
@@ -130,3 +132,55 @@ def test_macos_terminals_are_named_from_their_device_numbers(monkeypatch):
 
     assert _thread_ttys() == {_AUTHOR: {"/dev/ttys001"}}
     assert asked == [["ps", "-A", "-ww", "-o", "pid=,stat=,tdev=,lstart=,args="]]
+
+
+def test_callers_that_poll_share_a_recent_answer(monkeypatch):
+    _record(11, _AUTHOR, "ttys001")
+    asked = _ps(monkeypatch, f"11 S+ ttys001 {_STARTED} {_CODEX}")
+
+    assert _open_threads(5.0) == {_AUTHOR}
+    assert processes.executable(_AUTHOR, 5.0) == _CODEX
+    assert len(asked) == 1
+
+
+def test_a_caller_about_to_act_sees_a_terminal_switch_threads_at_once(monkeypatch):
+    """After /clear the same process runs another thread: typing into it now reaches that one."""
+    _record(11, _AUTHOR, "ttys001", at=1_795_000_000)
+    _ps(monkeypatch, f"11 S+ ttys001 {_STARTED} {_CODEX}")
+    assert _open_threads(5.0) == {_AUTHOR}
+
+    _record(11, _REVIEWER, "ttys001", at=1_795_000_100)
+
+    assert _thread_ttys() == {_REVIEWER: {"/dev/ttys001"}}
+    assert _open_threads(5.0) == {_AUTHOR}
+
+
+def test_a_caller_about_to_act_sees_a_process_that_just_started(monkeypatch):
+    """A lemon found dead may run again by the time its start lock is held."""
+    _ps(monkeypatch)
+    assert _open_threads(5.0) == set()
+
+    _ps(monkeypatch, f"17369 S+ ttys016 {_STARTED} {_CODEX} resume {_RESUMED}")
+
+    assert _thread_ttys() == {_RESUMED: {"/dev/ttys016"}}
+
+
+def test_callers_waiting_on_a_listing_share_it_even_when_it_fails_slowly(monkeypatch):
+    listed: list[float] = []
+
+    def slow_failure():
+        listed.append(time.monotonic())
+        time.sleep(0.3)  # longer than the callers' max_age
+
+    monkeypatch.setattr(processes, "_running", slow_failure)
+    answers: list[set[str] | None] = []
+    callers = [
+        threading.Thread(target=lambda: answers.append(_open_threads(0.1))) for _ in range(4)
+    ]
+    for caller in callers:
+        caller.start()
+    for caller in callers:
+        caller.join()
+
+    assert answers == [None] * 4
+    assert len(listed) == 1

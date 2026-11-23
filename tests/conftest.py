@@ -107,6 +107,12 @@ def _no_live_codex_threads(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_shared_codex_listing(monkeypatch):
+    """Each test lists Codex processes afresh rather than reusing another test's listing."""
+    monkeypatch.setattr(codex_processes, "_latest", codex_processes._Answer(float("-inf"), None, 0))
+
+
+@pytest.fixture(autouse=True)
 def codex_records(monkeypatch) -> codex_fakes.Records:
     """What a test's Codex has stored: a record, or None for a thread it has no conversation
     for. A thread left out is one Codex can't be asked about.
