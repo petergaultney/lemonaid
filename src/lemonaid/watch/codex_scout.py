@@ -20,7 +20,7 @@ _ALIVE_EVERY = 30.0
 
 def thread_alive(thread: str) -> bool:
     """False only when no Codex process, the shared daemon included, runs *thread*."""
-    open_threads = processes.open_threads()
+    open_threads = processes.open_threads(delivery.LISTED_WITHIN)
     return open_threads is None or thread in open_threads
 
 

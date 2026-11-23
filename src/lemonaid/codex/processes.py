@@ -5,11 +5,16 @@ process still runs when `ps` shows the same pid started at the same moment. When
 process has run several threads, as after `/clear`, the thread it reported last is the one
 it runs. A process under the shared app-server daemon serves every terminal at once, so it
 names none of them.
+
+A caller that polls, such as each of the scout host's Codex scouts, which all check their
+threads at once, may pass a *max_age* to share one answer with the other callers in its
+process. A caller about to act on where a lemon runs lists afresh.
 """
 
 import json
 import os
 import subprocess
+import threading
 import time
 import typing as ty
 from pathlib import Path
@@ -32,6 +37,16 @@ class _Live(ty.NamedTuple):
     started: str  # as `ps` writes it
     tty: str
     argv: list[str]
+
+
+class _Answer(ty.NamedTuple):
+    at: float  # monotonic, when its listing started
+    running: list[Running] | None
+    count: int  # shared answers so far, this one included
+
+
+_answer_lock = threading.Lock()
+_latest = _Answer(float("-inf"), None, 0)
 
 
 def _live() -> dict[int, _Live] | None:
@@ -84,7 +99,7 @@ def _epoch(started: str) -> float:
         return 0.0
 
 
-def running() -> list[Running] | None:
+def _running() -> list[Running] | None:
     """Every thread a live Codex process runs; None if the processes couldn't be listed.
 
     A terminal's process runs the thread it reported last, and the shared daemon every
@@ -113,15 +128,31 @@ def running() -> list[Running] | None:
     return result
 
 
-def open_threads() -> set[str] | None:
+def running(max_age: float = 0.0) -> list[Running] | None:
+    """`_running`, or with *max_age*, an answer shared with other callers in this process:
+    one under *max_age* seconds old, or the one another caller was getting while this one
+    waited, however long that took.
+    """
+    global _latest
+    if not max_age:
+        return _running()
+
+    seen = _latest.count
+    with _answer_lock:
+        if _latest.count == seen and time.monotonic() - _latest.at >= max_age:
+            _latest = _Answer(time.monotonic(), _running(), seen + 1)
+        return _latest.running
+
+
+def open_threads(max_age: float = 0.0) -> set[str] | None:
     """Threads a live Codex process runs, the shared daemon included."""
-    found = running()
+    found = running(max_age)
     return None if found is None else {each.thread for each in found}
 
 
-def thread_ttys() -> dict[str, set[str]] | None:
+def thread_ttys(max_age: float = 0.0) -> dict[str, set[str]] | None:
     """The terminal each thread's Codex process runs in; the shared daemon names none."""
-    found = running()
+    found = running(max_age)
     if found is None:
         return None
 
@@ -132,7 +163,7 @@ def thread_ttys() -> dict[str, set[str]] | None:
     return ttys
 
 
-def executable(thread: str) -> str:
+def executable(thread: str, max_age: float = 0.0) -> str:
     """The executable of the Codex process running *thread*, or "".
 
     Running `codex queue` with it works even where `codex` on PATH does not.
@@ -140,7 +171,7 @@ def executable(thread: str) -> str:
     return next(
         (
             each.executable
-            for each in running() or []
+            for each in running(max_age) or []
             if each.thread == thread and os.path.isabs(each.executable)
         ),
         "",

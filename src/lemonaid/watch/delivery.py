@@ -20,6 +20,7 @@ from ..launch.restart import gates
 from ..log import get_logger
 
 _log = get_logger("watch.delivery")
+LISTED_WITHIN = 2.0  # a scout host's Codex scouts look at once, so one listing serves them all
 
 Deliver = ty.Callable[[str], None]
 
@@ -62,7 +63,7 @@ def to_stdout(message: str) -> None:
 
 def codex_executable(thread: str) -> str:
     """The executable of the Codex process that has *thread* open, else `codex` from PATH."""
-    return processes.executable(thread) or "codex"
+    return processes.executable(thread, LISTED_WITHIN) or "codex"
 
 
 def codex_setup_problem(executable: str = "codex") -> str:
