@@ -24,6 +24,7 @@ from ..log import get_logger
 from . import (
     host_services,
     hosted_scout,
+    inherited_children,
     kqueue_waits,
     registry,
     restart,
@@ -186,8 +187,13 @@ def serve(
     return 0
 
 
+def _main(services: abc.Sequence[host_services.Factory]) -> int:
+    inherited_children.reap()
+    return serve(services=services)
+
+
 def add_parser(
     subparsers: argparse._SubParsersAction, services: abc.Sequence[host_services.Factory] = ()
 ) -> None:
     parser = subparsers.add_parser("host", help=argparse.SUPPRESS)
-    parser.set_defaults(func=lambda a: sys.exit(serve(services=services)))
+    parser.set_defaults(func=lambda a: sys.exit(_main(services)))
