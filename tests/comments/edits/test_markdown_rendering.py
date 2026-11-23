@@ -42,6 +42,12 @@ Text before a rule.
 | one | two |
 | three | four |
 
+x | y
+--|--
+m \\| n | o
+
+### Closing hashes ###
+
 ***
 
 Hard break here  
@@ -72,7 +78,7 @@ def _rendered(text: str) -> str:
 
 _DELIMITER_ROW = "|---|---|"
 # lines with no text to comment on, which `add` refuses
-_REFUSED = (_DELIMITER_ROW, "***", "--------------")
+_REFUSED = (_DELIMITER_ROW, "--|--", "***", "--------------")
 
 
 def _selections() -> list[tuple[str, int, int]]:
@@ -193,7 +199,7 @@ def test_every_comment_the_rules_place_is_checked_by_rendering(monkeypatch) -> N
     monkeypatch.setattr(
         markdown,
         "_opening_inline",
-        lambda text, position, comment_id: markdown.model.Edit(
+        lambda text, position, comment_id, structure: markdown.model.Edit(
             position, position, f"<!-- [lma:{comment_id}] -->"
         ),
     )
@@ -311,6 +317,7 @@ def test_an_empty_frontmatter_block_ends_at_its_own_closer() -> None:
     [
         ("```text\n---\n```\n", "---"),
         ("A paragraph\n|---|---|\nwith a row-shaped line.\n", "|---|---|"),
+        ("Above.\n\n===\n", "==="),
     ],
 )
 def test_a_line_shaped_like_a_rule_or_delimiter_but_not_one_is_accepted(
@@ -400,3 +407,70 @@ def test_a_selection_ending_on_a_rule_or_underline_is_accepted(text: str, select
 
     assert _rendered(commented) == _rendered(text)
     assert edits.strip(commented, "markdown") == text
+
+
+@pytest.mark.parametrize(
+    ("text", "selected", "anchored"),
+    [
+        ("a | b\n--|--\nc | d\n", "c | d", "c | d"),
+        ("| a | b |\n|---|---|\n| x \\| y | z |\n", "| x \\| y | z |", "x \\| y | z"),
+        ("> 1. one\n>    two *x*\n", "two *x*", "two *x*"),
+        ("## Title ##\n", "## Title ##", "Title"),
+        ("# # sign\n", "# # sign", "# sign"),
+        ("## # ###\n", "## # ###", "#"),
+        ("## ## ##\n", "## ## ##", "##"),
+        ("| a | b |\n|---|---|\n| \\| | x |\n", "| \\| | x |", "\\| | x"),
+        ("| a | b |\n|---|---|\n| \\|a | x |\n", "| \\|a | x |", "\\|a | x"),
+        ("> - | a | b |\n>   |---|---|\n>   | c | d |\n", "| c | d |", "c | d"),
+        ("> a | b\n> --|--\n> c | d\n", "c | d", "c | d"),
+        ("> a | b\n> --|--\n> c | d\n", "c", "c"),
+        ("> a | b\n> --|--\n> c | d\n", "> c | d", "c | d"),
+    ],
+)
+def test_the_anchor_covers_the_line_s_text_inside_its_syntax(
+    text: str, selected: str, anchored: str
+) -> None:
+    start = text.index(selected)
+    added = edits.add_comment(
+        text, "markdown", start, start + len(selected), author="a", body="b", at=_AT
+    )
+
+    commented = edits.apply(text, added.edits)
+
+    anchor = parse.parse(commented, "markdown").anchors[0]
+    assert commented[anchor.start : anchor.end] == anchored
+    assert _rendered(commented) == _rendered(text)
+
+
+@pytest.mark.parametrize(
+    ("text", "selected", "wbr"),
+    [
+        ("| a | b |\n|---|---|\n| c | d |\n", "| c | d |", False),
+        ("a | b\n--|--\nc | d\n", "c | d", True),
+    ],
+)
+def test_a_table_row_takes_a_wbr_only_without_a_leading_pipe(
+    text: str, selected: str, wbr: bool
+) -> None:
+    start = text.index(selected)
+    added = edits.add_comment(
+        text, "markdown", start, start + len(selected), author="a", body="b", at=_AT
+    )
+
+    commented = edits.apply(text, added.edits)
+
+    assert ("<wbr>" in commented) == wbr
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "- item\n\n      <!-- [lma:Example] -->\n",
+        ">     <!-- [lma:Example] -->\n",
+        "- item\n\n  ```\n  <!-- [lma:Example] -->\n  ```\n",
+    ],
+)
+def test_a_marker_shaped_example_in_code_inside_a_container_is_text(text: str) -> None:
+    doc = parse.parse(text, "markdown")
+
+    assert doc.anchors == () and doc.errors == ()

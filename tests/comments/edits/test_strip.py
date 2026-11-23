@@ -300,8 +300,8 @@ def test_an_id_with_two_openings_is_refused() -> None:
     commented = edits.apply("Review this.\n", added.edits)
     section = parse.parse(commented, "markdown").section
     assert section is not None
-    example = "\n>     <!-- [lma:Example] -->\n>     literal\n"
-    commented = commented[: section.start] + example + commented[section.start :]
+    second = "\n<!-- [lma:Example] -->again\n"
+    commented = commented[: section.start] + second + commented[section.start :]
 
     with pytest.raises(ValueError, match="more than one opening"):
         edits.strip(commented, "markdown")
@@ -311,9 +311,7 @@ def test_a_closing_marker_before_its_opening_one_is_refused() -> None:
     added = edits.add_comment(
         "Review this.\n", "markdown", 0, 0, author="a", body="b", at=_AT, comment_id="Root"
     )
-    commented = ">     <!-- [/lma:Root] -->\n>     literal\n\n" + edits.apply(
-        "Review this.\n", added.edits
-    )
+    commented = "<!-- [/lma:Root] -->text\n\n" + edits.apply("Review this.\n", added.edits)
 
     with pytest.raises(ValueError, match="closes before it opens"):
         edits.strip(commented, "markdown")

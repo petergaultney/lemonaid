@@ -58,9 +58,9 @@ def f():
   It never writes inside an existing marker or between a CR and its LF.
 - A Python point anchor covers the line below it. A Markdown point anchor is a position.
 - Ranges may nest or overlap.
-- Markers inside Python strings and Markdown code (code spans, fenced blocks at any
-  block-quote depth, and indented code blocks outside lists and quotes) are text, not
-  markers. A Python marker is a whole line in the file as written, so a comment after a
+- Markers inside Python strings and Markdown code (code spans, and fenced and indented
+  code blocks wherever a CommonMark parser finds them, in lists and quotes too) are
+  text, not markers. A Python marker is a whole line in the file as written, so a comment after a
   string's closing quotes is code. A selection that starts or ends inside code grows to
   cover it. Around a fenced block, each marker takes a line of its own, so the fence
   still starts its line, and a point at or inside a fence goes on its own line before
@@ -376,12 +376,6 @@ Put your preferences for guides in `~/.lemons/skills/review-guide/overlay.md`.
 
 ## Known limits
 
-- The Markdown reader doesn't follow every container: code inside a list item, and an
-  indented code block inside a block quote, are read as text. A marker-shaped example
-  there shows up as an anchor with no comment, and `strip` leaves it alone. An example
-  that uses a real thread's id can still be taken for the thread's marker: when the
-  thread's own marker is gone, or when the example is a closing marker after the
-  thread's point marker, which reads as the end of a range.
 - In Markdown, a code span that runs over several lines, one of which is exactly
   `<!-- [lma:threads]`, is read as the threads section, and `strip` removes it. Write
   such an example in a fenced block instead.

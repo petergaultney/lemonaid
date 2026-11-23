@@ -1,12 +1,17 @@
 """Markdown files: markers are HTML comments, inline or on lines of their own, and the
-threads section is one HTML comment at the end. We find code ourselves: fences at any
-block-quote depth, indented code blocks outside lists, and code spans."""
+threads section is one HTML comment at the end. A CommonMark parser with tables
+(markdown-it-py) tells us the document's structure: its fenced and indented code blocks,
+and where each line's own text starts and ends after its block syntax (`_Structure`)."""
 
+import functools
 import html.parser
 import re
 import typing as ty
 
 from .. import lines, model, records
+
+if ty.TYPE_CHECKING:
+    from markdown_it import MarkdownIt
 
 # A `<wbr>` is part of the marker after it only when that marker is an opening one that
 # says so (` wbr`), so a `<wbr>` someone wrote stays theirs: see `_WBR`.
@@ -27,34 +32,18 @@ _MARKER: ty.Final = re.compile(
 _WBR: ty.Final = "<wbr>"
 _SECTION: ty.Final = re.compile(r"^<!-- \[lma:threads\]\r?$", re.M)
 _SECTION_END: ty.Final = "-->"
-_QUOTE_PREFIX: ty.Final = re.compile(r"(?: {0,3}>)*")
-_FENCE_OPENER: ty.Final = re.compile(r" {0,3}(?P<fence>(?P<char>[`~])(?P=char){2,})")
-_BLANK: ty.Final = re.compile(r"[ \t\r]*")
-_INDENTED: ty.Final = re.compile(r"(?: {4}|\t)")
-_LIST_ITEM: ty.Final = re.compile(r" {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)")
 _CODE_SPAN: ty.Final = re.compile(r"(`+)(?!`).*?(?<!`)\1(?!`)", re.S)
-# block quote markers and list item markers at the start of a line, nested any way
-_CONTAINERS: ty.Final = re.compile(r"(?: {0,3}>[ \t]?| {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+)*")
-_HEADING: ty.Final = re.compile(r" {0,3}#{1,6}(?:[ \t]+|$)")
-_TABLE_ROW: ty.Final = re.compile(r" {0,3}\|[ \t]*")
-_CLOSING_HASHES: ty.Final = re.compile(r"[ \t]+#+[ \t]*$")
-# a leading byte order mark, then `---` to the next `---` or `...` line, which may be the next
+# a leading byte order mark, then `---` to the next `---` or `...` line, which may be the
+# next: YAML, which CommonMark doesn't know, so the parser can't find it for us
 _FRONTMATTER: ty.Final = re.compile(
     r"\ufeff?---[ \t]*\r?\n(?:.*?\n)??(?:---|\.\.\.)[ \t]*(?:\r?\n|$)", re.S
 )
-# a line nothing may follow: a thematic break or a setext heading's underline
-_RULE: ty.Final = re.compile(r" {0,3}(?:([-*_])(?:[ \t]*\1){2,}|=+|-+)[ \t]*\r?$")
+# the parser reads a CR on its own as a line ending; only `\n` ends one here (`lines`)
+_LONE_CR: ty.Final = re.compile(r"\r(?!\n)")
 
 
 def code_regions(text: str) -> list[model.CodeRegion]:
-    """Fenced blocks, indented code blocks, then code spans in the text that is left."""
-    fences = _fences(text)
-    blocks = [*fences, *_indented_code(lines.masked(text, fences))]
-    without_blocks = lines.masked(text, blocks)
-    spans = [
-        model.CodeRegion(m.start(), m.end(), False) for m in _CODE_SPAN.finditer(without_blocks)
-    ]
-    return sorted([*blocks, *spans])
+    return _code_regions(text, _structure(text))
 
 
 def unclosed_string(text: str) -> int | None:
@@ -83,13 +72,18 @@ def find_section(
 ) -> tuple[model.Section | None, list[records.RecordLine], list[model.ParseError]]:
     """The section is the last header outside code. We mask code only in the text before
     a header, so a backtick inside a record can't pair with one in the body."""
+    candidates = list(_SECTION.finditer(text))
+    if not candidates:
+        return None, [], []
+    # A header line starts with `<!--` at the margin, which ends any list or quote before
+    # it, so the text after it can't change whether it is in a code block: one parse of
+    # the whole text serves every candidate.
+    blocks = _structure(text).blocks
     header = next(
         (
             h
-            for h in reversed(list(_SECTION.finditer(text)))
-            if _SECTION.match(
-                lines.masked(text[: h.end()], code_regions(text[: h.end()])), h.start()
-            )
+            for h in reversed(candidates)
+            if _SECTION.match(_without_code_before(text, h.end(), blocks), h.start())
         ),
         None,
     )
@@ -153,31 +147,32 @@ def _placed(
     text: str, start: int, end: int, doc: model.Document, comment_id: str
 ) -> list[model.Edit]:
     body_end = doc.section.start if doc.section else len(text)
-    regions = code_regions(text[:body_end])
+    structure = _structure(text[:body_end])
+    regions = _code_regions(text[:body_end], structure)
     existing, newline = doc.markers, doc.newline
     while start < end and text[start].isspace():
         start += 1
     while end > start and text[end - 1].isspace():
         end -= 1
-    _refuse_where_no_marker_fits(text, start, max(start, end - 1), regions, _delimiter_rows(text))
+    _refuse_where_no_marker_fits(text, start, max(start, end - 1), regions, structure)
     if start == end:
-        return [_point(text, start, regions, existing, newline, comment_id)]
+        return [_point(text, start, regions, structure, existing, newline, comment_id)]
     start, end, start_region, end_region = _grown(start, end, regions)
     start, end = _out_of_markers(start, existing), _out_of_markers(end, existing)
     if not end_region:
-        end = _closing_spot(text, end)
+        end = _closing_spot(text, end, structure)
 
     opening_line = f"<!-- [lma:{comment_id}]: -->{newline}"
     if start_region and start_region.block:
-        opening = model.Edit(start, start, _indent_of(text, start) + opening_line)
+        opening = model.Edit(start, start, _indent_of(text, start, structure) + opening_line)
     elif _is_marker_only_line(text, start):
         line_start = text.rfind("\n", 0, start) + 1
         opening = model.Edit(line_start, line_start, opening_line)
     else:
-        opening = _opening_inline(text, start, comment_id)
+        opening = _opening_inline(text, start, comment_id, structure)
 
     closing_line = f"<!-- [/lma:{comment_id}]: -->"
-    if _RULE.match(_line_at(text, end)):
+    if text.count("\n", 0, end) in structure.textless:
         # trailing text would make the rule a paragraph or the underline part of one
         after = text.find("\n", end)
         if after == -1:
@@ -187,7 +182,7 @@ def _placed(
         after_fence = text.find("\n", end)
         if after_fence == -1:
             return [opening, model.Edit(end, end, f"{newline}{closing_line}")]
-        indent = _indent_of(text, text.rfind("\n", 0, after_fence) + 1)
+        indent = _indent_of(text, text.rfind("\n", 0, after_fence) + 1, structure)
         return [
             opening,
             model.Edit(after_fence + 1, after_fence + 1, f"{indent}{closing_line}{newline}"),
@@ -198,72 +193,206 @@ def _placed(
     return [opening, model.Edit(end, end, f"<!-- [/lma:{comment_id}] -->")]
 
 
+def _without_code_before(text: str, end: int, blocks: list[model.CodeRegion]) -> str:
+    """`text[:end]` with its code masked: code blocks as the whole text has them, cut at
+    *end*, and code spans found in the masked prefix alone."""
+    prefix = text[:end]
+    without_blocks = lines.masked(
+        prefix, [b._replace(end=min(b.end, end)) for b in blocks if b.start < end]
+    )
+    return lines.masked(
+        without_blocks,
+        [model.CodeRegion(m.start(), m.end(), False) for m in _CODE_SPAN.finditer(without_blocks)],
+    )
+
+
 def _section_error(offset: int, message: str) -> model.ParseError:
     return model.ParseError(offset, message, "section")
 
 
-def _fences(text: str) -> list[model.CodeRegion]:
-    """Fenced code blocks, at any block-quote depth. A fence closes on a line at the same
-    depth with a run of its character at least as long; inside a block quote it also
-    ends where the quote does, on the first line with fewer `>`. One that never closes
-    runs to the end of the text."""
-    regions: list[model.CodeRegion] = []
-    open_fence: tuple[int, int, str] | None = None  # (start, depth, fence)
-    offset = 0
-    for line in text.split("\n"):
-        prefix = _QUOTE_PREFIX.match(line)
-        depth = prefix.group(0).count(">") if prefix else 0
-        rest = line[prefix.end() if prefix else 0 :]
-        if depth and rest.startswith(" "):
-            rest = rest[1:]  # the one space a block quote marker may take
-        opener = _FENCE_OPENER.match(rest)
-        if opener and opener.group("char") == "`" and "`" in rest[opener.end() :]:
-            opener = None  # a backtick fence's info string has no backticks: a code span
-        if open_fence is not None:
-            start, fence_depth, fence = open_fence
-            if depth < fence_depth:
-                regions.append(model.CodeRegion(start, offset - 1, True))
-                open_fence = None  # and this line may open a fence of its own, below
-            elif (
-                depth == fence_depth
-                and opener
-                and opener.group("fence").startswith(fence)
-                and not rest[opener.end() :].strip()
-            ):
-                regions.append(model.CodeRegion(start, offset + len(line), True))
-                open_fence = None
-                offset += len(line) + 1
+class _Text(ty.NamedTuple):
+    """A line's own text, after its block syntax, as `[start, end)` in the document."""
+
+    start: int
+    end: int
+    # an ATX heading's, or a table row's after its leading `|`: there a marker at the
+    # start needs no `<wbr>`
+    inline: bool
+
+
+class _Structure(ty.NamedTuple):
+    """What a CommonMark parser with tables says about a document, by line number. A line
+    that has no `text` (a blank line, a link reference definition, raw HTML, a fence)
+    gets its markers where the selection puts them, and the render check decides."""
+
+    text: dict[int, _Text]
+    blocks: list[model.CodeRegion]
+    fence_edges: frozenset[int]  # a fenced block's first and last lines
+    textless: frozenset[int]  # thematic breaks and setext headings' underlines
+    delimiter_rows: frozenset[int]
+    empty_headings: frozenset[int]
+
+
+@functools.cache
+def _parser(*, blocks_only: bool = False) -> "MarkdownIt":
+    """CommonMark with tables. *blocks_only* leaves inline tokens unparsed, which is all
+    `_structure` needs and several times faster; rendering needs them parsed."""
+    from markdown_it import MarkdownIt  # here, so a command that reads no Markdown skips it
+
+    parser = MarkdownIt("commonmark").enable("table")
+    if blocks_only:
+        parser.core.ruler.disable(["inline", "text_join"])
+    return parser
+
+
+def _structure(text: str) -> _Structure:
+    """The parser gives each block its lines, and each inline token its text with the
+    block syntax taken off, but no columns: a line's text is where that content sits in
+    the line (`_located`)."""
+    tokens = _parser(blocks_only=True).parse(_LONE_CR.sub(" ", text))
+    line_starts = [0, *(m.end() for m in re.finditer("\n", text))]
+
+    def line_span(number: int) -> tuple[int, int]:
+        end = line_starts[number + 1] - 1 if number + 1 < len(line_starts) else len(text)
+        return line_starts[number], end
+
+    own_text: dict[int, _Text] = {}
+    blocks: list[model.CodeRegion] = []
+    fence_edges: set[int] = set()
+    textless: set[int] = set()
+    delimiter_rows: set[int] = set()
+    empty_headings: set[int] = set()
+    cells_by_line: dict[int, list[_Cell]] = {}
+    for i, token in enumerate(tokens):
+        if token.map is None:
+            continue
+        first, after = token.map
+        if token.type in ("fence", "code_block"):
+            blocks.append(model.CodeRegion(line_span(first)[0], line_span(after - 1)[1], True))
+            if token.type == "fence":
+                fence_edges |= {first, after - 1}
+        elif token.type == "hr":
+            textless.add(first)
+        elif token.type == "heading_open" and token.markup in ("=", "-"):
+            textless.add(after - 1)
+        elif token.type == "table_open":
+            delimiter_rows.add(first + 1)
+        elif token.type == "inline" and tokens[i - 1].type in ("th_open", "td_open"):
+            line_start, line_end = line_span(first)
+            if first not in cells_by_line:
+                cells_by_line[first] = _cells(text[line_start:line_end])
+            cell = _next_cell(cells_by_line[first], token.content.strip(" \t"))
+            if cell is None:
                 continue
-        if open_fence is None and opener:
-            open_fence = (offset, depth, opener.group("fence"))
-        offset += len(line) + 1
-    if open_fence is not None:
-        regions.append(model.CodeRegion(open_fence[0], len(text), True))
-    return regions
+            start, end = line_start + cell[0], line_start + cell[1]
+            if first in own_text:
+                own_text[first] = own_text[first]._replace(end=end)
+            else:
+                # a row with no leading `|` starts with its first cell's text, like a paragraph
+                after_a_pipe = text[line_start:start].rstrip(" \t").endswith("|")
+                own_text[first] = _Text(start, end, after_a_pipe)
+        elif token.type == "inline":
+            opener = tokens[i - 1]
+            atx_heading = opener.type == "heading_open" and opener.markup.startswith("#")
+            if atx_heading and not token.content.strip():
+                empty_headings.add(first)
+            for number, content in zip(
+                range(first, after), token.content.split("\n"), strict=False
+            ):
+                line_start, line_end = line_span(number)
+                line = text[line_start:line_end]
+                # an ATX heading's text starts right after its opening `#`s; any other
+                # line's text is the end of the line
+                found = (
+                    _after(line, opener.markup, content)
+                    if atx_heading
+                    else _at_the_end(line, content)
+                )
+                if found is not None:
+                    own_text[number] = _Text(
+                        line_start + found[0], line_start + found[1], atx_heading
+                    )
+    return _Structure(
+        own_text,
+        blocks,
+        frozenset(fence_edges),
+        frozenset(textless),
+        frozenset(delimiter_rows),
+        frozenset(empty_headings),
+    )
 
 
-def _indented_code(text: str) -> list[model.CodeRegion]:
-    """Indented code blocks: lines indented four spaces or a tab, after a blank line or
-    another such line. Inside a list, an indented line continues the item instead, so we
-    leave lines alone when the last line that isn't indented started a list item."""
-    regions: list[model.CodeRegion] = []
-    offset = 0
-    previous_blank = True
-    in_code = False
-    in_list = False
-    for line in text.split("\n"):
-        blank = bool(_BLANK.fullmatch(line))
-        indented = bool(_INDENTED.match(line)) and not blank
-        if not blank and not indented:
-            in_list = bool(_LIST_ITEM.match(line))
-        in_code = indented and not in_list and (in_code or previous_blank)
-        if in_code:
-            regions.append(model.CodeRegion(offset, offset + len(line), True))
-        elif not blank:
-            in_code = False
-        previous_blank = blank
-        offset += len(line) + 1
-    return regions
+def _at_the_end(line: str, content: str) -> tuple[int, int] | None:
+    core = content.strip(" \t")
+    trimmed = line.rstrip(" \t\r")
+    if not core or not trimmed.endswith(core):
+        return None
+    return len(trimmed) - len(core), len(trimmed)
+
+
+def _after(line: str, opening: str, content: str) -> tuple[int, int] | None:
+    """*content* where it first occurs after *opening*: the opening `#`s come after any
+    block quote or list markers, which hold no `#`, and only spaces come between them and
+    the text."""
+    core = content.strip(" \t")
+    after_opening = line.find(opening) + len(opening)
+    start = line.find(core, after_opening) if core else -1
+    return None if start == -1 else (start, start + len(core))
+
+
+class _Cell(ty.NamedTuple):
+    """A stretch of a table row between `|`s: `[start, end)` in the line without its
+    surrounding spaces, and the text the parser gives a cell there."""
+
+    start: int
+    end: int
+    text: str
+    first: bool  # the row's first stretch, which also holds any block quote and list markers
+
+
+def _cells(line: str) -> list[_Cell]:
+    """*line* split as markdown-it splits a table row: a `|` after a backslash is text,
+    and the backslash goes."""
+    stretches: list[tuple[int, int]] = []
+    stretch_start = 0
+    escaped = False
+    for position, char in enumerate(line):
+        if char == "|" and not escaped:
+            stretches.append((stretch_start, position))
+            stretch_start = position + 1
+        escaped = char == "\\"
+    stretches.append((stretch_start, len(line.rstrip("\r"))))
+    cells = []
+    for start, end in stretches:
+        raw = line[start:end]
+        start += len(raw) - len(raw.lstrip(" \t"))
+        end = max(start, end - (len(raw) - len(raw.rstrip(" \t"))))
+        cells.append(_Cell(start, end, line[start:end].replace("\\|", "|"), not cells))
+    return cells
+
+
+def _next_cell(cells: list[_Cell], content: str) -> tuple[int, int] | None:
+    """The first of *cells* that holds *content*, taken off the list, so the row's next
+    cell is looked for after it. In a row with no leading `|`, the first stretch starts
+    with the row's block quote and list markers (the parser took them off already), and
+    the cell's text ends it."""
+    if not content:
+        return None
+    for index, cell in enumerate(cells):
+        markers = cell.text.removesuffix(content) if cell.text.endswith(content) else None
+        if markers == "" or (cell.first and markers is not None):
+            del cells[: index + 1]
+            return cell.start + len(markers), cell.end
+    return None
+
+
+def _code_regions(text: str, structure: _Structure) -> list[model.CodeRegion]:
+    """The parser's code blocks, then code spans in the text that is left."""
+    without_blocks = lines.masked(text, structure.blocks)
+    spans = [
+        model.CodeRegion(m.start(), m.end(), False) for m in _CODE_SPAN.finditer(without_blocks)
+    ]
+    return sorted([*structure.blocks, *spans])
 
 
 def _grown(
@@ -285,23 +414,8 @@ def _grown(
     )
 
 
-def _delimiter_rows(text: str) -> frozenset[int]:
-    """The line numbers of the tables' delimiter rows, by a CommonMark parser with tables:
-    a line shaped like one is a delimiter row only when it really makes a table."""
-    if "|" not in text:
-        return frozenset()
-    from markdown_it import MarkdownIt
-
-    tokens = MarkdownIt("commonmark").enable("table").parse(text)
-    return frozenset(t.map[0] + 1 for t in tokens if t.type == "table_open" and t.map)
-
-
 def _refuse_where_no_marker_fits(
-    text: str,
-    first: int,
-    last: int,
-    regions: list[model.CodeRegion],
-    delimiter_rows: frozenset[int],
+    text: str, first: int, last: int, regions: list[model.CodeRegion], structure: _Structure
 ) -> None:
     """Refuse a comment no marker can be invisible in: in YAML frontmatter, which has no
     HTML comments, so a marker would change its fields; on a table's delimiter row, which
@@ -313,15 +427,13 @@ def _refuse_where_no_marker_fits(
     for position in {first, last}:
         if any(r.block and r.start <= position <= r.end for r in regions):
             continue  # a marker goes outside the code, whatever its lines look like
-        line = _line_at(text, position)
-        rest = line[_CONTAINERS.match(line).end() :]
-        if text.count("\n", 0, position) in delimiter_rows:
+        line = text.count("\n", 0, position)
+        if line in structure.delimiter_rows:
             raise ValueError("a table's delimiter row can't hold a comment; select a row or a cell")
-        if position == first and _RULE.match(rest):
+        if position == first and line in structure.textless:
             # a closing marker can go on a line of its own after one; an opening one can't
             raise ValueError("a comment can't start on a rule or a heading's underline")
-        heading = _HEADING.match(rest)
-        if heading and not _CLOSING_HASHES.sub("", " " + rest[heading.end() :]).strip():
+        if line in structure.empty_headings:
             raise ValueError("a heading with no text can't hold a comment")
 
 
@@ -387,9 +499,7 @@ def _check_rendering(body: str, placed: list[model.Edit]) -> None:
     parser (with tables, as GitHub has) before and after, and compare what a reader sees
     of each (`_Shown`). The placement rules above should
     never trip this; it catches what they don't foresee."""
-    from markdown_it import MarkdownIt
-
-    renderer = MarkdownIt("commonmark").enable("table")
+    renderer = _parser()
     after = body
     for edit in sorted(placed, key=lambda e: e.start, reverse=True):
         after = after[: edit.start] + edit.text + after[edit.end :]
@@ -402,6 +512,7 @@ def _point(
     text: str,
     position: int,
     regions: list[model.CodeRegion],
+    structure: _Structure,
     existing: tuple[model.Marker, ...],
     newline: str,
     comment_id: str,
@@ -412,89 +523,58 @@ def _point(
     own_line = f"<!-- [lma:{comment_id}]: -->{newline}"
     block = next((r for r in regions if r.block and r.start <= position <= r.end), None)
     if block is not None:
-        return model.Edit(block.start, block.start, _indent_of(text, block.start) + own_line)
+        indent = _indent_of(text, block.start, structure)
+        return model.Edit(block.start, block.start, indent + own_line)
     span = next((r for r in regions if r.start < position < r.end), None)
     if span is not None:
-        return _opening_inline(text, span.start, comment_id)
+        return _opening_inline(text, span.start, comment_id, structure)
 
     if _is_marker_only_line(text, position):
         line_start = text.rfind("\n", 0, position) + 1
         return model.Edit(line_start, line_start, own_line)
     position = _out_of_markers(position, existing)
-    return _opening_inline(text, position, comment_id)
+    return _opening_inline(text, position, comment_id, structure)
 
 
-def _content_start(text: str, line_start: int, line_end: int) -> tuple[int, bool]:
-    """Where a line's own text starts, after its block quote and list markers, a heading's
-    `#`s, a table row's leading `|`, and indentation; and whether a marker can go there,
-    inside the heading or the row's first cell, rather than on a line before."""
-    content = _CONTAINERS.match(text, line_start, line_end).end()
-    if inside := _HEADING.match(text, content, line_end) or _TABLE_ROW.match(
-        text, content, line_end
-    ):
-        return inside.end(), True
-    while content < line_end and text[content] in " \t":
-        content += 1
-    return content, False
-
-
-def _closing_spot(text: str, end: int) -> int:
-    """Where a closing marker can go for a selection ending at *end*: a selection that ends
-    in a line's block markers (only the `-` or the `#`) means the line, so it ends with the
-    line's text; and a selection that ends with a line's trailing backslash ends before it,
-    so the backslash still breaks the line rather than escaping the marker."""
-    line_start = text.rfind("\n", 0, end - 1) + 1 if end else 0
-    line_end = text.find("\n", line_start)
-    line_end = len(text) if line_end == -1 else line_end
-    content, _ = _content_start(text, line_start, line_end)
-    if end <= content and text[content:line_end].strip():
-        end = line_start + len(text[line_start:line_end].rstrip(" \t\r"))
-    rest_of_line = text[end:line_end]
-    is_table_row = _TABLE_ROW.match(text, _CONTAINERS.match(text, line_start, line_end).end())
-    if is_table_row and not rest_of_line.strip(" \t\r") and text[:end].endswith("|"):
-        # inside the last cell: text after a row's last `|` can stop a header being one
-        end = len(text[: end - 1].rstrip(" \t"))
-    heading = _HEADING.match(text, _CONTAINERS.match(text, line_start, line_end).end(), line_end)
-    if heading and not rest_of_line.strip(" \t\r"):
-        # before a heading's closing `#`s, which are only its closing sequence while they end it
-        closing_hashes = _CLOSING_HASHES.search(text, heading.end(), end)
-        if closing_hashes:
-            end = closing_hashes.start()
-    if end and text[end - 1] == "\\" and not rest_of_line.strip(" \t\r"):
+def _closing_spot(text: str, end: int, structure: _Structure) -> int:
+    """Where a closing marker can go for a selection ending at *end*: at the end of its
+    line's text when the selection ends outside it, in the line's block markers (only the
+    `-` or the `#`, which means the line) or after it (a heading's closing `#`s, a table
+    row's last `|`); and before a trailing backslash, so the backslash still breaks the
+    line rather than escaping the marker."""
+    own = structure.text.get(text.count("\n", 0, end - 1) if end else 0)
+    if own is None:
+        return end
+    if end <= own.start or end > own.end:
+        end = own.end
+    if end == own.end and text[end - 1] == "\\":
         end -= 1
     return end
 
 
-def _indent_of(text: str, line_start: int) -> str:
+def _indent_of(text: str, line_start: int, structure: _Structure) -> str:
     """The spaces and tabs a fence line starts with: a marker on a line of its own beside a
     fenced block takes the fence's, so a fence inside a list item stays inside it. Beside
     an indented code block, none: indented like the code, the marker would be code."""
-    line = _line_at(text, line_start)
-    indent = line[: len(line) - len(line.lstrip(" \t"))]
-    return indent if _FENCE_OPENER.match(line.lstrip(" \t")) else ""
+    if text.count("\n", 0, line_start) not in structure.fence_edges:
+        return ""
+    line_end = text.find("\n", line_start)
+    line = text[line_start : len(text) if line_end == -1 else line_end]
+    return line[: len(line) - len(line.lstrip(" \t"))]
 
 
-def _line_at(text: str, position: int) -> str:
-    line_start = text.rfind("\n", 0, position) + 1
-    line_end = text.find("\n", position)
-    return text[line_start : len(text) if line_end == -1 else line_end]
-
-
-def _opening_inline(text: str, position: int, comment_id: str) -> model.Edit:
-    """An opening marker at *position*, after the line's block syntax when the comment
-    starts there: after a heading's `#`s and inside a table row's first cell as it is, and
-    after a list item's or block quote's markers, or at a paragraph line's start, with the
-    `<wbr>` workaround in front (see `_WBR`), so the line's text doesn't start with `<!--`."""
+def _opening_inline(text: str, position: int, comment_id: str, structure: _Structure) -> model.Edit:
+    """An opening marker at *position*, or at the start of its line's text when the
+    comment starts at or before it: there as it is in an ATX heading or a table row's
+    first cell, and with the `<wbr>` workaround in front (see `_WBR`) in a list item's,
+    a block quote's or a paragraph's line, so the line's text doesn't start with `<!--`."""
     marker = f"<!-- [lma:{comment_id}] -->"
-    line_start = text.rfind("\n", 0, position) + 1
-    line_end = text.find("\n", position)
-    line_end = len(text) if line_end == -1 else line_end
-    content, inline_already = _content_start(text, line_start, line_end)
-    if position > content:
+    own = structure.text.get(text.count("\n", 0, position))
+    if own is None or position > own.start:
         return model.Edit(position, position, marker)
-    if inline_already:
-        return model.Edit(content, content, marker)
-    return model.Edit(content, content, f"{_WBR}<!-- [lma:{comment_id}] wbr -->")
+    if own.inline:
+        return model.Edit(own.start, own.start, marker)
+    return model.Edit(own.start, own.start, f"{_WBR}<!-- [lma:{comment_id}] wbr -->")
 
 
 def _out_of_markers(position: int, existing: tuple[model.Marker, ...]) -> int:
