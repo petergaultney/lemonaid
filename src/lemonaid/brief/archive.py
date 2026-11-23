@@ -30,7 +30,7 @@ _WAITING = frozenset({"blocked", "alert", "merge", "approve", "review", "running
 
 class Idle(ty.NamedTuple):
     path: Path
-    lemon_id: str  # "" when the brief has none
+    lemon_id: str
     last: float  # when it was last in use
 
 
@@ -138,36 +138,43 @@ def _kept(conn: sqlite3.Connection, path: Path, lemon_id: str) -> bool:
     except OSError:
         return True
 
-    return bool(lemon_id) and liveness.live(conn, lemon_id)
+    return liveness.live(conn, lemon_id)
 
 
 def idle(conn: sqlite3.Connection, days: float, now: float) -> list[Idle]:
-    """Oldest first; never a brief whose Status waits on someone or whose lemon is live."""
+    """Oldest first; never a brief whose Status waits on someone or whose lemon is live.
+
+    Only briefs *conn* records count: a database that has never seen a brief cannot
+    tell whether a lemon is using it.
+    """
     since = now - days * _DAY
     used = {Path(u.path): u for u in active_names.usage(conn)}
     found = [
-        Idle(path, use.lemon_id if use else "", last)
+        Idle(path, use.lemon_id, last)
         for path in (
             p.resolve()
             for p in store.briefs_dir().glob("*.md")
             if not p.is_symlink() and p.is_file()
         )
-        for use in [used.get(path)]
+        if (use := used.get(path)) is not None
         for last in [_last(conn, path, use)]
         if last < since
     ]
     return sorted((i for i in found if not _kept(conn, i.path, i.lemon_id)), key=lambda i: i.last)
 
 
-def _lemon_id(conn: sqlite3.Connection, path: Path) -> str:
+def _recorded_id(conn: sqlite3.Connection, path: Path) -> str:
+    """*path*'s Lemon-ID as *conn* records it.
+
+    Raises ValueError when *conn* has never seen *path*. Such a brief belongs to another
+    database's lemons, as when a sandbox points `LEMONAID_DB` elsewhere but shares the
+    briefs directory, and nothing in *conn* says whether one of them is using it.
+    """
     row = conn.execute("SELECT lemon_id FROM lemon_identities WHERE path = ?", (str(path),))
     if found := row.fetchone():
         return found["lemon_id"]
 
-    try:
-        return identity.read(path.read_text())
-    except ValueError:
-        return ""
+    raise ValueError(f"{path.name} is not a brief this database records")
 
 
 def _repoint(conn: sqlite3.Connection, old: Path, new: Path) -> None:
@@ -250,34 +257,32 @@ def archive(
 
     *last* names the attic month. Sessions in *closing* are ending and don't hold it.
     *why* goes into the audit log beside who moved it.
-    Raises ValueError when another session still holds it, the attic already has a brief
-    of that name, or a home migration is under way.
+    Raises ValueError when *conn* doesn't record it, another session still holds it, the
+    attic already has a brief of that name, or a home migration is under way.
     """
     month = attic_dir() / time.strftime("%Y-%m", time.localtime(last or time.time()))
     target = month / path.name
-    if lemon_id := _lemon_id(conn, path):
-        for line in completion.hand_on_archive(conn, lemon_id):
-            _log.info("%s", line)
+    for line in completion.hand_on_archive(conn, _recorded_id(conn, path)):
+        _log.info("%s", line)
     with home.guard.operation():
         conn.execute("BEGIN IMMEDIATE")
         try:
+            lemon_id = _recorded_id(conn, path)
             if _live_elsewhere(conn, path, closing):
                 raise ValueError(f"{path.name} is attached to a live session")
 
             if target.exists():
                 raise ValueError(f"{target} already exists")
 
-            lemon_id = _lemon_id(conn, path)
-            if lemon_id:
-                archived_channel.remember(conn, lemon_id, str(path))
+            archived_channel.remember(conn, lemon_id, str(path))
             _repoint(conn, path, target)
             conn.execute("DELETE FROM session_briefs WHERE path = ?", (str(path),))
             conn.execute("DELETE FROM pending_briefs WHERE path = ?", (str(path),))
             month.mkdir(parents=True, exist_ok=True)
             path.rename(target)
-            mailbox = messages.mailbox_root() / lemon_id if lemon_id else None
+            mailbox = messages.mailbox_root() / lemon_id
             mailbox_to = ""
-            if mailbox is not None and mailbox.is_dir() and not mailbox.is_symlink():
+            if mailbox.is_dir() and not mailbox.is_symlink():
                 try:
                     kept = month / home.layout.MAILBOX / lemon_id
                     kept.mkdir(parents=True, exist_ok=True)
@@ -292,7 +297,7 @@ def archive(
         conn.commit()
     events.record(
         "brief-archive",
-        lemon_id or path.name,
+        lemon_id,
         why,
         **{"from": str(path), "to": str(target), "mailbox": mailbox_to},
     )
