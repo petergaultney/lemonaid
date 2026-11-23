@@ -37,7 +37,7 @@ Open with one paragraph: what the round is, where the changes are (repo, branch,
 
 Then these sections, in this order, leaving out any that would be empty:
 
-- **Core changes, most significant first.** A numbered list. Each item opens with a bold sentence that says what the change does, then gives the reason in a sentence or two, and the decision behind it when that isn't obvious. Group the hunks that implement one idea into one item, even across files, so the reader reads them as code together. End the item with its locations.
+- **Core changes, most significant first.** A numbered list. Each item opens with a bold sentence that says what the change does, then gives the reason in a sentence or two, and the decision behind it when that isn't obvious. Group the hunks that implement one idea into one item, even across files, so the reader reads them as code together. Put its locations under it, as the next section shows.
 - **Consequential changes.** Changes made because of the core ones: call sites, imports, renames, docs, edits that make the types pass, and the tests. One bullet each, shorter than a core item. The reader may skim these or accept them as a group.
 - **Changes you can skip.** Mechanical changes: moved tests, formatting, generated files. One line each.
 - **Decisions you made along the way.** Decisions the user made in this session that the code reflects, with where they are recorded. It reminds the user of what they already chose, so they don't review it again.
@@ -49,7 +49,20 @@ Comments live in the file only for Python and Markdown files. When the round cha
 
 ### Point at the code
 
-Give every claim a location the reader can jump to with one key. Write each as `` `path:line` `` or `` `path:line-line` ``, with a path that starts with `~/` or `/`, since the guide is outside the repo and the editor resolves a relative path against its own working directory. Point at the line where the logic is, not the top of the file. Line numbers go stale as the code changes, so name the function or class too: `` `~/repo/src/pkg/sync.py:41` (`note`) ``.
+Give every claim a location the reader can jump to with one key, and keep the locations out of the prose: write an item's description first, then its locations in nested bullets under a `Code` sub-bullet, one location per bullet. Put the tests that exercise the change under a `Tests` sub-bullet the same way. When a test needs a word of its own (what it shows that the others don't, or why it checks what it checks), give that as a bullet under `Tests`, with the test's link nested under it.
+
+```markdown
+1. **The parser gives each line's text.** Why, in a sentence or two.
+   - Code
+     - [`_structure`](~/repo/src/pkg/markdown.py:229)
+     - [`_cells`](~/repo/src/pkg/markdown.py:340-372)
+   - Tests
+     - [`test_the_anchor_covers_the_line_s_text`](~/repo/tests/test_markdown.py:420)
+     - A comment on a quoted table row renders the same whether it lands on the right cell or the wrong one, so this test checks where the anchor starts and ends, not the rendering.
+       - [`test_a_quoted_row_s_first_cell_takes_the_anchor`](~/repo/tests/test_markdown.py:455)
+```
+
+Write each location as a link to `path:line` or `path:line-line`, with a path that starts with `~/` or `/`, since the guide is outside the repo and the editor resolves a relative path against its own working directory. Label it with what it points at, the function, class or test, since line numbers go stale as the code changes. Point at the line where the logic is, not the top of the file. A shorter bullet, such as a consequential change, takes the same `Code` sub-bullet.
 
 ## Open it and watch for comments
 
