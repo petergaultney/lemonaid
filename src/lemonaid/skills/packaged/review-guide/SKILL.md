@@ -62,7 +62,7 @@ Give every claim a location the reader can jump to with one key, and keep the lo
        - [`test_a_quoted_row_s_first_cell_takes_the_anchor`](~/repo/tests/test_markdown.py:455)
 ```
 
-Write each location as a link to `path:line` or `path:line-line`, with a path that starts with `~/` or `/`, since the guide is outside the repo and the editor resolves a relative path against its own working directory. Label it with what it points at, the function, class or test, since line numbers go stale as the code changes. Point at the line where the logic is, not the top of the file. A shorter bullet, such as a consequential change, takes the same `Code` sub-bullet.
+Write each location as a link to `path:line` or `path:line-line`, with a path that starts with `~/` or `/`, since the guide is outside the repo and the editor resolves a relative path against its own working directory. Label it with what it points at, the function, class or test, since line numbers go stale as the code changes. Point at the line where the logic is, not the top of the file. A shorter bullet, such as a consequential change, takes the same `Code` sub-bullet. These links assume an editor that opens a link to `path:line` at that line; if the user's doesn't, write each location as a code span instead, `` `~/repo/src/pkg/sync.py:41` ``, which most editors open at the line from the text itself (`gF` in vim).
 
 ## Open it and watch for comments
 
