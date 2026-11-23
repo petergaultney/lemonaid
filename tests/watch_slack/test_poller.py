@@ -175,7 +175,7 @@ def _lemon_following(tmp_path) -> tuple:
 
 def test_a_thread_quiet_for_seven_days_ends_once_and_leaves_watching(tmp_path, slack):
     path, lemon_id = _lemon_following(tmp_path)
-    slack.replies[:] = [reply(f"{int(time.time()) - 8 * 86400}.000100", "long ago")]
+    slack.replies[:] = [reply(f"{int(slack_events.time.time()) - 8 * 86400}.000100", "long ago")]
     delivered: list = []
     poll = _poller(tmp_path, delivered, lemon_id=lemon_id)
 
