@@ -217,6 +217,13 @@ def test_brief_name_idle_days_defaults_to_14_and_rejects_a_non_number(capsys):
     )
 
 
+def test_brief_archive_sweep_max_defaults_to_20_and_rejects_a_negative(capsys):
+    assert _parse_config({}).brief.archive_sweep_max == 20
+    assert _parse_config({"brief": {"archive_sweep_max": 0}}).brief.archive_sweep_max == 0
+    assert _parse_config({"brief": {"archive_sweep_max": -1}}).brief.archive_sweep_max == 20
+    assert "[brief] archive_sweep_max must be a whole number 0 or more" in capsys.readouterr().err
+
+
 def test_default_template_can_name_another_template():
     claude = ["emacsclient -nw .", "claude", ""]
     config = _parse_config({"tmux-session": {"templates": {"claude": claude, "default": "claude"}}})

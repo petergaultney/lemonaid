@@ -699,6 +699,7 @@ lemonaid brief hide --self [--show]          # add or remove `Hidden: yes`: out 
 lemonaid brief detach --self                   # the file stays
 lemonaid brief archive <Lemon-ID|brief>        # move it and its mailbox to ~/.lemons/attic/YYYY-MM/
 lemonaid brief archive --idle-days 30 --dry-run  # every brief unused for 30 days (drop --dry-run to move them)
+lemonaid brief archive --idle-days 30 --max 20   # move none if more than 20 are idle
 lemonaid brief revive <Lemon-ID>               # move it back, unattached
 lemonaid brief list --json                     # every brief file and the session it belongs to
 lemonaid place open feat/thing --brief <file>  # attach to the first lemon that starts in the new session

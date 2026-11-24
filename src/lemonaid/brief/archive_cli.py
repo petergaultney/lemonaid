@@ -7,6 +7,8 @@ from pathlib import Path
 from ..inbox import db
 from . import archive, identity, lemon, store
 
+_CHANNEL = "lemonaid:brief-sweep"
+
 
 def _brief(conn, target: str) -> Path:
     if identity.valid(target) and (path := lemon.brief_of(conn, target)) is not None:
@@ -22,9 +24,25 @@ def _brief(conn, target: str) -> Path:
     return path
 
 
-def _sweep(days: float, dry_run: bool) -> int:
+def _too_many(conn: sqlite3.Connection, found: int, days: float, most: int) -> int:
+    """Say in the inbox that the sweep moved nothing, since more than *most* looked idle."""
+    line = (
+        f"The brief sweep found {found} briefs unused for {days:g}+ days, more than the {most} "
+        "it may move at once (`[brief] archive_sweep_max`), so it moved none. "
+        f"`lemonaid brief archive --idle-days {days:g} --dry-run` lists them, and the same "
+        "command without --dry-run moves them."
+    )
+    print(line, file=sys.stderr)
+    db.add(conn, _CHANNEL, line, name="brief sweep")
+    return 1
+
+
+def _sweep(days: float, dry_run: bool, most: int) -> int:
     with db.connect() as conn:
         found = archive.idle(conn, days, time.time())
+        if most and len(found) > most and not dry_run:
+            return _too_many(conn, len(found), days, most)
+
         failed = 0
         for item in found:
             used = time.strftime("%Y-%m-%d", time.localtime(item.last)) if item.last else "never"
@@ -50,7 +68,7 @@ def _cmd_archive(args: argparse.Namespace) -> None:
         sys.exit(2)
 
     if args.idle_days is not None:
-        sys.exit(_sweep(args.idle_days, args.dry_run))
+        sys.exit(_sweep(args.idle_days, args.dry_run, args.most))
 
     with db.connect() as conn:
         try:
@@ -83,6 +101,13 @@ def add_parsers(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument("target", nargs="?", help="A Lemon-ID, or a brief's name or path")
     parser.add_argument(
         "--idle-days", type=float, help="Archive every brief nobody has used for this many days"
+    )
+    parser.add_argument(
+        "--max",
+        type=int,
+        default=0,
+        dest="most",
+        help="With --idle-days, move nothing when more briefs than this are idle (0: no limit)",
     )
     parser.add_argument("--dry-run", action="store_true", help="List what would move")
     parser.set_defaults(func=_cmd_archive)
