@@ -54,6 +54,7 @@ def test_codex_hooks_go_beside_the_users_own(tmp_path, monkeypatch):
     assert _commands(hooks_json, "Stop") == ["lemonaid hooks stop --harness codex"]
     assert _commands(hooks_json, "PreToolUse") == [
         install.own_change_command("codex"),
+        install.docs_command("codex"),
         "lemonaid codex turn",
     ]
     assert all("already installed" in line for line in again)
@@ -75,10 +76,19 @@ def test_claude_install_replaces_the_edit_and_write_only_hook(tmp_path):
 
     install.install("claude", settings)
 
-    for event in ("PreToolUse", "PostToolUse"):
-        assert _commands(settings, event) == [install.own_change_command("claude")]
+    assert _commands(settings, "PreToolUse") == [
+        install.own_change_command("claude"),
+        install.docs_command("claude"),
+    ]
+    assert _commands(settings, "PostToolUse") == [
+        install.own_change_command("claude"),
+        install.docs_created_command(),
+    ]
     assert _commands(settings, "Stop") == ["lemonaid claude waiter-check"]
-    assert _commands(settings, "SessionStart") == ["lemonaid hooks session-start --harness claude"]
+    assert _commands(settings, "SessionStart") == [
+        "lemonaid hooks session-start --harness claude",
+        install.docs_command("claude"),
+    ]
 
 
 def test_a_dry_run_changes_nothing(tmp_path):
@@ -118,7 +128,7 @@ def test_codex_session_start_takes_the_whole_context_doc(tmp_path):
 
     lines = install.install("codex", hooks_json)
 
-    (entry,) = json.loads(hooks_json.read_text())["hooks"]["SessionStart"]
+    entry, _ = json.loads(hooks_json.read_text())["hooks"]["SessionStart"]
     assert entry["hooks"] == [
         {
             "type": "command",
@@ -149,5 +159,44 @@ def test_codex_hooks_are_named_and_claude_hooks_are_not(tmp_path):
         "lemonaid: session-start",
         "lemonaid: session-end",
         "lemonaid: turn",
+        "lemonaid: docs",
     }
     assert "statusMessage" not in claude.read_text()
+
+
+def test_the_harness_waits_only_for_the_docs_session_start_hook(tmp_path):
+    for harness in install.HARNESSES:
+        install.install(harness, tmp_path / harness)
+        hooks = json.loads((tmp_path / harness).read_text())["hooks"]
+        starts = [
+            h for e in hooks["SessionStart"] for h in e["hooks"] if "hooks docs" in h["command"]
+        ]
+        assert [h.get("async") for h in starts] == [None]
+
+        docs = [
+            hook
+            for entries in json.loads((tmp_path / harness).read_text())["hooks"].values()
+            for entry in entries
+            for hook in entry["hooks"]
+            if "hooks docs" in hook["command"]
+        ]
+        assert len(docs) == (4 if harness == "claude" else 3)
+        assert all(hook.get("async") is True for hook in docs if hook not in starts)
+
+
+def test_reinstalling_makes_the_harness_wait_for_a_docs_session_start_hook_again(tmp_path):
+    for harness in install.HARNESSES:
+        path = tmp_path / harness
+        command = install.docs_command(harness)
+        earlier = {"type": "command", "command": command, "async": True}
+        path.write_text(json.dumps({"hooks": {"SessionStart": [{"hooks": [earlier]}]}}))
+
+        install.install(harness, path)
+
+        (start,) = [
+            h
+            for e in json.loads(path.read_text())["hooks"]["SessionStart"]
+            for h in e["hooks"]
+            if h["command"] == command
+        ]
+        assert "async" not in start

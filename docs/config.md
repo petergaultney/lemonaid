@@ -59,17 +59,21 @@ and [Codex's TUI keymap](https://learn.chatgpt.com/docs/config-file/config-basic
 
 ## `[docs]`
 
-Which docs a lemon loads when its session starts.
+Which docs a lemon loads when its session starts, and which it would be given as it works.
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `mode` | `"classic"` | The docs mode of a lemon started without `--docs`: `classic` or `packages`. |
 | `classic` | `""` | A Markdown file whose `@` imports name the always-loaded docs; unset gives Codex none. |
+| `roots` | `[]` | Folders whose docs declare packages and triggers in their frontmatter; see [doc-delivery.md](doc-delivery.md). |
+| `default-branch-check` | `""` | A shell command, run in a session's folder when it starts, that exits 0 when that folder is on its repo's default branch. A package for `branch: not-default` needs it. |
 
 ```toml
 [docs]
 mode = "classic"
 classic = "~/notes/always-loaded.md"
+roots = ["~/notes/lemons"]
+default-branch-check = 'test "$(git branch --show-current)" = main'
 ```
 
 In `classic` mode a lemon loads the docs `classic` names, the same in every session. Claude
@@ -85,6 +89,9 @@ fallback.
 `lemonaid lemon start --docs MODE` and `lemonaid place open --docs MODE` set the mode for
 one lemon. Its harness gets the mode in `LEMONAID_DOCS`, and the SessionStart hook records
 it for the session, so a resume started without the variable keeps it.
+
+With `roots` set, lemonaid's docs hook logs which docs each lemon would be given, in both
+modes, without giving it any yet: see [doc-delivery.md](doc-delivery.md).
 
 ## `[codex]`
 

@@ -8,12 +8,12 @@ Lemonaid can't build packages yet, so a lemon given `packages` gets `classic`, a
 the fallback is logged.
 """
 
-import os
 from pathlib import Path
 
 from .. import docs_config
 from ..config import Config
 from ..log import get_logger
+from . import paths
 
 ENV = "LEMONAID_DOCS"
 _BUILT = frozenset({"classic"})
@@ -46,11 +46,6 @@ def launch_environment(wanted: str) -> tuple[dict[str, str], str]:
     return {ENV: mode}, warning
 
 
-def _record(harness: str, session: str) -> Path:
-    state = Path(os.environ.get("LEMONAID_STATE_DIR") or "~/.local/state/lemonaid").expanduser()
-    return state / "docs" / "sessions" / f"{harness}-{session}"
-
-
 def _recorded(path: Path) -> str:
     try:
         return path.read_text().strip()
@@ -61,16 +56,21 @@ def _recorded(path: Path) -> str:
         return ""
 
 
-def session_mode(harness: str, session: str, launched: str, default: str) -> str:
+def current(harness: str, session: str, launched: str, default: str) -> str:
     """*session*'s mode: *launched* (its `LEMONAID_DOCS`), else the one recorded when it
-    last started, else *default*. Recorded for the session's next start."""
-    path = _record(harness, session) if session else None
-    mode = launched or (_recorded(path) if path else "")
+    last started, else *default*."""
+    mode = launched or (_recorded(paths.session_mode(harness, session)) if session else "")
     if mode and mode not in docs_config.MODES:
         _log.warning("unknown docs mode %r for %s-%s; using %s", mode, harness, session, default)
         mode = ""
-    mode = built(mode or default)
-    if path:
+    return built(mode or default)
+
+
+def session_mode(harness: str, session: str, launched: str, default: str) -> str:
+    """*session*'s `current` mode, recorded for its next start."""
+    mode = current(harness, session, launched, default)
+    if session:
+        path = paths.session_mode(harness, session)
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(mode)

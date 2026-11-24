@@ -68,7 +68,8 @@ def _with_hook(
     matcher: str = "",
     fields: ty.Mapping[str, object] = {},
 ) -> tuple[dict, bool]:
-    """`settings` plus a hook for `command` carrying `fields`, and whether anything changed."""
+    """`settings` plus a hook for `command` carrying `fields`, and whether anything changed.
+    A field set to None is removed from the hook."""
     hooks = settings.setdefault("hooks", {})
     entries = hooks.setdefault(event, [])
 
@@ -81,13 +82,21 @@ def _with_hook(
     if existing:
         stale = [hook for hook in existing if any(hook.get(k) != v for k, v in fields.items())]
         for hook in stale:
-            hook.update(fields)
+            hook.update({k: v for k, v in fields.items() if v is not None})
+            for key in [k for k, v in fields.items() if v is None]:
+                hook.pop(key, None)
         return settings, bool(stale)
 
     entries.append(
         {
             **({"matcher": matcher} if matcher else {}),
-            "hooks": [{"type": "command", "command": command, **fields}],
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": command,
+                    **{k: v for k, v in fields.items() if v is not None},
+                }
+            ],
         }
     )
     return settings, True
