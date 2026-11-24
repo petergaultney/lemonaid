@@ -463,3 +463,26 @@ def test_strip_drops_the_comments_it_removed_including_one_written_just_before(
     _run("strip", str(code))
 
     assert "lma:" not in code.read_text() and notice.unread_ids(code) == []
+
+
+def test_a_comment_written_while_the_inbox_is_unreachable_still_succeeds(
+    code, tmp_path, monkeypatch, capsys
+) -> None:
+    """Failing after the write would have a lemon that retries write the comment twice."""
+    import sqlite3
+
+    from lemonaid.comments import notice
+
+    def unreachable(*args, **kwargs):
+        raise sqlite3.OperationalError("unable to open database file")
+
+    monkeypatch.setattr(notice, "replied", unreachable)
+    brief = _brief(tmp_path)
+    monkeypatch.setattr("lemonaid.brief.command.own_brief", lambda args: (brief, ""))
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:hilly")
+
+    status = _run("add", str(code), "--lines", "4", "--self", "why?")
+
+    said = capsys.readouterr()
+    assert status == 0 and said.out.strip() in code.read_text()
+    assert "the inbox wasn't told" in said.err

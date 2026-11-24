@@ -379,9 +379,11 @@ Put your preferences for guides in `~/.lemons/skills/review-guide/overlay.md`.
 
 ## Known limits
 
-- A lemon's reply written into an editor's unsaved buffer, then removed from that buffer
-  before it is saved, was never in the file, so nothing tells the inbox it is gone; its
-  row stays unread until the person marks it read.
+- A reply's inbox row learns it is gone only when `lemonaid comments strip` or a save
+  in an editor running `lemonaid lsp` removes it. A reply that leaves the file another
+  way (a `git checkout` or `stash`, an editor without the server), or that was written
+  into an unsaved buffer and removed from it before any save, keeps its row unread
+  until the person marks it read.
 
 - In Markdown, a code span that runs over several lines, one of which is exactly
   `<!-- [lma:threads]`, is read as the threads section, and `strip` removes it. Write

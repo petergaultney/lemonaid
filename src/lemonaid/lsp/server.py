@@ -14,8 +14,8 @@ inbox row read.
 """
 
 import asyncio
-import contextlib
 import functools
+import logging
 import pathlib
 import typing as ty
 from collections import abc
@@ -28,6 +28,7 @@ from ..comments import edits, model, notice, operations, parse
 from . import bridge, documents, editing, positions, publish, sync
 from .documents import CommentsServer, Refused
 
+_LOG: ty.Final = logging.getLogger(__name__)
 THREADS: ty.Final = "lemonaid/threads"
 COMMENT: ty.Final = "lemonaid.comment"
 REPLY: ty.Final = "lemonaid.reply"
@@ -290,8 +291,12 @@ def _note_removed(ls: CommentsServer, document: documents.TextDocument) -> None:
     ls.held_since_save[uri] = notice.comment_ids(document.source, kind) if kind else None
     if held is None or kind is None or not document.path:
         return
-    with contextlib.suppress(Exception):  # an inbox we can't read must not stop the editor
+    try:
         notice.removed(pathlib.Path(document.path), held, document.source, kind)
+    except Exception:  # an inbox we can't read must not stop the editor
+        _LOG.warning(
+            "couldn't drop removed comments from %s's inbox rows", document.path, exc_info=True
+        )
 
 
 def _unread(document: documents.TextDocument) -> list[str]:

@@ -165,7 +165,12 @@ def _tell_the_inbox(a: argparse.Namespace, comment_id: str | None, body: str) ->
     a strip can't remove the comment between the write and the post and leave the row
     unread for good."""
     if a.use_self and comment_id:
-        notice.replied(a.target, a.author, comment_id, body, _own_channel())
+        try:
+            notice.replied(a.target, a.author, comment_id, body, _own_channel())
+        except (sqlite3.Error, OSError) as error:
+            # the comment is written, so the command succeeds: failing here would have a
+            # lemon that retries write it twice
+            print(f"{comment_id} is written, but the inbox wasn't told: {error}", file=sys.stderr)
     return comment_id or ""
 
 
