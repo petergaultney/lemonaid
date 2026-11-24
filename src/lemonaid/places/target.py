@@ -5,7 +5,7 @@ from collections import abc
 from pathlib import Path
 
 from .. import tmux
-from ..config import Config
+from ..config import Config, PlaceRoot
 from . import hooks, ownership, plan, session, workspace, workspace_purpose
 from .toss_target import TossTarget
 
@@ -172,15 +172,21 @@ def resolve_toss_target(
         return None, "Could not list managed places; nothing was closed"
 
     place = next((place for place in known if place.key == key), None)
+    unchecked: list[PlaceRoot] = []
     if place is None:
         for root in config.places.roots:
             directory, checked = hooks.directory_for_key_checked(root, key)
             if not checked:
-                return None, f"Could not resolve {key!r} under {root.path}; nothing was closed"
-
-            if directory is not None:
+                unchecked.append(root)
+            elif directory is not None:
                 place = ownership.Place(key, root, directory)
                 break
+
+    if place is None and unchecked:
+        return None, (
+            f"Could not resolve {key!r} under {', '.join(str(r.path) for r in unchecked)}; "
+            "nothing was closed"
+        )
 
     if place is None:
         return (

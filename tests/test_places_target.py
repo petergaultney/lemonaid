@@ -839,3 +839,53 @@ def test_unattended_bare_toss_of_own_dedicated_session_refuses_on_a_real_server(
         assert tmux("has-session", "-t", "=feat").returncode == 0
     finally:
         tmux("kill-server")
+
+
+def _unlisted_root(path: Path, path_of: str) -> PlaceRoot:
+    return PlaceRoot(path=path, destroy="release {key}", list="true", path_of=path_of)
+
+
+def test_a_failing_root_does_not_stop_the_next_root_from_finding_the_key(monkeypatch, tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b" / "wanted").mkdir(parents=True)
+    _panes(monkeypatch)
+    _attached_to(monkeypatch, None)
+    config = _config(
+        _unlisted_root(tmp_path / "a", "exit 1"),
+        _unlisted_root(tmp_path / "b", f"echo {tmp_path}/b/{{key}}"),
+    )
+
+    doomed, why_not = target.resolve_toss_target(config, "wanted")
+
+    assert why_not == ""
+    assert doomed is not None and doomed.place is not None
+    assert doomed.place.root.path == tmp_path / "b"
+
+
+def test_a_key_no_root_finds_is_refused_as_unchecked_when_a_root_failed(monkeypatch, tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    _panes(monkeypatch)
+    _attached_to(monkeypatch, None)
+    config = _config(
+        _unlisted_root(tmp_path / "a", "exit 1"),
+        _unlisted_root(tmp_path / "b", f"echo {tmp_path}/b/{{key}}"),
+    )
+
+    doomed, why_not = target.resolve_toss_target(config, "wanted")
+
+    assert doomed is None
+    assert f"Could not resolve 'wanted' under {tmp_path / 'a'}" in why_not
+    assert str(tmp_path / "b") not in why_not
+
+
+def test_a_key_every_root_checked_and_none_has_is_simply_unknown(monkeypatch, tmp_path):
+    (tmp_path / "a").mkdir()
+    _panes(monkeypatch)
+    _attached_to(monkeypatch, None)
+    config = _config(_unlisted_root(tmp_path / "a", f"echo {tmp_path}/a/{{key}}"))
+
+    doomed, why_not = target.resolve_toss_target(config, "wanted")
+
+    assert doomed is None
+    assert "No configured root has a directory for 'wanted'" in why_not
