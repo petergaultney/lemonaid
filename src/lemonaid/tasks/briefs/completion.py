@@ -12,6 +12,7 @@ import typing as ty
 from collections import abc
 from pathlib import Path
 
+from ... import pr_url
 from ...brief import identity
 from ...lineage import links
 from ..model import holding, identities, ledger
@@ -69,19 +70,30 @@ def _hand(conn: sqlite3.Connection, task: Task, holder_id: str, to: str) -> dict
         )
 
 
+def _a_reviews_pr(task: Task, reviewing: bool) -> bool:
+    return reviewing and pr_url.parse(task["subject_url"]) is not None
+
+
 def hand_to_parent(
-    conn: sqlite3.Connection, holder_id: str, tasks: abc.Iterable[Task]
+    conn: sqlite3.Connection,
+    holder_id: str,
+    tasks: abc.Iterable[Task],
+    reviewing: bool = False,
 ) -> tuple[list[str], list[Task], str]:
     """Hand each of *tasks* that *holder_id* holds to the nearest live lemon from its
     parent up; returns a line per handoff, the tasks that still keep the brief from being
-    done, and why when its parent has no live lemon above it."""
+    done, and why when its parent has no live lemon above it.
+
+    A *reviewing* brief keeps a task about a PR: a reviewer reports through its Status
+    and closes its own task when the PR merges or closes, so its lead never checks it.
+    """
     parent = checker(conn, holder_id)
     to = liveness.nearest(conn, parent) if parent else ""
     mine = {f"brief:{name}" for name in identities.names(conn, holder_id)}
     said: list[str] = []
     kept: list[Task] = []
     for task in tasks:
-        if not to or task["holder"] not in mine:
+        if not to or task["holder"] not in mine or _a_reviews_pr(task, reviewing):
             kept.append(task)
             continue
 
@@ -135,14 +147,20 @@ def hand_on_archive(conn: sqlite3.Connection, lemon_id: str) -> list[str]:
     return said
 
 
-def refusal(held: abc.Iterable[Task], why: str = "") -> str:
+def refusal(held: abc.Iterable[Task], why: str = "", reviewing: bool = False) -> str:
     return "\n".join(
         [
             *([f"{why}."] if why else []),
             "Refused: this brief still holds open tasks. Close each one, or give it to its next"
             " holder, then mark the brief done:",
             *(
-                f"- task:{t['task_id']} ({t['description']}):"
+                f"- task:{t['task_id']} ({t['description']}): a reviewer keeps its task and"
+                f" reports through its Status (`review`, then `approve`); close it with"
+                f" `lemonaid task close {t['task_id']} --reason ...` once the PR merges or"
+                f" closes, or give it back to the PR's author with"
+                f" `lemonaid task assign {t['task_id']} --to AUTHOR --reason ...`"
+                if _a_reviews_pr(t, reviewing)
+                else f"- task:{t['task_id']} ({t['description']}):"
                 f" `lemonaid task close {t['task_id']} --reason ...` or"
                 f" `lemonaid task assign {t['task_id']} --to BRIEF --reason ...`"
                 for t in held

@@ -82,6 +82,24 @@ def output_doc_values(output_doc: str, vaults: abc.Iterable[Path]) -> dict[str, 
     }
 
 
+_HAND_BACK = (
+    "You hold the PR's own task, taken from its author. Hand it back to the author once your"
+    " verdict is written (`lemonaid task assign TASK_ID --to AUTHOR --reason TEXT`), since the"
+    " author acts on it next, and set no status. "
+)
+_KEEP = (
+    "You hold a task of your own, because no lemon's task covers the PR. Keep it, and never"
+    " hand it to your parent: set Status `review` while you wait for the author's changes and"
+    " `approve` once the PR is clear. Once the maintainer's approving review is on the PR, `approve` is"
+    " stale: set `merge`, in every repo. Close the task when the PR merges or closes. "
+)
+
+
+def task_rule(mode: str) -> str:
+    """What a reviewer does with its task: *mode* is the task plan's, or "" for none."""
+    return {"new": _KEEP, "task": _HAND_BACK}.get(mode, "")
+
+
 def _tell(parent_id: str, author: str) -> str:
     return " and ".join(f"`lemonaid tell {to}`" for to in dict.fromkeys([parent_id, author]) if to)
 

@@ -97,12 +97,13 @@ def _cmd_status(args: argparse.Namespace) -> None:
         path, _ = command.own_brief(args)
         with db.connect() as conn:
             lemon_id, held = completion.open_tasks(conn, path) if path else ("", [])
-            handed, held, why = completion.hand_to_parent(conn, lemon_id, held)
+            reviewing = bool(path) and hidden.is_hidden(path.read_text())
+            handed, held, why = completion.hand_to_parent(conn, lemon_id, held, reviewing)
         for line in handed:
             print(line, file=sys.stderr)
         if held:
             result = {"path": str(path), "open_tasks": [t["task_id"] for t in held]}
-            command.finish(args, result, completion.refusal(held, why))
+            command.finish(args, result, completion.refusal(held, why, reviewing))
 
     if args.state in store.RETIRED:
         print(
