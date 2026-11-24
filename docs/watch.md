@@ -854,7 +854,8 @@ starts the host if none runs; the host runs a scout for each registration and st
 whose registration is removed or replaced. A scout that ends normally removes its own
 registration, and one that fails is tried again 30 seconds later. The host serves only
 registrations written against its own database, state and Claude directories, and exits
-after a minute with none.
+after a minute with none. It also starts the daily brief sweep (`[brief] archive_idle_days`
+in [config](config.md)); no other lemonaid command does.
 
 On macOS (and BSD) the host's scouts sleep on kqueue events instead of polling. An idle
 scout wakes when its brief, its mailbox directory, a watched doc or file, its children's

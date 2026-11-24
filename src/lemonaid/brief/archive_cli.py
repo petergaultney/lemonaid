@@ -1,21 +1,11 @@
 import argparse
-import os
 import sqlite3
-import subprocess
 import sys
 import time
 from pathlib import Path
 
-from ..audit import actor
-from ..config import load_config
 from ..inbox import db
-from ..log import LOG_PATH, get_logger
-from ..watch import reconcile, registry
 from . import archive, identity, lemon, store
-
-_log = get_logger("brief.archive_cli")
-_DAILY_SECONDS = 24 * 60 * 60
-COMMANDS = frozenset({"archive", "revive"})  # `brief` subcommands that start no daily sweep
 
 
 def _brief(conn, target: str) -> Path:
@@ -83,40 +73,6 @@ def _cmd_revive(args: argparse.Namespace) -> None:
         except (LookupError, OSError, ValueError) as error:
             print(f"Not revived: {error}", file=sys.stderr)
             sys.exit(1)
-
-
-def _stamp() -> Path:
-    return registry.root() / "brief-archive-sweep"
-
-
-def daily() -> None:
-    """Start a background sweep under `[brief] archive_idle_days`, at most once a day."""
-    days = load_config().brief.archive_idle_days
-    try:
-        if not days or time.time() - _stamp().stat().st_mtime < _DAILY_SECONDS:
-            return
-    except FileNotFoundError:
-        pass
-    if reconcile.editable_install():
-        return
-
-    _stamp().parent.mkdir(parents=True, exist_ok=True)
-    _stamp().touch()
-    try:
-        with LOG_PATH.open("a") as log:
-            subprocess.Popen(
-                [sys.executable, "-m", "lemonaid", "brief", "archive", "--idle-days", str(days)],
-                env={
-                    **{k: v for k, v in os.environ.items() if k != "CODEX_THREAD_ID"},
-                    actor.ACTOR_ENV: "idle sweep",
-                },
-                stdin=subprocess.DEVNULL,
-                stdout=log,
-                stderr=log,
-                start_new_session=True,
-            )
-    except OSError as error:
-        _log.warning("could not start the brief archive sweep: %s", error)
 
 
 def add_parsers(subparsers: argparse._SubParsersAction) -> None:

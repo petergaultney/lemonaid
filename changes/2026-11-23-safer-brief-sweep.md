@@ -7,3 +7,4 @@
 #### Changed
 
 - **lemonaid won't run with only part of its storage redirected.** When some of the database, the state directory, the briefs and the mailboxes point away from their defaults and others don't, every `lemonaid` and `lma` command exits and names each with its path.
+- **Only the scout host starts the daily brief sweep.** Any lemonaid command used to start it, harness hooks included, and two could start it at once.
