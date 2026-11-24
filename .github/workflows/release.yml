@@ -6,7 +6,9 @@ name: release
 # partway). Otherwise it requires the latest main commit's tests to pass and, if change
 # files were added since the highest tag and its workflow files match main's, tags that
 # commit with the next version. The tagged build is published to PyPI as lemonaid-inbox
-# and given a GitHub Release whose notes are those files. It never commits to main.
+# and given a GitHub Release whose notes are those files. It never commits to main. A run fails
+# when a release was due but deferred (tests not green, workflow files changed, main moved) and
+# succeeds when there was nothing to release.
 on:
   schedule:
     - cron: "7 1 * * *"
@@ -56,6 +58,15 @@ jobs:
 
           git fetch origin main
           sha=$(git rev-parse FETCH_HEAD)
+          status=0
+          version=$(uv run --no-project scripts/release.py version --since "v$latest" --until "$sha") || status=$?
+          if [ "$status" -eq 2 ]; then
+            echo "nothing to release at $sha"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$status" -eq 0 ] || exit "$status"
+
           deadline=$((SECONDS + 900))
           while true; do
             test_status=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow test --branch main --event push --commit "$sha" --limit 1 --json status,conclusion --jq '.[0] | if . == null then "missing" elif .status == "completed" then .conclusion else .status end')
@@ -76,26 +87,19 @@ jobs:
             echo "::warning::$message"
             echo "$message" >> "$GITHUB_STEP_SUMMARY"
             echo "release=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            exit 1
           fi
-
-          status=0
-          version=$(uv run --no-project scripts/release.py version --since "v$latest" --until "$sha") || status=$?
-          if [ "$status" -eq 2 ]; then
-            echo "nothing to release at $sha"
-            echo "release=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          [ "$status" -eq 0 ] || exit "$status"
 
           # GitHub refuses to let this token create a ref at a commit whose workflow
           # files differ from main's, by git push or through the API.
           status=0
           git diff --quiet "$sha" HEAD -- .github/workflows || status=$?
           if [ "$status" -eq 1 ]; then
-            echo "workflow files changed on main after $sha: waiting for a newer commit to pass the test workflow"
+            message="Release deferred: workflow files changed on main after $sha. Rerun once a newer commit passes the test workflow."
+            echo "::warning::$message"
+            echo "$message" >> "$GITHUB_STEP_SUMMARY"
             echo "release=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            exit 1
           fi
           [ "$status" -eq 0 ] || exit "$status"
 
@@ -105,7 +109,7 @@ jobs:
             echo "::warning::$message"
             echo "$message" >> "$GITHUB_STEP_SUMMARY"
             echo "release=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            exit 1
           fi
 
           # Fails, rather than moving it, if the tag already exists.
