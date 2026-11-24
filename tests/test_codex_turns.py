@@ -214,3 +214,24 @@ def test_whatever_order_hooks_arrive_in_the_latest_turn_decides(row, codex_recor
     after = _row()
     assert lemonaid.inbox.turns.mid_turn(after, time.time()) is (started > ended)
     assert after.metadata.get("turn_ended_id", "") == ended
+
+
+def test_a_model_request_records_the_window_its_rollout_reports(tmp_path):
+    rollout = tmp_path / "rollout.jsonl"
+    event = {
+        "type": "event_msg",
+        "payload": {"type": "token_count", "info": {"model_context_window": 475_000}},
+    }
+    rollout.write_text("cut off mid-rec\n" + json.dumps(event) + "\n")
+    with db.connect() as conn:
+        db.add(
+            conn,
+            _CHANNEL,
+            "Waiting",
+            metadata={"session_id": _THREAD, "session_path": str(rollout)},
+            status="unread",
+        )
+
+    _hook("PostModelRequest", status="completed", token_usage={"input_tokens": 41_000})
+
+    assert _row().metadata["context_window"] == 475_000
