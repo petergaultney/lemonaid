@@ -64,13 +64,15 @@ test("a list's other page keeps PRs and branch clear of the model, however long"
   vm.createContext(page);
   vm.runInContext(source("otherPage"), page);
   const right = 60 * 8, model = right - 16 * 8;
-  const lemon = {prs: [["6541", ""], ["6700", ""], ["6721", ""]], branch: "a/" + "b".repeat(80), model: "Sonnet 5.5", context: "42%"};
+  const lemon = {prs: [["6541", ""], ["6700", ""], ["6721", ""]], branch: "a/" + "b".repeat(80), model: "Sonnet 5.5", context: "42%", age: "4m ago"};
 
   vm.runInContext("otherPage(lemon, 7 * 8, right, 0)", Object.assign(page, {lemon, right}));
   const before = runs.filter(r => r.x < model);
   assert.ok(before.length >= 2, "nothing drawn before the model column");
   for (const r of before) assert.ok(r.end <= model - 8, `${r.s} runs to ${r.end}, into the model at ${model}`);
   assert.ok(runs.some(r => r.x === model && r.s === "Sonnet 5.5"));
+  assert.ok(runs.some(r => r.s === "4m" && r.end === right), "the age is not drawn at the right edge");
+  assert.ok(!runs.some(r => r.s === "42%"), "the context is drawn on the other page");
 });
 
 function usage() {

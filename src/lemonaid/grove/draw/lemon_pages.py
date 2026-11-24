@@ -14,7 +14,7 @@ TEXT = 10  # where a row's text starts, after its key, dot and emoji
 # The WordyBin's column, and on the other page the model's, as long as `Sonnet 5.5`, counted
 # from the list's right edge
 _WHO, _WHO_WIDTH = 16, 10
-_LAST_END = 3  # from the right edge, right-aligned, up to four cells: the age, or the context
+_LAST_END = 3  # from the right edge, right-aligned, up to four cells: the context, or the age
 # Statuses that ask something of the user, which the name page names as well as colors.
 _ASKING = ("blocked", "alert", "merge", "approve")
 
@@ -61,7 +61,7 @@ def name_first(canvas: Canvas, x: int, y: int, lemon: Lemon, panel: str, width: 
         limit=who - 1 - TEXT - (len(tag) + 1 if tag else 0),
     )
     text(canvas, x + who, y, lemon.brief_id, colors.MUTED, panel, limit=_WHO_WIDTH)
-    _age(canvas, x + width - _LAST_END, y, lemon, panel)
+    _context(canvas, x + width - _LAST_END, y, lemon, panel)
 
 
 def where_and_when(canvas: Canvas, x: int, y: int, lemon: Lemon, panel: str, width: int) -> None:
@@ -85,4 +85,4 @@ def where_and_when(canvas: Canvas, x: int, y: int, lemon: Lemon, panel: str, wid
     text(
         canvas, x + width - _WHO, y, lemon.model, colors.model_color(lemon), panel, limit=_WHO_WIDTH
     )
-    _context(canvas, x + width - _LAST_END, y, lemon, panel)
+    _age(canvas, x + width - _LAST_END, y, lemon, panel)

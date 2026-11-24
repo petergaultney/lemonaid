@@ -672,12 +672,12 @@ function drawTag(b, t, x, y, parts) {
 }
 
 // A tree's lemon list as the terminal draws it (lemon_list.py): its tag is the list's title, set in
-// the top border and followed by the place key; a row per lemon: key, dot, name, status, Brief-ID, age.
+// the top border and followed by the place key; a row per lemon: key, dot, name, status, Brief-ID, context use.
 const ASKS = ["blocked", "alert", "merge", "approve", "review", "running"];
 // The border runs half a column inside the box on every side, the title set over its top line;
 // inside it, a column of room across, and a pad below the title and below the last row.
 // A row's other page, as the terminal's (draw/lemon_pages.py, `where_and_when`): its PRs and branch,
-// then its model and how much of its context it has used, between *x* and *right*.
+// then its model and how long since it reported, between *x* and *right*.
 const BRANCH = "#d16ad8";
 function otherPage(l, x, right, y) {
   const model = right - CW * 16, room = Math.floor((model - x) / CW) - 1;  // a column short of the model
@@ -692,8 +692,8 @@ function otherPage(l, x, right, y) {
   const left = room - at;
   txt(where.length > left ? where.slice(0, Math.max(0, left - 1)) + "…" : where, x + CW * at, y, l.jump_problem ? "#e5534b" : BRANCH, null, 600);
   txt((l.model || "").slice(0, 10), model, y, "#9aa3ad", null, 600);
-  const used = (l.context || "").slice(-4), pct = parseInt(used, 10);
-  txt(used, right - CW * used.length, y, pct >= 80 ? "#e5534b" : pct >= 60 ? "#f2c14e" : "#9aa3ad", null, 600);
+  const age = l.age.replace(" ago", "");
+  txt(age, right - CW * age.length, y, "#9aa3ad", null, 500);
 }
 function drawList(b, t, x, y, w, parts) {
   const cols = Math.floor(w / CW), bw = cols * CW, h = listHeight(t, RH), pad = listPad(RH), edge = mix(b.color || "#8b949e", BG, 0.25);
@@ -705,7 +705,7 @@ function drawList(b, t, x, y, w, parts) {
   txt(` ${t.key} `.slice(0, Math.max(0, Math.floor((x + bw - after) / CW) - 2)), after, y, "#9aa3ad", "rgba(13,17,23,1)", 500);
   const left = x + CW * 1.5, right = x + bw - CW * 1.5, nameW = cols - 36;
   t.lemons.forEach((l, j) => {
-    const ly = y + RH + pad + RH * j, c = STATUS[l.status] || "#8b949e", key = j ? `.${t.letter}${j}` : t.letter, age = l.age.replace(" ago", "");
+    const ly = y + RH + pad + RH * j, c = STATUS[l.status] || "#8b949e", key = j ? `.${t.letter}${j}` : t.letter;
     listMarks.push({x: left - CW, y: ly, w: right - left + 2 * CW, h: RH, lemon: l});
     if (l.pinned) { ctx.fillStyle = "#c9d1d9"; ctx.fillRect(x + CW * 0.25, ly + RH * 0.15, CW * 0.5, RH * 0.7); }  // in the left border, as the terminal marks a pin
     txt(key, left + CW * (3 - key.length), ly, STATUS[l.status] || "#c9d1d9", null, 800);  // as the terminal grove colors it
@@ -717,7 +717,8 @@ function drawList(b, t, x, y, w, parts) {
     txt(name.length > room ? name.slice(0, room - 1) + "…" : name, left + CW * (l.emoji ? 8 : 6), ly, TEXT, null, 700);
     if (ASKS.includes(l.status)) txt(l.status, right - CW * 25, ly, c, null, 700);
     txt((l.brief_id || "").slice(0, 10), right - CW * 16, ly, "#7c8696", null, 500);
-    txt(age, right - CW * age.length, ly, "#9aa3ad", null, 500);
+    const used = (l.context || "").slice(-4), pct = parseInt(used, 10);
+    txt(used, right - CW * used.length, ly, pct >= 80 ? "#e5534b" : pct >= 60 ? "#f2c14e" : "#9aa3ad", null, 600);
   });
   return h;
 }

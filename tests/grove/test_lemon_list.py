@@ -27,7 +27,7 @@ def _row(lemon, flipped=False):
     return canvas.plain_lines(picture)[1]
 
 
-def test_a_row_names_the_session_then_its_wordybin_and_age():
+def test_a_row_names_the_session_then_its_wordybin_and_context():
     wordy = dataclasses.replace(
         lemon("claude:a", "FilmyBoy", "review"),
         name="REVIEW #411 grove context colors and much more",
@@ -35,9 +35,9 @@ def test_a_row_names_the_session_then_its_wordybin_and_age():
         age="1d ago",
     )
     row = _row(wordy)
-    assert "REVIEW #411 grove context" in row and "Opus" not in row and "100%" not in row
+    assert "REVIEW #411 grove context" in row and "Opus" not in row and "1d" not in row
     assert "review" not in row.replace("REVIEW", "")
-    assert "FilmyBoy    1d" in row
+    assert "FilmyBoy  100%" in row
     assert len(row) <= lemon_list.WIDTH
 
 
@@ -48,11 +48,11 @@ def test_a_status_that_asks_for_the_user_is_named_beside_the_session():
 
 
 def test_a_pinned_row_marks_the_lists_border_and_leaves_its_columns_alone():
-    pinned = dataclasses.replace(lemon("claude:a"), pinned=True, age="4m ago")
-    assert _row(pinned).startswith("▐ t") and _row(pinned).endswith("4m │")
+    pinned = dataclasses.replace(lemon("claude:a"), pinned=True, context="41%")
+    assert _row(pinned).startswith("▐ t") and _row(pinned).endswith("41% │")
 
 
-def test_flipped_a_row_says_where_which_model_and_its_context():
+def test_flipped_a_row_says_where_which_model_and_its_age():
     placed = dataclasses.replace(
         lemon("claude:a", "FilmyBoy"),
         model="Sonnet 5.5",
@@ -63,8 +63,8 @@ def test_flipped_a_row_says_where_which_model_and_its_context():
         context="41%",
     )
     row = _row(placed, flipped=True)
-    assert row.index("#411 show-more") < row.index("Sonnet 5.5") < row.index(" 41%")
-    assert "4m" not in row
+    assert row.index("#411 show-more") < row.index("Sonnet 5.5") < row.index(" 4m")
+    assert "41%" not in row
     assert "FilmyBoy" not in row and "lemon claude:a" not in row
 
 
@@ -109,9 +109,7 @@ def test_a_lemons_context_is_colored_as_the_inbox_colors_it():
         for c, n in (("100%", "Full"), ("5%", "Light"))
     )
     picture = canvas.blank(lemon_list.WIDTH + 2, 5)
-    lemon_list.draw(
-        picture, 0, 0, tree("t", full, light), "t", "#6495ed", 0.0, None, False, flipped=True
-    )
+    lemon_list.draw(picture, 0, 0, tree("t", full, light), "t", "#6495ed", 0.0, None, False)
     percent = [next(c for c in row if c.char == "%") for row in picture.rows[1:3]]
     assert [c.fg for c in percent] == [colors.reading_color("100%"), colors.reading_color("5%")]
     assert colors.reading_color("100%") == "#ff3c1e"  # the inbox's red at the threshold
@@ -199,9 +197,9 @@ def test_a_list_widens_with_the_screen_within_its_bounds():
 
 def test_a_wider_list_gives_its_extra_cells_to_the_name():
     long = dataclasses.replace(
-        lemon("claude:a", "FilmyBoy"), name="REVIEW #411 grove context colors", age="4m ago"
+        lemon("claude:a", "FilmyBoy"), name="REVIEW #411 grove context colors", context="41%"
     )
     picture = canvas.blank(74, 4)
     lemon_list.draw(picture, 0, 0, tree("t", long), "t", "#6495ed", 0.0, None, False, width=72)
     row = canvas.plain_lines(picture)[1]
-    assert "REVIEW #411 grove context colors" in row and row.endswith("FilmyBoy    4m │")
+    assert "REVIEW #411 grove context colors" in row and row.endswith("FilmyBoy   41% │")
