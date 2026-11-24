@@ -4,7 +4,7 @@ UserPromptSubmit starts a turn, PreToolUse says what it is doing, and the notify
 turn-complete or the Interrupt hook ends it. Codex runs these hooks concurrently, so each
 carries its turn's ID: a late report of an ended turn doesn't reopen it, and a late
 interrupt doesn't end the turn after it. Why they run async rather than in order:
-docs/decisions/codex-turn-hooks-run-async.md. PostModelRequest gives the context used.
+docs/decisions/codex-turn-hooks-run-async.md. PostModelRequest gives the context used; its window comes from the rollout.
 Every hook also names the model.
 """
 
@@ -15,7 +15,7 @@ import typing as ty
 
 from ..inbox import db
 from ..log import get_logger
-from . import channels, queued
+from . import channels, queued, rollout_window
 
 _log = get_logger("codex.turns")
 
@@ -85,8 +85,15 @@ def record(data: dict) -> None:
         elif event == "Interrupt":
             db.record_turn_end(conn, channel, turn, now, interrupted=True)
         elif event == "PostModelRequest" and isinstance(usage := data.get("token_usage"), dict):
-            # Every input token is in the context; Codex reports no window size.
-            db.record_context(conn, channel, int(usage.get("input_tokens") or 0), 0)
+            # Every input token is in the context; the hook reports no window size, so the
+            # rollout, which does, is read until one is recorded.
+            row = db.get_by_channel(conn, channel, unread_only=False)
+            known = row is not None and row.metadata.get("context_window")
+            rollout = (row.metadata.get("session_path") if row else "") or data.get(
+                "transcript_path"
+            )
+            window = 0 if known or not isinstance(rollout, str) else rollout_window.read(rollout)
+            db.record_context(conn, channel, int(usage.get("input_tokens") or 0), window)
     _log.info("recorded %s: channel=%s", event, channel)
 
 
