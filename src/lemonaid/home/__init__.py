@@ -7,6 +7,7 @@ from . import (
     mailbox_move,
     migrate,
     reconcile,
+    redirects,
     rollback,
 )
 
@@ -19,5 +20,6 @@ __all__ = [
     "mailbox_move",
     "migrate",
     "reconcile",
+    "redirects",
     "rollback",
 ]

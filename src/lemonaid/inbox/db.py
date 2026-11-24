@@ -107,22 +107,22 @@ class Notification:
         return self.status == "snoozed"
 
 
+def default_db_path() -> Path:
+    return Path.home() / ".local" / "share" / "lemonaid" / "lemonaid.db"
+
+
 def get_db_path() -> Path:
     """Where the inbox lives, `LEMONAID_DB` overriding the XDG default.
 
-    The override is what makes it safe to run a second `lma` against invented
-    sessions - a demo, a screenshot, an experiment - without the watchers of
-    either one archiving the other's rows.
+    The override, with the rest of lemonaid's storage (`home.redirects`), is what
+    makes it safe to run a second `lma` against invented sessions - a demo, a
+    screenshot, an experiment - without the watchers of either one archiving the
+    other's rows.
     """
     override = os.environ.get("LEMONAID_DB")
-    if override:
-        path = Path(override).expanduser()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        return path
-
-    lemonaid_dir = Path.home() / ".local" / "share" / "lemonaid"
-    lemonaid_dir.mkdir(parents=True, exist_ok=True)
-    return lemonaid_dir / "lemonaid.db"
+    path = Path(override).expanduser() if override else default_db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def _init_schema(conn: sqlite3.Connection) -> None:

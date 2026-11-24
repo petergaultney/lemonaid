@@ -57,7 +57,7 @@ Every form takes `--json`.
 
 **Rollback.** `--rollback` pauses and takes the lock as the migration does, then refuses, lifting the pause and changing nothing, unless the new home holds exactly what was copied: no brief edited, no message sent or read, nothing added. Then it rewrites the database back, renames the backup to `~/.brief-lemons/`, and moves the copies out of the new home into `migrations/<stamp>/rolled-back/`. Nothing is deleted.
 
-**Rehearsing.** `LEMONAID_LEMONS_DIR`, `LEMONAID_LEGACY_BRIEFS_DIR`, and `LEMONAID_DB` point a migration at copies. `LEMONAID_BRIEFS_DIR` or `LEMONAID_MESSAGES_DIR` pin one folder, and the migration refuses while either is set. `scripts/sandbox` sets all of them to folders in `.z/sandbox/`.
+**Rehearsing.** `LEMONAID_LEMONS_DIR`, `LEMONAID_LEGACY_BRIEFS_DIR`, `LEMONAID_DB` and `LEMONAID_STATE_DIR` point a migration at copies. lemonaid won't run with only some of the database, the state directory, the briefs and the mailboxes redirected, so set them together. Before cutover the briefs are in `~/.brief-lemons/`, so `LEMONAID_LEGACY_BRIEFS_DIR` is needed too. `LEMONAID_BRIEFS_DIR` or `LEMONAID_MESSAGES_DIR` pin one folder, and the migration refuses while either is set. `scripts/sandbox` sets all of them to folders in `.z/sandbox/`.
 
 ## Rollout on a machine with running lemons
 

@@ -15,14 +15,22 @@ MAILBOX = "mailbox"
 OLD_MAILBOX = "inbox"  # the mailbox root's name before 0.142
 
 
+def default_lemons_dir() -> Path:
+    return Path.home() / ".lemons"
+
+
+def default_legacy_dir() -> Path:
+    return Path.home() / ".brief-lemons"
+
+
 def lemons_dir() -> Path:
     override = os.environ.get("LEMONAID_LEMONS_DIR")
-    return Path(override) if override else Path.home() / ".lemons"
+    return Path(override) if override else default_lemons_dir()
 
 
 def legacy_dir() -> Path:
     override = os.environ.get("LEMONAID_LEGACY_BRIEFS_DIR")
-    return Path(override) if override else Path.home() / ".brief-lemons"
+    return Path(override) if override else default_legacy_dir()
 
 
 def cut_over() -> bool:
