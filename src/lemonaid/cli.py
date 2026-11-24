@@ -16,6 +16,7 @@ import lemonaid.codex.service
 import lemonaid.groups.cli
 import lemonaid.grove.cli
 import lemonaid.home.cli
+import lemonaid.home.redirects
 import lemonaid.hooks.cli
 import lemonaid.inbox.cli
 import lemonaid.lemon_keys.cli
@@ -143,7 +144,14 @@ def setup_mark_unread_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.set_defaults(func=cmd_mark_unread)
 
 
+def _refuse_split_home() -> None:
+    if why := lemonaid.home.redirects.partial():
+        print(why, file=sys.stderr)
+        sys.exit(1)
+
+
 def main() -> None:
+    _refuse_split_home()
     parser = argparse.ArgumentParser(
         prog="lemonaid",
         description="Toolkit for working with lemons (LLMs)",
@@ -224,6 +232,7 @@ def inbox_main() -> None:
 
     from .inbox.tui import LemonaidApp, set_terminal_title
 
+    _refuse_split_home()
     parser = argparse.ArgumentParser(prog="lma", description="Lemonaid attention inbox")
     parser.add_argument(
         "--scratch",
