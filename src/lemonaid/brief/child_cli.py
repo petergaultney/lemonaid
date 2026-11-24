@@ -83,6 +83,7 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
             )
         except ledger.Refused as cause:
             raise child.Problem(str(cause)) from None
+    values = {**values, "task_rule": child.task_rule(task_plan.mode if task_plan else "")}
     title = args.title.strip()
     name = store.slug(args.slug or title)
     try:

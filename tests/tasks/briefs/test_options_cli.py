@@ -404,3 +404,19 @@ def test_creating_a_task_for_a_running_brief_tells_it(capsys):
     assert state["attached_at"] is not None
     told = [p.read_text() for p in store.mailbox_for_id(running["lemon_id"]).glob("*.md")]
     assert len(told) == 1 and f"You now hold task:{created['task_id']}" in told[0]
+
+
+def test_a_review_brief_names_only_the_task_rule_that_applies(capsys, review):
+    with db.connect() as conn:
+        work = new_task(conn, brief_id=_PARENT, sponsor="")
+
+    taken = _run(capsys, *review, "--task", f"task:{work}", "Review ours")
+    own = _run(capsys, *review, "--new-task", "Review a teammate's PR")
+
+    taken_text = Path(taken["path"]).read_text()
+    own_text = Path(own["path"]).read_text()
+    assert "Hand it back to the author" in taken_text
+    assert "Keep it" not in taken_text
+    assert "Keep it, and never hand it to your parent" in own_text
+    assert "Hand it back" not in own_text
+    assert "set `merge`, in every repo" in own_text

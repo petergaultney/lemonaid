@@ -9,7 +9,7 @@ from lemonaid.brief.store import briefs_dir as store_dir
 from lemonaid.inbox import db
 from lemonaid.lineage import links
 from lemonaid.messages import store
-from lemonaid.tasks.briefs import notices, planning, registration
+from lemonaid.tasks.briefs import completion, notices, planning, registration
 from lemonaid.tasks.model import associations, holding, ledger
 
 from ..shared import new_task
@@ -187,3 +187,16 @@ def test_a_running_parent_handed_an_archived_task_has_started_it(dead):
         archive.archive(conn, lemon.brief_of(conn, child), 0.0, why="test")
 
         assert ledger.state(conn, task)["attached_at"] is not None
+
+
+def test_a_reviewer_done_keeps_its_pr_task_rather_than_handing_it_to_its_lead(capsys, dead):
+    child = _child(capsys)
+    with db.connect() as conn:
+        ledger.state(conn, child["task_id"])
+        task = holding.held_by(conn, child["lemon_id"])
+        task = [{**t, "subject_url": "https://github.com/acme/widgets/pull/12"} for t in task]
+        handed, kept, _ = completion.hand_to_parent(conn, child["lemon_id"], task, True)
+        assert handed == [] and [t["task_id"] for t in kept] == [child["task_id"]]
+        assert "keeps its task" in completion.refusal(kept, "", True)
+        handed, kept, _ = completion.hand_to_parent(conn, child["lemon_id"], task, False)
+    assert len(handed) == 1 and kept == []
