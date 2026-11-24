@@ -13,60 +13,11 @@ Attached briefs supply document subscriptions even between one-shot waits.
 
 import json
 import pathlib
-import re
 import sys
-import typing as ty
-from collections import abc
 
 from ..config import load_config
 from ..watch import own_edits, own_pushes, subscriptions
-from . import session_brief, session_gate
-
-_EXEC_CALL = re.compile(r"exec_command\s*\(")
-# The call's `cmd` property, its key quoted or bare, its value any JavaScript string literal.
-_CMD_PROPERTY = re.compile(
-    r"""(?:["']cmd["']|\bcmd)\s*:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)""",
-    re.DOTALL,
-)
-
-
-def _strings(value: ty.Any) -> abc.Iterator[str]:
-    """Every string anywhere in a tool's input or response, whose shape varies by tool and harness."""
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, dict):
-        for v in value.values():
-            yield from _strings(v)
-    elif isinstance(value, list):
-        for v in value:
-            yield from _strings(v)
-
-
-def _unquoted(literal: str) -> str:
-    """A JavaScript string literal's text, near enough to read shell words from."""
-    if literal[0] == '"':
-        try:
-            return json.loads(literal)
-        except json.JSONDecodeError:
-            pass
-    return re.sub(r"\\(.)", lambda m: {"n": "\n", "t": "\t"}.get(m[1], m[1]), literal[1:-1])
-
-
-def _commands(tool_input: ty.Any) -> abc.Iterator[str]:
-    """The shell commands a tool call runs: Claude's `command`, Codex's `cmd`, and the
-    `cmd` of each `tools.exec_command({...})` inside Codex's wrapped `exec` script."""
-    script = tool_input
-    if isinstance(tool_input, dict):
-        yield from _strings(tool_input.get("command"))
-        yield from _strings(tool_input.get("cmd"))
-        script = tool_input.get("input")
-    for text in _strings(script):
-        if "*** Begin Patch" in text:
-            continue
-
-        for call in _EXEC_CALL.finditer(text):
-            if found := _CMD_PROPERTY.search(text, call.end()):
-                yield _unquoted(found.group(1))
+from . import session_brief, session_gate, tool_calls
 
 
 def record(data: dict, harness: str, own_root: pathlib.Path) -> None:
@@ -76,7 +27,7 @@ def record(data: dict, harness: str, own_root: pathlib.Path) -> None:
 
     writer = f"{harness}-{session_id}"
     call = str(data.get("tool_use_id") or "tool")  # without an ID, calls are assumed sequential
-    named = "\n".join(_strings(data.get("tool_input")))
+    named = "\n".join(tool_calls.strings(data.get("tool_input")))
     docs = set(own_edits.watched(own_root, writer))
     path = session_brief.attached(data, harness)
     session_gate.mark(own_root, writer, path)
@@ -96,10 +47,12 @@ def record(data: dict, harness: str, own_root: pathlib.Path) -> None:
         elif event == "PostToolUse":
             own_edits.after_edit(own_root, writer, key, doc)
     if event == "PostToolUse" and any(
-        own_pushes.is_push(s) for s in _strings(data.get("tool_input"))
+        own_pushes.is_push(s) for s in tool_calls.strings(data.get("tool_input"))
     ):
         own_pushes.record(
-            own_root, writer, own_pushes.heads_in("\n".join(_strings(data.get("tool_response"))))
+            own_root,
+            writer,
+            own_pushes.heads_in("\n".join(tool_calls.strings(data.get("tool_response")))),
         )
 
 
@@ -107,7 +60,7 @@ def refusal(data: dict) -> str:
     """Why this tool call must not run, or "". Only commands are read, so an edit whose text
     mentions a quiet push is not refused."""
     if data.get("hook_event_name") != "PreToolUse" or not any(
-        own_pushes.hides_heads(c) for c in _commands(data.get("tool_input"))
+        own_pushes.hides_heads(c) for c in tool_calls.commands(data.get("tool_input"))
     ):
         return ""
 

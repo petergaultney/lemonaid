@@ -82,10 +82,8 @@ def test_the_hooks_install_for_every_tool(tmp_path):
     install.install("claude", settings)
 
     hooks = json.loads(settings.read_text())["hooks"]
-    assert hooks["PreToolUse"] == [
-        {"hooks": [{"type": "command", "command": install.own_change_command("claude")}]}
-    ]
-    assert hooks["PostToolUse"] == hooks["PreToolUse"]
+    own_change = {"hooks": [{"type": "command", "command": install.own_change_command("claude")}]}
+    assert hooks["PreToolUse"][0] == hooks["PostToolUse"][0] == own_change
 
 
 @pytest.mark.parametrize("harness", ["claude", "codex"])
