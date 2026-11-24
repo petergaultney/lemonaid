@@ -15,13 +15,14 @@ lemonaid audit --json                  # the same, as a JSON list
 
 | Action | When | `why` |
 |---|---|---|
-| `brief-archive` | A brief and its mailbox move to the attic, from `brief archive`, the idle sweep or a place toss. | `by hand`, `idle sweep: unused N+ days`, `place toss` |
+| `brief-archive` | A brief and its mailbox move to the attic, from `brief archive`, the idle sweep, a place toss or `lemon end`. | `by hand`, `idle sweep: unused N+ days`, `place toss`, `lemon end` |
 | `brief-revive` | An archived brief comes back, from `brief revive` or a message that resumes an archived lemon. | `by hand`, `resume of an archived lemon` |
 | `brief-edit` | A brief verb (`status`, `now`, `bullet`, `section`, `pr`, `doc`, `lemon`, `watching`, `hide`) or the inbox changes a brief that isn't the editor's own. | (the command line is in `argv`) |
 | `lemon-parent` | `lemon parent --set` or `--clear`. | `set to <Lemon-ID>`, `cleared` |
 | `lemon-restart` | `lemon restart` stops and resumes a lemon. | `forced` with `--force` |
+| `lemon-end` | `lemon end` ends a lemon. | `by <Lemon-ID>` of the lemon that asked, or `by user` from a shell |
 | `lemon-move` | `lemon move` stops a lemon and resumes it in another place; `from` and `to` are the two directories, and `claude_trust` is true when it recorded Claude's trust in `to`. | `forced` with `--force` |
-| `inbox-archive` | A card leaves the inbox: `inbox archive`, the inbox's archive key, a place toss, or the inbox watcher's auto-archive of an ended session. | the command, or the watcher's reason and evidence |
+| `inbox-archive` | A card leaves the inbox: `inbox archive`, the inbox's archive key, a place toss, `lemon end`, or the inbox watcher's auto-archive of an ended session. | the command, or the watcher's reason and evidence |
 | `inbox-lost` | The inbox watcher marks a lemon lost with its tmux server; its card stays. | the tty it was on |
 | `inbox-crashed` | The inbox watcher marks a lemon whose harness stopped without reporting a quit; its card stays. | the watcher's reason and evidence |
 | `inbox-unarchive` | `inbox unarchive`. | |

@@ -62,6 +62,15 @@ def hand_started(lemon: Lemon, waiters: abc.Iterable[registry.Waiter]) -> list[r
     return [w for w in waiters if w.kind != "wait" and _theirs(w, lemon)]
 
 
+def every(lemon: Lemon, waiters: abc.Iterable[registry.Waiter]) -> list[registry.Waiter]:
+    """All of *lemon*'s waiters: its watcher or push scout, and the ones it started by hand."""
+    return [
+        w
+        for w in waiters
+        if (w.kind == "wait" and lemon.lemon_id in w.targets) or _theirs(w, lemon)
+    ]
+
+
 def _key(kind: str, target: abc.Iterable[str]) -> tuple[str, tuple[str, ...]]:
     return kind, tuple(t.lower() if kind in ("pr", "repo") else t for t in target)
 

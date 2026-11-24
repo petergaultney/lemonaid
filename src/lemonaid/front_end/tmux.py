@@ -5,10 +5,9 @@ from collections import abc
 from pathlib import Path
 
 from .. import tmux
-from ..claude import launch_args
 from ..config import Config
 from ..launch import window
-from ..launch.restart import pane, process
+from ..launch.restart import pane
 from ..lemon_watchers import watcher
 from ..log import get_logger
 from ..restore import asked, run
@@ -148,18 +147,6 @@ def _prepare(socket: str, tty: str, workspace: str, directory: str, config: Conf
         tmux.relocation.keep_on_exit(socket, found.pane)
 
 
-def _only_shell(left: pane.Pane) -> bool:
-    if left.dead:
-        return True
-
-    root = process.inspect(left.pid)
-    return (
-        root is not None
-        and process.on_tty(left.tty) == [root]
-        and process.shell(root, launch_args.argv(root.pid))
-    )
-
-
 def _leave(socket: str, tty: str, workspace: str, config: Config) -> str:
     """Close the old pane when only its shell is left. tmux then closes its window, and
     its session when that was its last pane; the session's clients follow the lemon."""
@@ -174,7 +161,7 @@ def _leave(socket: str, tty: str, workspace: str, config: Config) -> str:
         ):
             return f"its old pane {left.pane} stays open: session {session!r} is protected"
 
-        if not _only_shell(left):
+        if not pane.only_shell(left):
             return f"its old pane {left.pane} still runs other jobs, so it stays open"
 
         tmux.relocation.close_pane(socket, left.pane, workspace)

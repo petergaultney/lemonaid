@@ -116,6 +116,12 @@ turn starts (and marks the row read, since its user is back), what the lemon is 
 interrupt, the model and the context used, and clears a permission notice when its requested
 tool starts or returns. The notify hook's turn-complete records the turn's end.
 
+Codex sends that turn-complete only for a turn that ends with a message from the model. A turn
+that ends in an error, such as a response OpenAI refused to show ("This content was flagged
+..."), sends none, though Codex's transcript still records its `task_complete`. So once a turn
+has run for 30 seconds, the inbox watcher reads the end of the lemon's transcript, and a turn
+recorded there as complete ends; its card then says `Turn failed: <reason>`.
+
 `lemonaid hooks install --harness codex` adds these entries beside your other hooks and only
 if they aren't there already, replacing the `lemonaid codex tool-used` hooks of earlier
 versions; `--uninstall` removes them. Trust the new hooks in Codex's `/hooks`. Lemonaid clears

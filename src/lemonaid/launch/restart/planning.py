@@ -3,6 +3,7 @@
 import dataclasses
 import os
 import shlex
+import typing as ty
 
 from ...brief import identity, lemon
 from ...claude import launch_args
@@ -26,16 +27,19 @@ def idle(row: db.Notification, force: bool) -> None:
         raise ValueError("The lemon is mid-turn or asking for input; use --force to interrupt it")
 
 
-def build(conn, target: str, config: Config, force: bool = False) -> dict:
-    attached = lemon.attachment(conn, target, claim_pending=False)
-    row = attached.notification
-    if row is None or row.is_archived:
-        raise ValueError(
-            state.inspection(attached.channel) or "The lemon has no live row; use lemon resume"
-        )
-    if row.channel.partition(":")[0] not in ("claude", "codex"):
-        raise ValueError("Restart supports Claude and Codex sessions")
-    idle(row, force)
+class Owned(ty.NamedTuple):
+    pane: pane.Pane
+    source: process.Identity  # the harness process a hook recorded
+    root: process.Identity  # the pane's own process: the harness, or the shell that started it
+    lineage: list[process.Identity]  # the harness and its ancestors
+
+
+def owned(row: db.Notification) -> Owned:
+    """The pane *row*'s harness runs in, and that harness, as a hook recorded them.
+
+    Raises ValueError unless the recorded process still runs in that pane, the only
+    harness in its ancestry up to the pane.
+    """
     target_pane = pane.locate(
         str(row.metadata.get("tmux_socket") or ""), str(row.metadata.get("tty") or "")
     )
@@ -58,6 +62,21 @@ def build(conn, target: str, config: Config, force: bool = False) -> dict:
         raise ValueError("The native process no longer owns the recorded pane")
     if sum(recipient.is_harness(p.executable) for p in lineage[: lineage.index(root) + 1]) != 1:
         raise ValueError("Multiple harnesses share the terminal ancestry")
+
+    return Owned(target_pane, source, root, lineage)
+
+
+def build(conn, target: str, config: Config, force: bool = False) -> dict:
+    attached = lemon.attachment(conn, target, claim_pending=False)
+    row = attached.notification
+    if row is None or row.is_archived:
+        raise ValueError(
+            state.inspection(attached.channel) or "The lemon has no live row; use lemon resume"
+        )
+    if row.channel.partition(":")[0] not in ("claude", "codex"):
+        raise ValueError("Restart supports Claude and Codex sessions")
+    idle(row, force)
+    target_pane, source, root, lineage = owned(row)
     if reason := command.unclaimable(shlex.join(launch_args.argv(source.pid))):
         raise ValueError(reason)
     planned = launch.launch(row, config, PROMPT, dedicated=True)

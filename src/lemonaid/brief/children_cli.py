@@ -96,6 +96,8 @@ def _lines(child: children.Child, now: float, indent: str) -> abc.Iterator[str]:
         yield f"{more}PRs      {'  '.join(child.prs)}"
     reasons = f": {', '.join(child.held_by)}" if child.held_by else ""
     yield f"{more}cleanup  {child.cleanup}{reasons}"
+    if child.named:
+        yield f"{more}end      lemonaid lemon end {child.lemon_id}  (its brief names you as parent)"
     for grandchild in child.children:
         yield from _lines(grandchild, now, more)
 
@@ -139,7 +141,10 @@ def add_parser(brief_subparsers: argparse._SubParsersAction) -> None:
     parser = brief_subparsers.add_parser(
         "children",
         help=summary,
-        description=f"{summary}. Done children are left out only when cleanup is cleaned "
+        description=f"{summary}. Lemons whose brief names you as `parent:` while their "
+        "parent link names another, such as reviewers you started with `--parent parent`, "
+        "are listed too, with the `lemon end` command that cleans them up. "
+        "Done children are left out only when cleanup is cleaned "
         "and neither they nor their descendants have PR links or remaining cleanup work. "
         "This also applies to JSON and nested children; --all includes them. "
         "PR links are kept without checking GitHub; whether a branch is merged is not checked.",

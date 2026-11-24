@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .. import pr_states, pr_url, watch_config
 from ..config import load_config
+from ..launch import end
 from ..log import get_logger
 from ..slack import permalink, signed_out
 from . import (
@@ -327,6 +328,7 @@ def open_poller(
             wake=wake,
             mentioned=spec.mentioned,
             repo=repo,
+            ending=lambda: end.hint.lines(root.name, f"https://{pr_url.HOST}/{repo}/pull/{number}"),
         )
         head = ""
         # a closed PR can reopen, so it is still read unless the brief only links to it
