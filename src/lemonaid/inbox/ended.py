@@ -17,6 +17,7 @@ PANE_CLOSED = "pane-closed"  # its pane went away on a server that still runs
 PROCESS_EXITED = "process-exited"  # its pane lives, its harness doesn't
 REPLACED = "replaced"  # another channel took over its session
 TOSSED = "tossed"  # its place was torn down
+ENDED = "ended"  # its parent or its author ended it with `lemon end`
 ARCHIVED = "archived"  # someone archived it
 DISMISSED = "dismissed"  # lost, and someone said not to bring it back
 

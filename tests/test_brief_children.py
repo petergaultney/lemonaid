@@ -364,3 +364,34 @@ def test_done_children_with_remaining_attention_stay_visible(tmp_path, reason):
     [found] = _of(parent, world)
 
     assert children.shown(found, everything=False)
+
+
+def test_an_author_sees_the_reviewer_only_its_brief_names_with_its_end_command(
+    capsys, monkeypatch, tmp_path
+):
+    lead = _lemon("lead", "working", "claude:lead")
+    author = _lemon("author", "merge", "claude:author")
+    reviewer = _lemon("reviewer", "done", "codex:reviewer", now=f"Parent: {author}\n")
+    _link(author, lead)
+    _link(reviewer, lead)
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE notifications SET metadata = json_set(metadata, '$.tmux_session', 's-author')"
+            " WHERE channel = 'codex:reviewer'"
+        )
+        conn.commit()
+    world = _world(tmp_path, clients={"s-author": 1})
+    monkeypatch.setattr(children_cli, "_world", lambda: world)
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:author")
+
+    [named] = _of(author, world)
+    text = _run(capsys, "children", "--self")["out"]
+
+    assert (named.lemon_id, named.named, named.cleanup, named.held_by) == (
+        reviewer,
+        True,
+        "ready",
+        (),
+    )
+    assert f"    end      lemonaid lemon end {reviewer}  (its brief names you as parent)" in text
+    assert [(c.lemon_id, c.named) for c in _of(lead, world)] == [(author, False), (reviewer, False)]

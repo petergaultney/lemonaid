@@ -35,3 +35,9 @@ def with_parent(text: str, parent_id: str) -> str:
         "\n".join([*kept[:at], "", f"Parent: {parent_id}", *kept[at:]]).lstrip("\n").rstrip("\n")
         + "\n"
     )
+
+
+def named(text: str) -> str:
+    """The Lemon-ID a brief's `Parent:` names, in its frontmatter or a header line; "" for none."""
+    found, _ = frontmatter.taken(frontmatter.legacy(text).splitlines())
+    return frontmatter_edit.parent_id(found.get("parent", ""))

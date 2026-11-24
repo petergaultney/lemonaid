@@ -11,6 +11,7 @@ from ....audit import events
 from ....brief import attached
 from ....brief import status as brief_status
 from ....claude import live_sessions
+from ....codex import turns
 from ....config import Config
 from ....hooks import end_reports
 from ....lemon_watchers import ModelInfo, start_unified_watcher, tty_processes, watcher
@@ -311,6 +312,7 @@ def start(
                     events.record(
                         "inbox-lost", row.channel, row.metadata.get("tty", ""), by="inbox watcher"
                     )
+                turns.settle_stale(conn, time.time())
                 for channel in sweep_done_crashed(conn, by="inbox watcher"):
                     events.record(
                         "inbox-archive", channel, "crashed with a done brief", by="inbox watcher"

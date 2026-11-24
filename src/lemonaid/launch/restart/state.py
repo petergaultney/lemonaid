@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ...inbox import db
 
-TERMINAL = {"started", "failed", "partial"}
+TERMINAL = {"started", "ended", "failed", "partial"}  # "ended": a `lemon end` finished
 
 
 def root() -> Path:

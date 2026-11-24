@@ -76,12 +76,18 @@ def events(
     own_head: ty.Callable[[str], bool],
     trusted: abc.Set[str] = frozenset(),
     mentioned: bool = False,
+    ending: abc.Callable[[], list[str]] = lambda: [],
 ) -> list[roles.Event]:
+    """*ending* names the lemons the watcher may end once the PR merges or closes."""
     draft, decision = review
-    nudge = _NUDGE if mentioned and snap.state in ("MERGED", "CLOSED") else ""
+    finished = snap.state in ("MERGED", "CLOSED")
+    nudge = _NUDGE if mentioned and finished else ""
     return [
         *(
-            [roles.Event(roles.STATE, f"PR #{pr} is now {snap.state}{nudge}")]
+            [
+                roles.Event(roles.STATE, f"PR #{pr} is now {snap.state}{nudge}"),
+                *(roles.Event(roles.STATE, line, 0) for line in (ending() if finished else [])),
+            ]
             if state and snap.state != state
             else []
         ),
@@ -170,6 +176,7 @@ def poll(
     wake: abc.Set[str] = frozenset(roles.KINDS),
     mentioned: bool = False,
     repo: str = "",
+    ending: abc.Callable[[], list[str]] = lambda: [],
 ) -> bool:
     """Whether it woke the lemon. Events of a kind not in *wake* are kept, and ride along
     with the next one that is."""
@@ -210,6 +217,7 @@ def poll(
             own_head,
             trusted,
             mentioned,
+            ending,
         ),
         *blockers,
     ]

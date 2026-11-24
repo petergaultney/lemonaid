@@ -10,7 +10,17 @@ from collections import abc
 
 from ..inbox import status_since
 from ..lineage import links
-from . import attached, child_place, layout, lemon, names, pr_table, status
+from . import (
+    archive,
+    attached,
+    child_place,
+    layout,
+    lemon,
+    named_children,
+    names,
+    pr_table,
+    status,
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -30,9 +40,11 @@ class Child:
     children: tuple["Child", ...]
     held_by: tuple[str, ...]  # why its place can't be cleaned up yet; empty means ready
     cleanup: str  # "ready", "held", "orphan" (not done, session gone), or "cleaned"
+    archived: bool = False  # its brief is in the attic: its lemon has ended
+    named: bool = False  # only its brief names this parent; `lemon end` cleans it up
 
 
-def _prs(text: str) -> tuple[str, ...]:
+def prs(text: str) -> tuple[str, ...]:
     now = layout.parse(status.split(text).now)
     at = layout.find(now, "PRs")
     if at is None:
@@ -63,8 +75,12 @@ def _orphaned(child: Child) -> bool:
 
 def _held_by(child: Child, world: child_place.World) -> tuple[str, ...]:
     family = [child, *_descendants(child)]
-    sessions = dict.fromkeys(
-        c.tmux_session for c in family if c.tmux_session and c.alive is not False
+    sessions = (
+        {}  # it shares its parent's session, which `lemon end` leaves running
+        if child.named
+        else dict.fromkeys(
+            c.tmux_session for c in family if c.tmux_session and c.alive is not False
+        )
     )
     own = f"status {child.status or 'none'}"
     return (
@@ -72,7 +88,7 @@ def _held_by(child: Child, world: child_place.World) -> tuple[str, ...]:
         *(
             f"{_label(c)} is {c.status or 'without a status'}"
             for c in family[1:]
-            if c.status != "done"
+            if c.status != "done" and not c.archived
         ),
         *(
             ["tmux didn't say who is attached"]
@@ -92,6 +108,7 @@ def _child(
     world: child_place.World,
     by_path: abc.Mapping[str, attached.Attachment],
     seen: frozenset[str],
+    named: bool = False,
 ) -> Child:
     path = lemon.brief_of(conn, lemon_id)
     text = path.read_text() if path and path.is_file() else ""
@@ -120,11 +137,16 @@ def _child(
         place=child_place.of(
             notification.metadata.get("cwd", "") if notification else "", session, world
         ),
-        prs=_prs(text),
+        prs=prs(text),
         children=below,
         held_by=(),
         cleanup="",
+        archived=path is not None and archive.is_archived(path),
+        named=named,
     )
+    if child.archived:
+        return dataclasses.replace(child, cleanup="cleaned")
+
     held_by = _held_by(child, world)
     return dataclasses.replace(
         child,
@@ -142,23 +164,32 @@ def _child(
 
 
 def shown(child: Child, everything: bool) -> bool:
-    """Hide cleaned families only when no PR table or descendant still needs attention."""
+    """Hide ended lemons, and cleaned families when no PR table or descendant still needs
+    attention."""
     return (
         everything
-        or child.status != "done"
-        or child.cleanup != "cleaned"
-        or bool(child.prs)
+        or (
+            not child.archived
+            and (child.status != "done" or child.cleanup != "cleaned" or bool(child.prs))
+        )
         or any(shown(c, False) for c in child.children)
     )
 
 
 def of(conn: sqlite3.Connection, parent_id: str, world: child_place.World) -> list[Child]:
-    """*parent_id*'s children, each with its own children nested under it."""
+    """*parent_id*'s children, each with its own children nested under it, then the lemons
+    whose brief alone names it as parent."""
     attached.claim_pending(conn)
     by_path = {str(a.path): a for a in attached.everything(conn)}
+    linked = links.children_of(conn, parent_id)
+    current = {lemon.current(conn, lemon_id) for lemon_id in linked}
     return [
-        _child(conn, lemon_id, world, by_path, frozenset({parent_id}))
-        for lemon_id in links.children_of(conn, parent_id)
+        *(_child(conn, lemon_id, world, by_path, frozenset({parent_id})) for lemon_id in linked),
+        *(
+            _child(conn, lemon_id, world, by_path, frozenset({parent_id}), named=True)
+            for lemon_id in named_children.of(conn, parent_id)
+            if lemon_id not in current
+        ),
     ]
 
 

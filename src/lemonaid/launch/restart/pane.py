@@ -74,6 +74,19 @@ def by_id(socket: str, pane_id: str) -> Pane:
     return Pane(socket, p, w, t, int(pid), dead == "1", cwd)
 
 
+def only_shell(left: Pane) -> bool:
+    """Whether *left* is dead, or runs only the shell it started with."""
+    if left.dead:
+        return True
+
+    root = process.inspect(left.pid)
+    return (
+        root is not None
+        and process.on_tty(left.tty) == [root]
+        and process.shell(root, launch_args.argv(root.pid))
+    )
+
+
 def exit_option(target: Pane) -> str:
     # Empty output means inheritance, distinct from a local value equal to its parent.
     return run(target.socket, "show-options", "-p", "-v", "-t", target.pane, "remain-on-exit")

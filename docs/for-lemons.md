@@ -491,6 +491,32 @@ and accept its folder-trust prompt. A failed
 move says whether the lemon is stopped (`lemon resume` starts it in the destination). See
 [moving a lemon](lemon-move.md).
 
+### Ending one lemon: `lemon end`
+
+```sh
+lemonaid lemon end <lemon> --dry-run [--json]
+lemonaid lemon end <lemon> [--expect STATUS]... [--json]
+lemonaid lemon end --status <operation-id> --json
+```
+
+End each reviewer you started as soon as it is fully done, usually right after its PR
+merges, instead of leaving it for a place toss. When one of your PRs merges or closes, its
+event names each lemon you may now end, with this command; run it then. `brief children
+--self` lists them too, each with its command. `end` ends a lemon only when its brief's
+Status is one you expect: `done` unless you pass `--expect`, which you may repeat
+(`--expect none` for no Status). Otherwise it prints the actual Status and does nothing;
+look at the lemon before you expect that Status too. It doesn't wait for a turn in
+progress. A lemon alone in its tmux session is its place's lemon: toss the place
+instead (`place toss <key>`); the merge event doesn't name such a lemon, and `lemon end`
+says so if you run it.
+
+It stops the harness (SIGTERM to the recorded process, as `lemon restart` does), its
+watcher, push scout and hand-started waiters, archives its inbox card, and moves its brief
+to the attic. It closes the lemon's own pane once only its shell is left there, and the
+window with it when that was the window's last pane; any other pane, a session's last
+pane, and a protected session stay open, and the output says why. Its parent's watch
+doesn't report it gone, and `brief children` leaves it out. See [ending a lemon](lemon-end.md).
+
 ### Checking on lemons: `lemon doctor`
 
 ```bash
@@ -954,8 +980,13 @@ nested under it:
   lemon that stopped without finishing its brief. `cleaned` when it is `done` and its session
   is gone and it has no place, or its directory is gone. Otherwise `held`, with what holds it up.
 
-Done children are left out only when `cleanup` is `cleaned` and neither they nor their
-descendants have PR links or remaining cleanup work. This applies to nested children and
+A lemon whose brief names you as `parent:` while its parent link names another (a reviewer
+you started with `--parent parent`) is listed after your children, with an `end` line
+giving the `lemon end` command; the session it shares with you doesn't hold its cleanup.
+A child whose brief is in the attic has ended (`lemon end`, a toss or the idle sweep): it
+shows `cleaned` and is left out, and holds up no parent's cleanup. Other done children are
+left out only when `cleanup` is `cleaned` and neither they nor their descendants have PR
+links or remaining cleanup work. This applies to nested children and
 `--json` too; `--all` includes them. Surviving places, held cleanup, and PR links stay
 visible. PR links are retained without querying GitHub, so remove closed PRs from the brief.
 `--json` gives the same tree, with the reasons in `held_by`.

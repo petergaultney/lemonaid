@@ -712,6 +712,18 @@ mention closed. A bare
 Every lemon's PR reads share the machine's one PR poller, so a mention costs a cheap query
 per distinct PR, not one per lemon.
 
+The same event names each lemon you may now end: one whose brief names you as `parent:`
+and that shares its tmux session with another live lemon (for an author, its reviewers),
+once its work is done: this PR is in its PRs table and all of them have merged or closed,
+or its Status says `done`. A lemon alone in its session is its place's lemon, which
+`place toss` cleans up, so it isn't named. Each gets a line with the command, which
+expects its Status as it is now, or `done` (see
+[the merge-time hint](lemon-end.md#the-merge-time-hint)):
+
+```text
+FrownNag, which you started, is done: end it with `lemonaid lemon end FrownNag.review-lemonaid-592 --expect done --expect approve`
+```
+
 To keep a link without the question, also list it under a heading named `No nudge`, at any
 level. A PR linked there is never asked about, wherever else the brief links it:
 
