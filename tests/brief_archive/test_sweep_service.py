@@ -19,13 +19,15 @@ def started(monkeypatch) -> list[list[str]]:
     return found
 
 
-def test_the_host_starts_one_sweep_a_day(started):
+def test_the_host_starts_one_sweep_a_day_capped_by_the_config(started):
     service = sweep_service.service()
     for _ in range(2):
         service.tick(threading.Event())
     sweep_service.start_due()
 
-    assert [argv[-4:] for argv in started] == [["brief", "archive", "--idle-days", "14"]]
+    assert [argv[-6:] for argv in started] == [
+        ["brief", "archive", "--idle-days", "14", "--max", "20"]
+    ]
 
 
 def test_a_command_starts_no_sweep(monkeypatch, started):

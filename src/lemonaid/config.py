@@ -273,6 +273,9 @@ class BriefConfig:
     # Days a brief can go unused before a daily sweep moves it and its mailbox to the
     # attic (`brief archive --idle-days`). 0 never sweeps.
     archive_idle_days: int = 14
+    # The most briefs one daily sweep may move. A sweep that finds more moves none and
+    # says so in the inbox. 0 never limits it.
+    archive_sweep_max: int = 20
     # Obsidian vault roots, expanded. A bare `.md` path under one becomes an
     # `obsidian://` link.
     vaults: tuple[Path, ...] = ()
@@ -616,6 +619,18 @@ def _idle_days(raw: object, key: str = "name_idle_days") -> int:
     return 14
 
 
+def _count(raw: object, key: str, default: int) -> int:
+    """`[brief] <key>`, or *default* when it is not a whole number 0 or more."""
+    if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
+        return raw
+
+    print(
+        f"Warning: [brief] {key} must be a whole number 0 or more, not {raw!r}; using {default}",
+        file=sys.stderr,
+    )
+    return default
+
+
 def _vaults(raw: object) -> tuple[Path, ...]:
     """`[brief] vaults`, reporting and skipping anything that is not a directory."""
     if not isinstance(raw, list):
@@ -811,6 +826,11 @@ def _parse_config(data: dict[str, Any]) -> Config:
         name=brief_data.get("name", ""),
         name_idle_days=_idle_days(brief_data.get("name_idle_days", 14)),
         archive_idle_days=_idle_days(brief_data.get("archive_idle_days", 14), "archive_idle_days"),
+        archive_sweep_max=_count(
+            brief_data.get("archive_sweep_max", BriefConfig.archive_sweep_max),
+            "archive_sweep_max",
+            BriefConfig.archive_sweep_max,
+        ),
         vaults=_vaults(brief_data.get("vaults")),
         summary_open=tuple(
             str(s).lower() for s in brief_data.get("summary_open", BriefConfig.summary_open)

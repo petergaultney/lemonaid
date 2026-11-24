@@ -513,6 +513,7 @@ See [keybindings.md](keybindings.md) for the other keys and conflict warnings.
 | `name` | `""` | Shell command that prints a new lemon's name; unset uses a random two-word WordyBin. |
 | `name_idle_days` | `14` | Days a lemon's brief can sit idle, with no live session, before a new lemon may take its name; `0` never frees one. |
 | `archive_idle_days` | `14` | Days a brief can go unused before the scout host's daily sweep moves it and its mailbox to `~/.lemons/attic/YYYY-MM/`; `0` never sweeps. In use means a live session or harness, a Status that waits on someone (`blocked`, `alert`, `merge`, `approve`, `review`, `running`), or within the window: created, Status changed, session activity, attached, or a message in its mailbox. `place toss` archives the briefs of the lemons it ends at once. Only a brief the database records is ever archived, so a run against a database that has never recorded those briefs moves none. |
+| `archive_sweep_max` | `20` | The most briefs one daily sweep may move. A sweep that finds more moves none and says so in the inbox, with the command that lists them; `0` never limits it. |
 | `vaults` | `[]` | Obsidian vault directories; a bare `.md` path under one opens in Obsidian. |
 | `responsible_parties` | `[]` | Who a new top-level brief's `responsible-parties` names; unset is the account's full name. A child copies its parent's. |
 | `statuses` | the defaults below | The Status words lemons may set; see [Brief statuses](#brief-statuses). |

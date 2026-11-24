@@ -56,6 +56,8 @@ def start_due() -> None:
                     "archive",
                     "--idle-days",
                     str(config.archive_idle_days),
+                    "--max",
+                    str(config.archive_sweep_max),
                 ],
                 env={
                     **{k: v for k, v in os.environ.items() if k != "CODEX_THREAD_ID"},
