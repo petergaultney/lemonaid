@@ -8,8 +8,8 @@ import argparse
 import sys
 
 import lemonaid.audit.cli
-import lemonaid.brief.archive_cli
 import lemonaid.brief.cli
+import lemonaid.brief.sweep_service
 import lemonaid.claude.cli
 import lemonaid.codex.cli
 import lemonaid.codex.service
@@ -192,6 +192,7 @@ def main() -> None:
             lemonaid.tasks.inspection.service.service,
             lemonaid.codex.service.service,
             lemonaid.slack.gateway.service,
+            lemonaid.brief.sweep_service.service,
         ),
     )
     lemonaid.wezterm.cli.setup_parser(subparsers)
@@ -210,8 +211,6 @@ def main() -> None:
     args.invocation = ["lemonaid", *argv]
     lemonaid.watch.restart.after_upgrade()
     lemonaid.watch.reconcile.after_install()
-    if getattr(args, "brief_command", None) not in lemonaid.brief.archive_cli.COMMANDS:
-        lemonaid.brief.archive_cli.daily()
 
     try:
         if args.command is None:
