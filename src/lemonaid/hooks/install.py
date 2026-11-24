@@ -1,7 +1,7 @@
 """Install lemonaid's lemon-side hooks in Claude Code and Codex, without disturbing others.
 
 Both read hooks in the same format, Claude from `~/.claude/settings.json` and Codex from
-`~/.codex/hooks.json` (`$CODEX_HOME` moves it). Each gets the same four:
+`~/.codex/hooks.json` (`$CODEX_HOME` moves it). Each gets the same five:
 
 - PreToolUse and PostToolUse on every tool: own_change, so a lemon's own edits and pushes
   don't wake its waiters;
@@ -9,7 +9,10 @@ Both read hooks in the same format, Claude from `~/.claude/settings.json` and Co
   for a Claude lemon, it first starts the push scout when the session can take one;
 - SessionStart: start a Claude lemon's push scout, or remind a lemon with an attached brief
   which waiters to arm;
-- SessionEnd: record why the session ended, so a quit is told from a crash.
+- SessionEnd: record why the session ended, so a quit is told from a crash;
+- docs, on SessionStart, PreToolUse and UserPromptSubmit, and in Claude on PostToolUse
+  after a Write that created a file: log which docs the lemon would be given. Since they
+  deliver nothing yet, the harness waits only for the SessionStart one.
 
 Codex also gets `lemonaid codex turn`, run without Codex waiting for it, on UserPromptSubmit,
 PreToolUse, PostToolUse, Interrupt and PostModelRequest. It records the lemon's turns and what it is doing (`codex/turns.py`), and clears a
@@ -102,6 +105,23 @@ def session_end_command(harness: str) -> str:
     return install_hooks.SESSION_END_COMMAND if harness == "claude" else SESSION_END_CODEX
 
 
+def docs_command(harness: str) -> str:
+    return f"lemonaid hooks docs --harness {harness}"
+
+
+def docs_created_command() -> str:
+    """Claude's PostToolUse docs hook, which starts lemonaid only for a Write that created
+    a file."""
+    script = "; ".join(
+        [
+            "d=$(cat)",
+            'case "$d" in *\'"type":"create"\'*) ;; *) exit 0 ;; esac',
+            f'printf "%s" "$d" | exec {docs_command("claude")}',
+        ]
+    )
+    return f"sh -c {shlex.quote(script)}"
+
+
 def status_message(name: str) -> str:
     """How Codex titles lemonaid's handler *name* in `/hooks`."""
     return f"lemonaid: {name}"
@@ -109,14 +129,22 @@ def status_message(name: str) -> str:
 
 def _handler_fields(harness: str, event: str, name: str) -> dict[str, object]:
     """Codex titles a hook in `/hooks`, and while it runs, by its `statusMessage`."""
+    # The docs hook only records, so the harness needn't wait, except at SessionStart, which
+    # must begin the context window before the session's first prompt or tool call is logged.
+    # None clears the field from a docs SessionStart hook an earlier install made async.
+    waits = (
+        {"async": True if name == "turn" or event != "SessionStart" else None}
+        if name in ("turn", "docs")
+        else {}
+    )
     if harness != "codex":
-        return {}
+        return waits
 
     return {
         "statusMessage": status_message(name),
         **({"additionalContextLimit": 0} if event == "SessionStart" else {}),
         **({"timeout": 3} if event == "SessionEnd" else {}),  # Codex's longest; 1s by default
-        **({"async": True} if name == "turn" else {}),  # records only; Codex needn't wait
+        **waits,
     }
 
 
@@ -128,6 +156,11 @@ def hooks(harness: str) -> list[tuple[str, str, str]]:
         ("Stop", stop_command(harness), "stop"),
         ("SessionStart", session_start_command(harness), "session-start"),
         ("SessionEnd", session_end_command(harness), "session-end"),
+        *(
+            (event, docs_command(harness), "docs")
+            for event in ("SessionStart", "PreToolUse", "UserPromptSubmit")
+        ),
+        *([("PostToolUse", docs_created_command(), "docs")] if harness == "claude" else []),
         *(
             [
                 (event, _CODEX_TURN_COMMAND, "turn")

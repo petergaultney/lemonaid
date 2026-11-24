@@ -344,6 +344,8 @@ Put all lemonaid options before `--`; every token after it passes to the harness
 
 `--docs classic|packages` sets which docs this one lemon loads at start, in place of [`[docs] mode`](config.md#docs); it reaches the harness as `LEMONAID_DOCS`, and the session keeps it through resumes. `packages` is not built yet and starts the lemon in `classic`, with a warning.
 
+`lemonaid docs --self` lists the docs your session would have been given so far, and by which package or trigger; nothing is given yet. `lemonaid docs who DOC` lists the live lemons holding a doc, and `lemonaid docs table` every package and trigger ([doc-delivery.md](doc-delivery.md)).
+
 `--prompt TEXT` reaches the lemon command as one positional argument through its window environment. All startup options affect only creation. If a session already exists, `open` switches to it without starting another harness or sending the prompt.
 
 With `--brief` and no `--prompt`, a new lemon's first prompt is `<title>. Your task file is

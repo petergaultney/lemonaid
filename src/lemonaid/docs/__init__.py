@@ -1,5 +1,5 @@
 """Which docs a lemon loads, and when."""
 
-from . import mode
+from . import hook, mode
 
-__all__ = ["mode"]
+__all__ = ["hook", "mode"]
