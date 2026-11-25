@@ -1,5 +1,7 @@
 """A lemon follows its OpenClaw session's archive state through `sync`."""
 
+import time
+
 from lemonaid.front_end import chat
 from lemonaid.inbox import db
 from lemonaid.openclaw import archived, lemons, sessions, sync
@@ -37,8 +39,10 @@ def test_archiving_in_openclaw_archives_a_lemon_its_session_registered():
 def test_restoring_in_openclaw_brings_the_lemon_back_as_it_was():
     with db.connect() as conn:
         lemons.register(conn, _session(SIGNAL), "thread-1", None, "/home/me", chat.NAME)
-        sync.sync(conn, [], AGENTS, chat.NAME, {SIGNAL: "manual"}, {SIGNAL})
-        back, _ = sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME, {}, {SIGNAL})
+        sync.sync(conn, [], AGENTS, chat.NAME, {SIGNAL: "manual"}, {SIGNAL: _session(SIGNAL)})
+        back, _ = sync.sync(
+            conn, [_session(SIGNAL)], AGENTS, chat.NAME, {}, {SIGNAL: _session(SIGNAL)}
+        )
 
     row = _row(SIGNAL)
     assert back == [sessions.channel(SIGNAL)]
@@ -47,11 +51,13 @@ def test_restoring_in_openclaw_brings_the_lemon_back_as_it_was():
     assert "ended" not in row.metadata
 
 
-def test_a_lemon_archived_by_hand_stays_archived_when_its_session_is_live():
+def test_a_lemon_archived_by_hand_stays_archived_until_its_session_has_a_message():
     with db.connect() as conn:
         lemons.register(conn, _session(SIGNAL), "thread-1", None, "/home/me", chat.NAME)
         db.archive_channel(conn, sessions.channel(SIGNAL), "done", cause="archived", by="user")
-        back, _ = sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME, {}, {SIGNAL})
+        back, _ = sync.sync(
+            conn, [_session(SIGNAL)], AGENTS, chat.NAME, {}, {SIGNAL: _session(SIGNAL)}
+        )
 
     assert back == []
     assert _row(SIGNAL).is_archived
@@ -59,11 +65,24 @@ def test_a_lemon_archived_by_hand_stays_archived_when_its_session_is_live():
 
 def test_an_archived_conversation_is_not_added_and_a_deleted_one_is_not_restored():
     with db.connect() as conn:
-        added, _ = sync.sync(conn, [_session(ROOM)], AGENTS, chat.NAME, {ROOM: "manual"}, {ROOM})
+        added, _ = sync.sync(
+            conn, [_session(ROOM)], AGENTS, chat.NAME, {ROOM: "manual"}, {ROOM: _session(ROOM)}
+        )
         lemons.register(conn, _session(SIGNAL), "thread-1", None, "/home/me", chat.NAME)
-        sync.sync(conn, [], AGENTS, chat.NAME, {SIGNAL: "manual"}, {SIGNAL})
-        back, _ = sync.sync(conn, [], AGENTS, chat.NAME, {}, set())
+        sync.sync(conn, [], AGENTS, chat.NAME, {SIGNAL: "manual"}, {SIGNAL: _session(SIGNAL)})
+        back, _ = sync.sync(conn, [], AGENTS, chat.NAME, {}, {})
 
     assert (added, back) == ([], [])
     assert _row(ROOM) is None
     assert _row(SIGNAL).is_archived
+
+
+def test_a_message_after_an_archive_by_hand_brings_the_lemon_back():
+    with db.connect() as conn:
+        lemons.register(conn, _session(SIGNAL), "thread-1", None, "/home/me", chat.NAME)
+        db.archive_channel(conn, sessions.channel(SIGNAL), "done", cause="archived", by="user")
+        later = _session(SIGNAL)._replace(interacted_ms=int((time.time() + 60) * 1000))
+        back, _ = sync.sync(conn, [later], AGENTS, chat.NAME, {}, {SIGNAL: later})
+
+    assert back == [sessions.channel(SIGNAL)]
+    assert not _row(SIGNAL).is_archived

@@ -153,12 +153,12 @@ def sync(
     by_id: abc.Mapping[str, Agent],
     front_end: str,
     shelved: abc.Mapping[str, str],
-    listed: abc.Set[str],
+    found: abc.Mapping[str, sessions.Session],
 ) -> tuple[list[str], list[str]]:
-    """Follow OpenClaw's archive state (*shelved*, key to reason, among the *listed* keys),
-    add a row for each session in *keep* that has none, and archive the rows this added
-    whose session is no longer kept. Returns (added, archived) channels."""
-    gone, restored = archived.follow(conn, shelved, listed)
+    """Follow the *found* sessions (`archived.follow`; *shelved* maps the archived ones to
+    OpenClaw's reason), add a row for each session in *keep* that has none, and archive the
+    rows this added whose session is no longer kept. Returns (added, archived) channels."""
+    gone, restored = archived.follow(conn, shelved, found)
     keep = [each for each in keep if each.key not in shelved]
     added = [
         sessions.channel(each.key)
@@ -183,4 +183,4 @@ def refresh(
     found, by_id, shelved = sessions.listed(cli), agents(cli), sessions.archived(cli)
     keep = conversations(found, int(time.time() * 1000), int(max_age_days * 86_400_000), chats)
     with db.connect() as conn:
-        return sync(conn, keep, by_id, front_end, shelved, found.keys())
+        return sync(conn, keep, by_id, front_end, shelved, found)
