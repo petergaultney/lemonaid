@@ -5,7 +5,7 @@ from collections import abc
 
 from ..layout import sizes
 from ..layout.arrange import Arrangement
-from ..model import WORLD_HEIGHT, WORLD_WIDTH, Block, Tree
+from ..model import Block, Tree
 from . import colors, tag_fit, tree_stats, trees
 from .canvas import Canvas, text
 from .plots import View
@@ -158,8 +158,8 @@ def extent(arrangement: Arrangement) -> tuple[int, int]:
     """How far the grove reaches, across and down, in grove units."""
     grounds = [*arrangement.plots.values(), *arrangement.open]
     return (
-        max([WORLD_WIDTH, *(p.x + p.w for p in grounds)]),
-        max([WORLD_HEIGHT, *(p.y + p.h for p in grounds)]),
+        max([arrangement.world[0], *(p.x + p.w for p in grounds)]),
+        max([arrangement.world[1], *(p.y + p.h for p in grounds)]),
     )
 
 

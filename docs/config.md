@@ -264,6 +264,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `grove_pan_columns` | `2` | Screen columns an arrow key moves the grove view across. |
 | `grove_pan_rows` | `1` | Screen rows an arrow key moves the grove view down. |
 | `grove_big_trees` | `false` | Let a zoomed block's trees grow past a grown tree's size to fill a big screen. Off, they stop at the size the grove view draws a grown tree. |
+| `grove_scale` | `"blocks"` | `"trees"` draws each group as [one tree](grove.md#groups-as-trees), with a letter for each of its lemons, for a grove with a few lemons. `"blocks"` draws each group as a block of trees, a tree for each session. Each keeps its own layout. |
 | `grove_packhouse` | `false` | Stand the lemons in no group in the packhouse at the grove's middle, each session as a bay, rather than as an ordinary block `0`. It reads more easily once there are many; turning it on or off keeps both layouts. See [the grove](grove.md). |
 | `grove_pulse_seconds` | `4.5` | Seconds a working lemon's pulse takes in the grove, from rest to darkest and back; at least `0.5`. A shorter pulse redraws more often, up to 20 times a second, so it stays smooth. |
 | `grove_window_cover_share` | `0.1` | How much of the terminal's window the [grove window](grove.md#where-the-window-opens) must cover to count as over it, from `0` to `1`. Over it, the window covers the terminal on each summon and hides after a jump; moved away, it stays where you left it and stays up. |

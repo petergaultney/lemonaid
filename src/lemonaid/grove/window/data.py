@@ -14,7 +14,7 @@ from ...inbox import db, ended
 from ...lemon_watchers.common import detect_terminal_switch_source
 from .. import as_json
 from ..draw import bars, tree_stats
-from ..layout import arrange, edit, landmarks, state, tangles
+from ..layout import arrange, edit, landmarks, orchard, state, tangles
 from ..model import Block
 from ..source import live
 from ..tui import drop, frame, garden, keys
@@ -105,8 +105,8 @@ def refusal(grove: Grove, digit: str, key: str, x: int, y: int) -> str:
     block = next((b for b in grove.blocks if b.digit == digit), None)
     if block is None or not any(t.key == key for t in block.trees):
         return "that tree is gone"
-    if grove.arrangement.plots[block.name].texture == "house":
-        return "the packhouse's bays stay in order"
+    if fixed := orchard.fixed(grove.arrangement.plots[block.name].texture):
+        return fixed
 
     problem = tangles.refusal_at(block, grove.arrangement, key, x, y)
     if problem:

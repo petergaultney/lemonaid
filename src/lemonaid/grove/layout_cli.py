@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from ..config import load_config
-from .layout import arrange, edit, landmarks, proposal, state
+from .layout import arrange, edit, proposal, state
 from .source import live
 
 
@@ -55,7 +55,7 @@ def _cmd_apply(args: argparse.Namespace) -> None:
     def change(saved: dict) -> dict:
         # Laid out first, so a group the proposal placed but the saved layout hasn't seen yet
         # isn't taken for one that ended.
-        switched = landmarks.with_packhouse(saved, config.tui.grove_packhouse)
+        switched = live.configured(saved, config)
         done.append(proposal.apply(arrange.arrange(found, switched)[1], wanted, found))
         return done[-1].layout
 

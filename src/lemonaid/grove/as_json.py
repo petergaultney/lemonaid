@@ -22,6 +22,7 @@ def grove(found: abc.Iterable[Block], arrangement: arrange.Arrangement) -> dict[
                         "letter": standing.letter,
                         "label": standing.label,
                         "lead": tree.lead,
+                        "branch": tree.branch,
                         "spot": [standing.cx, standing.cy],
                         "size": standing.size,
                         "bay": standing.bay,

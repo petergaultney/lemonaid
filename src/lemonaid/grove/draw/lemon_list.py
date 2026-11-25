@@ -70,12 +70,13 @@ def _row(
     panel: str,
     flipped: bool,
     width: int,
+    row_key: str = "",
 ) -> None:
     lemon = tree.lemons[i]
-    keys = key(tree, letter, i)
+    keys = row_key or key(tree, letter, i)
     text(
         canvas,
-        x + _KEY + (i == 0),  # a lone letter under the letter of `.s1`
+        x + _KEY + (i == 0 or bool(row_key)),  # a lone letter under the letter of `.s1`
         y,
         keys,
         colors.status_text(lemon.status) if lemon.status else colors.TEXT,
@@ -119,6 +120,7 @@ def draw(
     width: int = WIDTH,
     tagged: int = 0,
     tag_at: int = 0,
+    row_keys: tuple[str, ...] = (),
 ) -> None:
     """*most*, when given, lists that many rows at most, the last saying how many more there are.
     *edited* marks what an edit would change: a lemon's row, or the session, named in the title;
@@ -127,7 +129,8 @@ def draw(
     *title_key*, when given, is a key named in the title before the tree, as select mode's `$l`.
     *tagged* columns of the top border, from *x* + 1, are left for the tree's tag, which the caller
     draws there, *tag_at* columns further along; the title follows it, muted, or goes before it
-    when there is more room there.
+    when there is more room there. *row_keys*, when given, is each lemon's own key, for a group
+    tree, whose lemons each have a letter.
     """
     shown = len(tree.lemons) if not most or len(tree.lemons) <= most else most - 1
     at = next((i for i, lemon in enumerate(tree.lemons) if lemon.channel == edited), 0)
@@ -160,7 +163,19 @@ def draw(
         panel = _EDITED if lemon.channel == edited else _PANEL
         if panel != _PANEL:
             fill(canvas, x + 1, row, width - 2, 1, panel)
-        _row(canvas, x, row, tree, letter, i, phase, panel, flipped, width)
+        _row(
+            canvas,
+            x,
+            row,
+            tree,
+            letter,
+            i,
+            phase,
+            panel,
+            flipped,
+            width,
+            row_keys[i] if row_keys else "",
+        )
     canvas.dim = dim
     if shown < len(tree.lemons):
         text(

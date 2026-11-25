@@ -38,7 +38,11 @@ def load(where: Path | None = None) -> dict[str, Any]:
         "version": VERSION,
         "plots": data.get("plots", {}),
         "trees": data.get("trees", {}),
-        **{key: data[key] for key in ("roads", "stream", "packhouse", "aside") if key in data},
+        **{
+            key: data[key]
+            for key in ("roads", "stream", "packhouse", "aside", "scale", "other_scale")
+            if key in data
+        },
     }
 
 

@@ -393,7 +393,7 @@ function paintWild(g) {
 // stream change, not when trees or lemons do.
 let terrain = {key: ""};
 function terrainFor() {
-  const blocks = DATA.blocks.filter(b => !isHouse(b)), key = JSON.stringify([YS, blocks.map(b => [b.plot, b.color]), DATA.stream, DATA.roads]);
+  const blocks = DATA.blocks.filter(ownTrees), key = JSON.stringify([YS, blocks.map(b => [b.plot, b.color]), DATA.stream, DATA.roads]);
   if (terrain.key === key) return terrain;
 
   const ps = blocks.map(b => b.plot), x0 = Math.min(0, ...ps.map(p => p.x)), y0 = Math.min(0, ...ps.map(p => p.y));
@@ -705,7 +705,7 @@ function drawList(b, t, x, y, w, parts) {
   txt(` ${t.key} `.slice(0, Math.max(0, Math.floor((x + bw - after) / CW) - 2)), after, y, "#9aa3ad", "rgba(13,17,23,1)", 500);
   const left = x + CW * 1.5, right = x + bw - CW * 1.5, nameW = cols - 36;
   t.lemons.forEach((l, j) => {
-    const ly = y + RH + pad + RH * j, c = STATUS[l.status] || "#8b949e", key = j ? `.${t.letter}${j}` : t.letter;
+    const ly = y + RH + pad + RH * j, c = STATUS[l.status] || "#8b949e", key = t.keys ? t.keys[j] : j ? `.${t.letter}${j}` : t.letter;
     listMarks.push({x: left - CW, y: ly, w: right - left + 2 * CW, h: RH, lemon: l});
     if (l.pinned) { ctx.fillStyle = "#c9d1d9"; ctx.fillRect(x + CW * 0.25, ly + RH * 0.15, CW * 0.5, RH * 0.7); }  // in the left border, as the terminal marks a pin
     txt(key, left + CW * (3 - key.length), ly, STATUS[l.status] || "#c9d1d9", null, 800);  // as the terminal grove colors it
@@ -725,6 +725,43 @@ function drawList(b, t, x, y, w, parts) {
 
 // The packhouse, when it's on, holds the lemons in no group; when it's off they are an ordinary block 0.
 const isHouse = b => b.plot.texture === "house";
+// In trees scale a group is one tree: its lemons in one crown, and a row each, with its letter, beside it.
+const isGroupTree = b => b.plot.texture === "orchard";
+const ownTrees = b => !isHouse(b) && !isGroupTree(b);  // a block whose trees stand where the layout puts them
+
+function drawGroupTree(b, P, k) {
+  const p = b.plot, inside_ = zoomed === b.digit, cw = CW * k, rh = RH * k;
+  const x = inside_ ? 3 * CW : sx(p.x), y = inside_ ? 2 * RH : sy(p.y), w = inside_ ? W() - 6 * CW : p.w * view.k, h = inside_ ? H() - 4 * RH : p.h * view.k * YS;
+  const crown = {key: `${b.digit} ${b.group || "no group"}`, label: b.group || "no group", lemons: b.trees.map(t => t.lemons[0]), lead: false, letter: "", keys: b.trees.map(t => t.letter)};
+  const across = inside_ ? Math.max(34, Math.min(60, Math.floor(W() * 0.3 / CW))) * CW : w * 0.5;
+  // The biggest crown that fits beside the list with room for its trunk and sign below.
+  const fits = sc => { const e = crownExtent(crownShape(crown, sc)); return (e.right - e.left) * CW * view.treeZ <= 0.9 * (w - across) && (e.bottom - e.top) * RH * view.treeZ <= h - 3 * rh; };
+  const scale = [4, 3.2, 2.6, 2.2, 1.8, 1.5, 1.2, 1].find(fits) || 1, e = crownExtent(crownShape(crown, scale)), z = RH * view.treeZ;
+  const cx = x + (w - across) / 2, cy = y + rh - e.top * z;
+  hits.push({x, y, w, h, block: b, ground: true});
+  P.reserve({x, y, w, h});
+  const box = drawTree(b, crown, cx, cy, scale);
+  const sign = ` ${b.digit} ${(b.group || "no group").toUpperCase()} `;
+  ctx.fillStyle = b.color || "#8b949e"; ctx.fillRect(cx - box.w * 0.6, box.groundY, box.w * 1.2, Math.max(2, rh * 0.15));
+  txtAt(sign, cx - sign.length * cw / 2, box.groundY + rh * 0.4, "#0b0e13", b.color || "#8b949e", 800, k);
+  const lx = x + w - across;
+  if (inside_) {
+    ctx.save(); ctx.translate(lx, y); ctx.scale(k, k);
+    listMarks = [];
+    drawList(b, crown, 0, 0, across / k, {key: " ", body: ` ${crown.label} `});
+    ctx.restore();
+    b.trees.forEach((t, j) => hits.push({x: lx, y: y + (RH + listPad(RH) + RH * j) * k, w: across, h: rh, block: b, tree: t}));
+    return;
+  }
+  const room = Math.floor(h / rh);
+  b.trees.slice(0, room).forEach((t, j) => {
+    const ty = y + rh * j, st = worst(t), cap = ` ${t.letter || " "} `, indent = t.key === t.branch ? 0 : 2 * cw;
+    txtAt(cap, lx + indent, ty, st ? "#0b0e13" : TEXT, STATUS[st] || TAG, 800, k);
+    const most = Math.floor((across - indent) / cw) - cap.length - 2, label = t.label.length > most ? t.label.slice(0, Math.max(0, most - 1)) + "…" : t.label;
+    txtAt(label, lx + indent + (cap.length + 1) * cw, ty, TEXT, null, t.lead ? 800 : 600, k);
+    hits.push({x: lx, y: ty, w: across, h: rh, block: b, tree: t});
+  });
+}
 
 function drawHouse(b, P, k) {
   const p = b.plot, inside_ = zoomed === b.digit, cw = CW * k, rh = RH * k;
@@ -851,13 +888,13 @@ function draw() {
   drawBackground();
   ctx.clearRect(0, 0, W(), H());
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(bg, 0, 0); ctx.restore();
-  DATA.blocks.filter(b => !isHouse(b)).forEach(b => hits.push({x: sx(b.plot.x), y: sy(b.plot.y), w: b.plot.w * view.k, h: b.plot.h * view.k * YS, block: b, ground: true}));
+  DATA.blocks.filter(ownTrees).forEach(b => hits.push({x: sx(b.plot.x), y: sy(b.plot.y), w: b.plot.w * view.k, h: b.plot.h * view.k * YS, block: b, ground: true}));
   const trees = [];
-  DATA.blocks.filter(b => !isHouse(b)).forEach(b => b.trees.forEach(t => trees.push({b, t, cx: sx(b.plot.x + shift(b)[0] + t.spot[0]), cy: sy(b.plot.y + shift(b)[1] + t.spot[1])})));
+  DATA.blocks.filter(ownTrees).forEach(b => b.trees.forEach(t => trees.push({b, t, cx: sx(b.plot.x + shift(b)[0] + t.spot[0]), cy: sy(b.plot.y + shift(b)[1] + t.spot[1])})));
   // Drawn where the drag has it, below; a refresh brings new objects, so it's found by block and key.
   const dragged = T => drag && drag.t && T.b.digit === drag.b.digit && T.t.key === drag.t.key;
   const k = Math.min(Math.max(view.k / placed.k0 * placed.ls, MIN_TEXT), MAX_TEXT);  // the labels' text size, as drawLabel works it out
-  DATA.blocks.filter(b => !isHouse(b)).forEach(b => (b.stumps || []).forEach(st => {
+  DATA.blocks.filter(ownTrees).forEach(b => (b.stumps || []).forEach(st => {
     if (drag && drag.st && drag.b.digit === b.digit && drag.st.key === st.key) return;
 
     const box = drawStump(st, sx(b.plot.x + shift(b)[0] + st.spot[0]), sy(b.plot.y + shift(b)[1] + st.spot[1]), k);
@@ -868,7 +905,8 @@ function draw() {
     const box = drawTree(T.b, T.t, T.cx, T.cy, treeScale(T.t, zoomed)); hits.push({...box, block: T.b, tree: T.t});
   });
   DATA.blocks.filter(isHouse).forEach(b => drawHouse(moving && moving.b.digit === b.digit ? {...b, plot: moving.aim} : b, placer(), k));
-  DATA.blocks.filter(b => !isHouse(b)).forEach(b => { const [dx] = shift(b); drawSign({...b, plot: {...b.plot, x: b.plot.x + dx, y: b.plot.y + shift(b)[1]}}, k); });
+  DATA.blocks.filter(isGroupTree).forEach(b => drawGroupTree(moving && moving.b.digit === b.digit ? {...b, plot: moving.aim} : b, placer(), k));
+  DATA.blocks.filter(ownTrees).forEach(b => { const [dx] = shift(b); drawSign({...b, plot: {...b.plot, x: b.plot.x + dx, y: b.plot.y + shift(b)[1]}}, k); });
   trees.forEach(T => { if (!dragged(T)) drawLabel(T.b, T.t, ...shift(T.b)); });
   if (moving && !moving.landing) {
     const a = moving.aim;
@@ -1133,7 +1171,7 @@ cv.addEventListener("pointerdown", e => {
   if (e.button !== 0) return;  // a right-click opens the edit menu (menu.js), and moves nothing
   if (drag?.landing || moving?.landing) { drag = moving = null; draw(); }
   const r = cv.getBoundingClientRect(), h = hitAt(e.clientX - r.left, e.clientY - r.top);
-  const movable = zoomed && h && (h.tree || h.stump) && !isHouse(h.block) && !h.label, at = worldAt(e);
+  const movable = zoomed && h && (h.tree || h.stump) && ownTrees(h.block) && !h.label, at = worldAt(e);
   press = {x: e.clientX, y: e.clientY, v: {...view}, moved: false, tree: movable ? h : null, block: blockAt(...at), at};
   cv.setPointerCapture(e.pointerId);
 });
@@ -1149,7 +1187,7 @@ cv.addEventListener("pointermove", e => {
     return;
   }
   const r = cv.getBoundingClientRect(), h = hitAt(e.clientX - r.left, e.clientY - r.top), on = blockAt(...worldAt(e));
-  cv.style.cursor = on && on.sides.length ? RESIZE[on.sides.join("")] : h && (h.tree || h.stump) ? (zoomed && !isHouse(h.block) ? "grab" : h.tree ? "pointer" : "default") : on ? "move" : "default";
+  cv.style.cursor = on && on.sides.length ? RESIZE[on.sides.join("")] : h && (h.tree || h.stump) ? (zoomed && ownTrees(h.block) ? "grab" : h.tree ? "pointer" : "default") : on ? "move" : "default";
   // The card stays put while the pointer is on one tree or its label; a refresh brings new objects for
   // the same tree, so it's known by block and key, and only its lines are brought up to date.
   if (h && h.tree) {

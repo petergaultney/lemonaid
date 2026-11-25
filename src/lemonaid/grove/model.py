@@ -39,6 +39,7 @@ class Tree:
     label: str
     lemons: tuple[Lemon, ...]  # its main lemon first: see `source.blocks.main_first`
     lead: bool  # holds the group's lead
+    branch: str = ""  # in trees scale, where each lemon is a tree: the key of its session's tree
 
     @property
     def born(self) -> float:

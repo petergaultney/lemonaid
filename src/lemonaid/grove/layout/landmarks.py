@@ -11,7 +11,7 @@ from collections import abc
 from typing import Any
 
 from ..model import WORLD_HEIGHT, WORLD_WIDTH, Plot
-from . import placement
+from . import orchard, placement
 
 PACKHOUSE = ""  # the block name of lemons in no group
 _WIDTH = 24
@@ -45,11 +45,17 @@ def with_packhouse(saved: dict[str, Any], on: bool) -> dict[str, Any]:
     )
 
 
+def configured(saved: dict[str, Any], trees: bool, packhouse: bool) -> dict[str, Any]:
+    """*saved* in trees scale or blocks scale, and in blocks scale with or without the packhouse."""
+    scaled = orchard.with_scale(saved, trees)
+    return scaled if trees else with_packhouse(scaled, packhouse)
+
+
 def as_drawn(saved: dict[str, Any], drawn: abc.Mapping[str, Any]) -> dict[str, Any]:
-    """*saved*, read under the layout's lock, with or without the packhouse as layout *drawn*
-    has it, so a change made on what was drawn is saved in the same mode.
+    """*saved*, read under the layout's lock, in the scale and mode layout *drawn* has, so a
+    change made on what was drawn is saved the same way.
     """
-    return with_packhouse(saved, has_house(drawn))
+    return configured(saved, orchard.is_trees(drawn), has_house(drawn))
 
 
 def middle(house: abc.Mapping[str, Any] | None) -> tuple[float, float] | None:

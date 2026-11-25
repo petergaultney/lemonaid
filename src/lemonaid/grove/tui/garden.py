@@ -5,6 +5,7 @@ from collections import abc
 from typing import Any
 
 from ..draw import canvas, scene_parts
+from ..layout import orchard
 from ..model import Block, Plot
 from . import keys
 from .frame import Grove, Lists
@@ -91,7 +92,11 @@ def grab(
         tree = (
             keys.tree_at(block, grove.arrangement, target[1]) if block and len(target) > 1 else None
         )
-        if block is None or tree is None or grove.arrangement.plots[block.name].texture == "house":
+        if (
+            block is None
+            or tree is None
+            or orchard.fixed(grove.arrangement.plots[block.name].texture)
+        ):
             return None
         view = scene_parts.block_view(canvas.blank(*size), grove.arrangement, block)
         letter = grove.arrangement.trees[(block.name, tree.key)].letter

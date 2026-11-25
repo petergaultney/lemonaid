@@ -13,7 +13,18 @@ import time
 from typing import Any, NamedTuple
 
 from ..model import WORLD_HEIGHT, WORLD_WIDTH, Block, Plot, Tree
-from . import footing, landmarks, lead_spot, new_spots, placement, regrow, sizes, stand, terrain
+from . import (
+    footing,
+    landmarks,
+    lead_spot,
+    new_spots,
+    orchard,
+    placement,
+    regrow,
+    sizes,
+    stand,
+    terrain,
+)
 
 _STUMP_NAMED_FOR = 2 * 3600  # a stump shows its tree's name, and a few dead leaves, this long
 
@@ -37,6 +48,7 @@ class Arrangement:
     roads: tuple[tuple[tuple[int, int], ...], ...] = ()
     stream: tuple[tuple[int, int], ...] = ()
     bays: dict[str, int] = dataclasses.field(default_factory=dict)  # highest saved bay, gone or not
+    world: tuple[int, int] = (WORLD_WIDTH, WORLD_HEIGHT)  # the least the grove view reaches
 
 
 def _plot(data: dict[str, Any]) -> Plot:
@@ -178,6 +190,10 @@ def arrange(
     """The layout for *blocks*, and the saved layout to keep for next time."""
     now = time.time() if now is None else now
     kept = copy.deepcopy(saved)
+    if orchard.is_trees(kept):
+        plots, standing, world = orchard.arrange(blocks, kept, now)
+        return Arrangement(plots, (), standing, {}, world=world), kept
+
     kept.setdefault("roads", landmarks.default_roads())
     kept.setdefault("stream", landmarks.default_stream())
     ground = terrain.of_saved(kept)

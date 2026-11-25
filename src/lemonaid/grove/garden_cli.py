@@ -10,7 +10,7 @@ from typing import NoReturn
 
 from ..config import load_config
 from . import layout_cli
-from .layout import edit, state, tangles
+from .layout import edit, orchard, state, tangles
 from .model import Block
 from .source import live
 from .tui.frame import Grove
@@ -31,8 +31,8 @@ def _block(args: argparse.Namespace) -> tuple[Grove, Block, Path | None]:
     found = next((b for b in grove.blocks if args.block in (b.digit, b.name)), None)
     if found is None:
         _fail(args, f"No block {args.block}; blocks are {', '.join(b.digit for b in grove.blocks)}")
-    if grove.arrangement.plots[found.name].texture == "house":
-        _fail(args, "The packhouse's bays stay in order")
+    if fixed := orchard.fixed(grove.arrangement.plots[found.name].texture):
+        _fail(args, fixed[0].upper() + fixed[1:])
     return grove, found, where
 
 

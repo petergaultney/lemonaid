@@ -5,6 +5,7 @@ take it; with none that way, the tree stays where it was.
 
 import dataclasses
 
+from ..layout import orchard
 from . import drop, garden
 from .frame import Grove
 
@@ -26,8 +27,8 @@ def step(key: str) -> tuple[int, int] | None:
 def start(grove: Grove, digit: str, tree_key: str) -> garden.Drag | str:
     """A drag of the tree that hasn't moved yet, or why the tree can't move."""
     block = next(b for b in grove.blocks if b.digit == digit)
-    if grove.arrangement.plots[block.name].texture == "house":
-        return "the packhouse's bays stay in order"
+    if fixed := orchard.fixed(grove.arrangement.plots[block.name].texture):
+        return fixed
 
     letter = grove.arrangement.trees[(block.name, tree_key)].letter
     return garden.Drag(block, tree_key, frozenset(), (0, 0), (1.0, 1.0), name=digit + letter)

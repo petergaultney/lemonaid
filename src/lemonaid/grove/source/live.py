@@ -18,7 +18,19 @@ from ..draw import card
 from ..layout import arrange, landmarks, state
 from ..model import Block
 from ..tui.frame import Grove
-from . import blocks, inputs, lemon_cards
+from . import blocks, inputs, lemon_cards, lemon_trees
+
+
+def _blocks(read: inputs.Inputs, config: Config) -> tuple[Block, ...]:
+    found = blocks.blocks(read, config.tui.context_threshold)
+    return lemon_trees.one_per_lemon(found) if config.tui.grove_scale == "trees" else found
+
+
+def configured(saved: dict[str, Any], config: Config) -> dict[str, Any]:
+    """*saved* in the scale and packhouse mode *config* asks for."""
+    return landmarks.configured(
+        saved, config.tui.grove_scale == "trees", config.tui.grove_packhouse
+    )
 
 
 def _arranged(
@@ -26,13 +38,11 @@ def _arranged(
 ) -> Grove:
     """*cards* makes each lemon's card, which reads the filesystem: only off the event loop."""
     read = dataclasses.replace(read, jump_problems=go.jump_problems(read.rows)) if cards else read
-    found = blocks.blocks(read, config.tui.context_threshold)
+    found = _blocks(read, config)
     arranged: list[tuple[arrange.Arrangement, dict[str, Any]]] = []
 
     def lay_out(saved: dict[str, Any]) -> dict[str, Any]:
-        arranged.append(
-            arrange.arrange(found, landmarks.with_packhouse(saved, config.tui.grove_packhouse))
-        )
+        arranged.append(arrange.arrange(found, configured(saved, config)))
         return arranged[0][1]
 
     state.update(lay_out, where)
@@ -69,11 +79,10 @@ def current_blocks(config: Config, switch_source: str | None) -> tuple[Block, ..
     with db.connect() as conn:
         read = inputs.read(conn, config, switch_source)
     read = dataclasses.replace(read, jump_problems=go.jump_problems(read.rows))
-    return blocks.blocks(read, config.tui.context_threshold)
+    return _blocks(read, config)
 
 
 def preview(config: Config, switch_source: str | None, where: Path | None = None) -> Grove:
     """The grove as `fresh` would lay it out, without saving anything new."""
     found = current_blocks(config, switch_source)
-    saved = landmarks.with_packhouse(state.load(where), config.tui.grove_packhouse)
-    return Grove(found, *arrange.arrange(found, saved))
+    return Grove(found, *arrange.arrange(found, configured(state.load(where), config)))

@@ -5,7 +5,7 @@ import math
 
 from ..layout.arrange import Arrangement
 from ..model import Block
-from . import house, lemon_list, list_spot, plots, scene_parts, trees
+from . import group_tree, house, lemon_list, list_spot, plots, scene_parts, trees
 from .canvas import Canvas
 
 Spot = tuple[int, int, float]  # a list's top left, and how much it covered when put there
@@ -39,6 +39,18 @@ def zoomed(
         return {}
 
     plot = arrangement.plots[block.name]
+    if plot.texture == "orchard":
+        return group_tree.zoomed(
+            canvas,
+            block,
+            arrangement,
+            phase,
+            highlight.channels if highlight else None,
+            opened,
+            highlight.edited if highlight else "",
+            flipped,
+        )
+
     if plot.texture == "house":
         return house.zoomed(
             canvas,

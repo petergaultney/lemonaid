@@ -27,7 +27,15 @@ The popup is lemonaid's fast tmux popup, which any app can use: the grove keeps 
 - **The lemons in no group** are block `0`, HQ among them: an ordinary block signed `0 NO GROUP`. With `grove_packhouse = true` under `[tui]` they stand in **the packhouse** at the grove's middle instead, each session as a bay, which reads more easily once there are many of them. Turning it on or off keeps both layouts, so turning it back restores the packhouse, its bays and block 0's trees where they were.
 - **Roads and a stream** are landmarks: laid once, saved with the layout, and drawn in the gaps between blocks. No block but the packhouse stands on them. A road crosses the stream on a bridge.
 
-## The title bar
+## Groups as trees
+
+With a few lemons, blocks of trees are mostly empty ground. Set `grove_scale = "trees"` under `[tui]` and each group is one tree instead, its lemons all hanging in its crown, with a row beside it for each lemon: its letter and its name. A reviewer's row sits indented under its author's.
+
+- **A group's digit and a lemon's letter make its key,** as `6m`, with no `.m1` step: a reviewer has a letter of its own. A session's main lemon keeps the letter its session has as a block's tree, so its key is the same in both scales. The inbox shows the keys of the scale in use.
+- **The trees stand in rows from the top left,** each new group in the first room free; a group that ends gives up its room after a day. Drag a tree to move it, or `grove move` it, as a block. Its lemons' rows stay in order.
+- **Zooming into a digit** draws the group's tree large, with its lemons' list beside it.
+- **Each scale keeps its own layout** in `grove.json`, so switching back puts every block, tree and road where it was. The packhouse is for blocks: in trees scale the lemons in no group are a tree like any other group.
+
 
 The title row shows how many lemons there are, then the attention bar: the same status chips as the inbox (`?4 N1 m3 r13 d1`), with each status in its own fixed slot so a chip stays put when another appears or goes. Lemons whose brief has no status that has a chip are counted together as `○n`.
 

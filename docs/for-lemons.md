@@ -1057,6 +1057,10 @@ lemonaid grove show --plain 2          # block 2 drawn as text
 lemonaid grove move 2 40 10            # move block 2's corner; resize, reshape, clear-open too
 ```
 
+With `grove_scale = "trees"` (see `lemonaid config` or the person's config), each group is one
+tree and each lemon a `trees` entry of its own in `show --json`, with `branch` naming its session's
+tree; its key is its block's digit and its own letter. Gardening below is for blocks scale.
+
 A tree is a terminal workspace unless a graft puts a lemon on another lemon's tree. When the
 person asks to put a lemon on another's tree, or to combine two trees, graft each lemon onto the
 other tree's main lemon:

@@ -4,7 +4,7 @@ from collections import abc
 
 from ..layout.arrange import Arrangement
 from ..model import Block
-from . import house, plots, scene_parts, tag_fit
+from . import group_tree, house, plots, scene_parts, tag_fit
 from .canvas import Canvas
 
 
@@ -39,6 +39,22 @@ def overview(
     signs = []
     for block in blocks:
         plot = arrangement.plots[block.name]
+        if plot.texture == "orchard":
+            taken.append(
+                group_tree.draw(
+                    canvas,
+                    block,
+                    arrangement,
+                    view,
+                    phase,
+                    lambda tree: (
+                        scene_parts.fade(highlight, scene_parts.tree_channels(tree)) * 0.75
+                    ),
+                    highlight.channels if highlight else (),
+                )
+            )
+            continue
+
         if plot.texture == "house":
             taken.append(
                 house.draw(
