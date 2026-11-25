@@ -11,16 +11,16 @@ Both read hooks in the same format, Claude from `~/.claude/settings.json` and Co
   which waiters to arm;
 - SessionEnd: record why the session ended, so a quit is told from a crash;
 - docs, on SessionStart, PreToolUse and UserPromptSubmit, and in Claude on PostToolUse
-  after a Write that created a file: log which docs the lemon would be given. Since they
-  deliver nothing yet, the harness waits only for the SessionStart one.
+  after a Write that created a file: deliver the docs the lemon's packages and triggers
+  call for (`docs/hook.py`).
 
 Codex also gets `lemonaid codex turn`, run without Codex waiting for it, on UserPromptSubmit,
 PreToolUse, PostToolUse, Interrupt and PostModelRequest. It records the lemon's turns and what it is doing (`codex/turns.py`), and clears a
 permission notice when its requested tool starts or returns.
 
 Each Codex handler gets a `statusMessage` naming it (`lemonaid: session-start`), and the
-SessionStart handler `"additionalContextLimit": 0`, so the `[codex] context_doc` it injects
-reaches the model whole instead of as a head-and-tail preview.
+SessionStart and docs handlers `"additionalContextLimit": 0`, so the docs they inject
+reach the model whole instead of as a head-and-tail preview.
 
 Codex trusts a hook by a hash of it (`[hooks.state]` in its `config.toml`), so a hook this
 adds or changes runs only once it is trusted again in Codex's `/hooks`.
@@ -129,20 +129,14 @@ def status_message(name: str) -> str:
 
 def _handler_fields(harness: str, event: str, name: str) -> dict[str, object]:
     """Codex titles a hook in `/hooks`, and while it runs, by its `statusMessage`."""
-    # The docs hook only records, so the harness needn't wait, except at SessionStart, which
-    # must begin the context window before the session's first prompt or tool call is logged.
-    # None clears the field from a docs SessionStart hook an earlier install made async.
-    waits = (
-        {"async": True if name == "turn" or event != "SessionStart" else None}
-        if name in ("turn", "docs")
-        else {}
-    )
+    # None clears `async` from a docs hook an earlier install made async: it delivers now.
+    waits = {"async": True if name == "turn" else None} if name in ("turn", "docs") else {}
     if harness != "codex":
         return waits
 
     return {
         "statusMessage": status_message(name),
-        **({"additionalContextLimit": 0} if event == "SessionStart" else {}),
+        **({"additionalContextLimit": 0} if event == "SessionStart" or name == "docs" else {}),
         **({"timeout": 3} if event == "SessionEnd" else {}),  # Codex's longest; 1s by default
         **waits,
     }

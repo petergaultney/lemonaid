@@ -64,8 +64,9 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
         (
             "docs",
-            "SessionStart/PreToolUse/PostToolUse/UserPromptSubmit: log the docs [docs] roots "
-            "would give the lemon now, in doc-deliveries.jsonl; nothing is delivered yet",
+            "SessionStart/PreToolUse/PostToolUse/UserPromptSubmit: give the lemon the docs "
+            "under [docs] roots its packages and triggers call for, and log them in "
+            "doc-deliveries.jsonl",
             lambda a: docs.hook.handle(a.harness),
         ),
     ):

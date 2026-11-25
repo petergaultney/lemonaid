@@ -59,7 +59,7 @@ and [Codex's TUI keymap](https://learn.chatgpt.com/docs/config-file/config-basic
 
 ## `[docs]`
 
-Which docs a lemon loads when its session starts, and which it would be given as it works.
+Which docs a lemon loads when its session starts, and which it is given as it works.
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -83,15 +83,19 @@ hook expands the file the way Claude Code does and passes the text to Codex: on 
 thread, after `/clear` and after compaction, but not on resume or fork, whose history
 already holds it. See [codex.md](codex.md#always-loaded-docs) for the hook setting it needs.
 
-`packages` is not built yet: a lemon given it starts in `classic`, and lemonaid logs the
-fallback.
+In `packages` mode a lemon starts with the packages under `roots` that are for it, in
+place of the `classic` docs, and its triggers bring other docs as it works; see
+[doc-delivery.md](doc-delivery.md#packages-mode). A lemon whose packages can't be built
+(no `roots`, no package for it, or for Claude Code no `classic` file to turn off) starts
+in `classic`, with a warning.
 
 `lemonaid lemon start --docs MODE` and `lemonaid place open --docs MODE` set the mode for
 one lemon. Its harness gets the mode in `LEMONAID_DOCS`, and the SessionStart hook records
 it for the session, so a resume started without the variable keeps it.
 
-With `roots` set, lemonaid's docs hook logs which docs each lemon would be given, in both
-modes, without giving it any yet: see [doc-delivery.md](doc-delivery.md).
+With `roots` set, a `classic` lemon is also given the packages and triggers that name its
+group or its lead, and every other delivery is logged, as a comparison, without giving it:
+see [doc-delivery.md](doc-delivery.md).
 
 ## `[codex]`
 

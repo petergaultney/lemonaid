@@ -36,7 +36,8 @@ def add_arguments(parser: argparse.ArgumentParser, dry_run: bool = True) -> None
         choices=docs_config.MODES,
         default="",
         help="Which docs this lemon loads at start, kept through its resumes: classic, the "
-        "always-loaded docs, or packages (not built yet: starts in classic); default: [docs] mode",
+        "always-loaded docs, or packages, the packages under [docs] roots that are for it; "
+        "default: [docs] mode",
     )
     parser.add_argument(
         "--lemon-arg",
@@ -73,7 +74,7 @@ def inspection(
     line, environment = command.harness_line(
         resolved.line, directory, prompt, command.codex_writable_roots(config), title
     )
-    environment = {**environment, **docs.mode.launch_environment(docs_mode)[0]}
+    environment = {**environment, **({docs.mode.ENV: docs_mode} if docs_mode else {})}
     windows = list(resolved.windows)
     windows[resolved.lemon_window] = line
     return {

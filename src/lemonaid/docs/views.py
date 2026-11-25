@@ -66,7 +66,8 @@ def _delivered(entry: abc.Mapping) -> str:
     target = shown(entry.get("doc", "")) + (f"#{entry['section']}" if entry.get("section") else "")
     return (
         f"  {entry.get('at', '')[11:19]}  {entry.get('delivery', ''):<8}  {target}"
-        f"  ({source}, {entry.get('chars', 0):,} chars)"
+        f"  ({source}, {entry.get('chars', 0):,} chars"
+        + (", shadow: not delivered)" if entry.get("shadow") else ")")
     )
 
 
@@ -77,8 +78,7 @@ def session(entries: abc.Sequence[abc.Mapping], missing: abc.Sequence[str]) -> l
 
     first = entries[0]
     lines = [
-        f"{first.get('harness')} {first.get('session')}, docs mode {entries[-1].get('mode')}"
-        + (" (shadow: nothing was delivered)" if first.get("shadow") else ""),
+        f"{first.get('harness')} {first.get('session')}, docs mode {entries[-1].get('mode')}",
     ]
     for entry in entries:
         if entry.get("kind") == "window":

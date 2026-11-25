@@ -12,7 +12,7 @@ import dataclasses
 import re
 from pathlib import Path
 
-from .. import brief, groups, lineage
+from .. import brief, docs, groups, lineage
 from ..inbox import db
 from ..log import get_logger
 from ..messages import store
@@ -45,6 +45,10 @@ def session_title(given: Handoff) -> str:
             return _TRAILING_BRIEF.sub("", line[2:].strip())
 
     return ""
+
+
+def docs_kin(given: Handoff) -> "docs.launch.Kin":
+    return docs.launch.Kin(given.brief, given.groups, given.link[1] if given.link else "")
 
 
 def first_prompt(given: Handoff, prompt: str) -> str:

@@ -7,6 +7,7 @@ reads only the docs that changed. Folders whose names start with `.` are skipped
 
 import json
 import os
+import time
 import typing as ty
 from collections import abc
 from pathlib import Path
@@ -94,3 +95,13 @@ def read(cache: Path) -> list[frontmatter.Doc]:
     except (KeyError, TypeError) as e:
         _log.warning("could not read the docs index %s: %s", cache, e)
         return []
+
+
+def recent(roots: abc.Iterable[Path], cache: Path, max_age: float) -> list[frontmatter.Doc]:
+    """The docs under *roots*, rebuilt when *cache* is older than *max_age* seconds, so a
+    doc added or changed reaches running lemons without each walking the roots."""
+    try:
+        fresh = time.time() - cache.stat().st_mtime < max_age
+    except OSError:
+        fresh = False
+    return read(cache) if fresh else build(roots, cache)

@@ -2,7 +2,7 @@ from lemonaid.docs import window
 
 
 def _state() -> dict:
-    return {"window": 1, "calls": 0, "delivered": {}}
+    return {"window": 1, "calls": 0, "delivered": {}, "shadowed": {}, "prompt": {}}
 
 
 def _match(state: dict, key: str = "a.md#", mtime: float = 1.0, **kwargs) -> str:
@@ -64,4 +64,20 @@ def test_a_resume_keeps_the_window_and_compaction_starts_a_new_one():
     assert window.begin(state, "resume", ["core", "grove"]) is False
     assert state["delivered"] and state["packages"] == ["core"]
     assert window.begin(state, "compact", ["core", "grove"]) is True
-    assert state == {"window": 2, "calls": 0, "delivered": {}, "packages": ["core", "grove"]}
+    assert state == {
+        "window": 2,
+        "calls": 0,
+        "delivered": {},
+        "shadowed": {},
+        "packages": ["core", "grove"],
+        "prompt": {},
+    }
+
+
+def test_a_new_window_still_holds_the_docs_in_the_system_prompt():
+    state = {**_state(), "prompt": {"core.md#": 1.0}}
+
+    window.begin(state, "compact", ["core"])
+
+    assert _match(state, "core.md#") == "reminder"
+    assert _match(state, "core.md#", mtime=2.0) == "full"

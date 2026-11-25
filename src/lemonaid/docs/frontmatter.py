@@ -4,7 +4,7 @@ is for (`package-for`, on the package's index doc), its triggers (`load-when`) a
 
 import re
 from collections import abc
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -15,6 +15,7 @@ _log = get_logger("docs.frontmatter")
 
 KINDS = ("command", "edit", "create", "prompt")
 _KEYS = ("package", "package-for", "load-when")
+_TRIGGER_KEYS = (*KINDS, "section", "before")
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class Trigger:
     pattern: str  # a regex for command and prompt, a glob for edit and create
     section: str = ""  # the heading whose section it delivers; the whole doc when ""
     before: bool = False  # refuse the first matching call, with the section as the reason
+    lemon: dict = field(default_factory=dict)  # `package-for` keys the lemon must also match
 
 
 @dataclass(frozen=True)
@@ -87,7 +89,13 @@ def _trigger(path: Path, raw: object) -> Trigger | None:
             _log.warning("%s: load-when %s %r: %s", path, kind, raw[kind], e)
             return None
 
-    return Trigger(kind, raw[kind], str(raw.get("section") or ""), raw.get("before") is True)
+    return Trigger(
+        kind,
+        raw[kind],
+        str(raw.get("section") or ""),
+        raw.get("before") is True,
+        {key: value for key, value in raw.items() if key not in _TRIGGER_KEYS},
+    )
 
 
 def _list(path: Path, key: str, raw: object) -> list:
