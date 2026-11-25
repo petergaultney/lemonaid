@@ -136,6 +136,8 @@ Jumping to a lemon opens its page: the brief on the left and the conversation on
 
 A browser on the server itself (`localhost`) switches the terminal instead, as the grove window does.
 
+The pages have a prefix key of their own, backtick by default. The prefix and then Space go back to the grove from anywhere, a text box included, and the prefix and then `h` type a backtick. `[web]` in the config sets all three keys; see [config.md](config.md#web).
+
 Keep it running as a systemd user service, or for a try, `systemd-run --user lemonaid grove serve`.
 
 ## The grove window (beta, macOS)
