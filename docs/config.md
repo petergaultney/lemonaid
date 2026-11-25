@@ -936,11 +936,12 @@ Keys in the grove's pages in a browser (`lemonaid grove serve`), and nowhere els
 ```toml
 [web]
 prefix = "`"      # pressed first
-home = "Space"    # after the prefix: back to the grove
+home = "prefix"   # after the prefix: back to the grove (the prefix again)
 literal = "h"     # after the prefix: type the prefix itself
+brief = "b"       # after the prefix: focus a lemon's brief
 ```
 
-A key is named as the browser names it (`` ` ``, `h`, `Enter`), or `C-` and a letter with Control, or `Space`. Any other key after the prefix is dropped.
+A key is named as the browser names it (`` ` ``, `h`, `Enter`), or `C-` and a letter with Control, or `Space`, or `prefix` for the prefix again. Any other key after the prefix is dropped.
 
 ## `[usage]`
 
