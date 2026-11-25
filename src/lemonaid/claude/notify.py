@@ -32,7 +32,7 @@ from .. import auto_read, daily_date, launch_token, wezterm
 from ..brief.handoff import state as handoff_state
 from ..brief.handoff import transfer as handoff_transfer
 from ..config import load_config
-from ..inbox import db
+from ..inbox import db, session_title
 from ..inbox.channel import UnidentifiedSession, channel_id
 from ..lemon_watchers import (
     detect_terminal_switch_source,
@@ -48,7 +48,7 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
-from . import print_mode, session_title, watcher
+from . import print_mode, watcher
 
 _log = get_logger("claude.notify")
 

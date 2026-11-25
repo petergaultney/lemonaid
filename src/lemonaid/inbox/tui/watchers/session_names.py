@@ -4,10 +4,10 @@ import threading
 import time
 from collections import abc
 
-from ....claude import notify, session_title
+from ....claude import notify
 from ....codex import threads
 from ....log import get_logger
-from ... import db
+from ... import db, session_title
 
 _log = get_logger("tui")
 
