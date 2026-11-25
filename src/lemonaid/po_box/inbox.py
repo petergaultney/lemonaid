@@ -26,12 +26,22 @@ LABEL = (
 )
 
 
+def _messages(folder: Path) -> list[Path]:
+    """The message files in *folder*, leaving out the note Obsidian's folder-note plugin
+    adds to a synced folder, named after the folder itself."""
+    return sorted(
+        p
+        for p in folder.glob("*.md")
+        if p.is_file() and not p.is_symlink() and p.stem != folder.name
+    )
+
+
 def pending(inbox: Path) -> list[Path]:
     """Unread messages, or none when the inbox or its `read/` is a link out of the folder."""
     if not inbox.is_dir() or inbox.is_symlink() or (inbox / READ).is_symlink():
         return []
 
-    return sorted(p for p in inbox.glob("*.md") if p.is_file() and not p.is_symlink())
+    return _messages(inbox)
 
 
 def labeled(path: Path) -> str:
@@ -47,7 +57,7 @@ def labeled(path: Path) -> str:
 
 def _forget_old(read_dir: Path, keep_days: int) -> None:
     cutoff = time.time() - keep_days * 86400
-    for path in read_dir.glob("*.md"):
+    for path in _messages(read_dir):
         try:
             if path.stat().st_mtime < cutoff:
                 path.unlink()
