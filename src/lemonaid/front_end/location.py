@@ -8,6 +8,9 @@ import dataclasses
 import typing as ty
 from collections import abc
 
+from .. import wezterm
+from ..lemon_watchers import common
+
 
 @dataclasses.dataclass(frozen=True)
 class Location:
@@ -80,3 +83,29 @@ def of(metadata: abc.Mapping[str, ty.Any], switch_source: str = "") -> Location:
     front_end = switch_source or _inferred(metadata)
     fields = _FIELDS.get(front_end)
     return fields(metadata) if fields else Location(front_end, tty=_text(metadata, "tty"))
+
+
+def here() -> Location:
+    """Where the calling process runs, read from its environment the way a hook records a
+    lemon's location. Outside every front end it knows, the front end is "plain"."""
+    match common.detect_terminal_switch_source():
+        case "tmux":
+            return Location(
+                "tmux", common.get_tmux_socket() or "", common.get_tmux_session_name() or ""
+            )
+        case "wezterm":
+            return _wezterm(wezterm.location.metadata())
+        case "cmux":
+            return Location("cmux", pane=common.get_cmux_surface() or "")
+    return Location("plain")
+
+
+def near(one: Location, other: Location) -> bool:
+    """Whether two locations share a workspace (a tmux session, a WezTerm workspace) on the
+    same instance of the same front end. A front end that records no workspace (cmux) is
+    near nothing."""
+    return bool(one.workspace) and (one.front_end, one.instance, one.workspace) == (
+        other.front_end,
+        other.instance,
+        other.workspace,
+    )

@@ -20,6 +20,7 @@ from textual.widgets.data_table import RowKey
 from ... import brief, keys, messages
 from ...claude import patch_status
 from ...claude.patcher import find_binary
+from ...comments import notice
 from ...config import load_config
 from ...front_end import pick
 from ...grove import popup_app
@@ -1440,6 +1441,12 @@ class LemonaidApp(CrashLoggedApp):
             if (group_id := sections.group_id(str(row_key.value))) is not None:
                 inbox_groups.toggle_group(self._content.inbox, group_id)
             elif notification := row_keys.notification(str(row_keys.key_id(row_key) or "")):
+                self._activate_lemon(notification)
+        elif table_id == "other_sources_table" and row_key is not None:
+            # another terminal's sessions aren't switched to from here, but a reply row
+            # there opens its file, which is in this machine's editor
+            notification = row_keys.notification(str(row_keys.key_id(row_key) or ""))
+            if notification is not None and notice.is_notice(notification):
                 self._activate_lemon(notification)
 
 

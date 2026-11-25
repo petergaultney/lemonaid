@@ -104,7 +104,7 @@ Use the verbs to update a brief outside your workspace. Whether they run without
 
 `## Watching` lists one `lemonaid watch` command per line; legacy `## Waiters` remains readable. Edit it with `brief watching add|set|rm` (`brief waiter` is an alias). These lines describe subscriptions, regardless of whether a separate waiter is running.
 
-List every doc you wrote for someone to read as a Docs row. The Watch column accepts `Relay comments` (the default) or `All edits`, not booleans. `brief doc rm` removes the row. `Output-Doc:` supplies the first row, starting `watch doc` adds one, and `brief check` warns about linked documents without rows.
+List every doc you wrote for someone to read as a Docs row. The Watch column accepts `Comments` (the default) or `All edits`, not booleans; `Relay comments`, its old name, still reads as `Comments`. `brief doc rm` removes the row. `Output-Doc:` supplies the first row, starting `watch doc` adds one, and `brief check` warns about linked documents without rows.
 
 List a lemon you must hear about, a child or not, as a Lemons row; repeat `--to STATUS` (or `needs`) to choose what wakes you. `brief lemon set` changes a row and `brief lemon rm` removes it. An explicit row for a child replaces its defaults. Every watched lemon is reported once when its harness exits, its session or place is gone, it is deaf, no lemon takes up its brief within 5 minutes of its start, or it goes idle with its brief untouched since it started, unless its brief is `done`.
 
@@ -113,7 +113,7 @@ List a lemon you must hear about, a child or not, as a Lemons row; repeat `--to 
 | Source | Subscribe with | What wakes you |
 |---|---|---|
 | PR | `brief pr add --self <url> "<purpose>" [--review <doc>]` | By your role on it: merge or close, a push you didn't make, a draft or review-decision change, new comments, a base conflict, failed CI (passed CI only with `--ci`). `--review` also watches that review doc. |
-| Doc | `brief doc add --self <path> "<purpose>" [--watch "All edits"]` | An unanswered Relay comment; with `All edits`, also a body edit after a quiet period. |
+| Doc | `brief doc add --self <path> "<purpose>" [--watch "All edits"]` | An unanswered comment (Relay, CriticMarkup, or a thread kept in the file); with `All edits`, also a body edit after a quiet period. |
 | Lemon | `brief lemon add --self <lemon> --purpose "<why>" [--to STATUS ...]` | Its Status reaching a `--to` status, or a new Needs ask if `needs` is among them (default `merge`, `done`, `needs`; an explicit `--to` replaces the default); its harness exiting, its place going, it going deaf, it never starting, or it going idle with its brief untouched. |
 | Children | Automatic; `brief watching add --self "lemonaid watch briefs --children --self --to <status>"` to choose statuses | A child reaching `merge` or `done`; the same liveness failures as a Lemon row. |
 | Repo | `brief watching add --self "lemonaid watch repo --wait <owner/name> --once"` | A PR opened ready or marked ready, a `--label` added, a seen PR closed or merged, or with `--pushes` a ready PR's head moving. |

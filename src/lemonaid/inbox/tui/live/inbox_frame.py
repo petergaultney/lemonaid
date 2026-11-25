@@ -5,9 +5,10 @@ import sqlite3
 from collections import abc
 
 from .... import brief, groups
+from ....comments import notice
 from ....config import Config
 from ....stalls import inbox as stalls_inbox
-from ... import attention, db, emoji, parent_order, pins, presence, search, view
+from ... import attention, db, emoji, parent_order, pins, presence, search, sections, view
 from ..rows import brief_cards, pr_numbers
 from ..watchers import focus
 
@@ -42,6 +43,8 @@ class Frame:
     matching_ids: set[int] | None  # None outside a search
     parents: dict[str, str] = dataclasses.field(default_factory=dict)
     child_totals: dict[str, int] = dataclasses.field(default_factory=dict)
+    # a reply row's channel to its lemon's, drawn beside that lemon but not as its child
+    attached: dict[str, str] = dataclasses.field(default_factory=dict)
     request: int = 0  # the `Request.seq` it was loaded for
     search_text: str | None = None
 
@@ -71,9 +74,46 @@ def ordered_active(
     )
 
 
-def _switchable_from(active: "view.Active", source: str) -> "view.Active":
-    """*active* cut down to the sessions switchable from *source*, in the same order."""
-    rows = [n for n in active.rows if n.switch_source == source]
+def _without_read_replies(active: "view.Active") -> "view.Active":
+    """*active* less the reply rows already read: the comment is in its file, and a row
+    for it would only crowd the inbox. History still has them."""
+    rows = [n for n in active.rows if n.is_unread or not notice.is_notice(n)]
+    return dataclasses.replace(active, rows=rows)
+
+
+def _attached(active: "view.Active") -> dict[str, str]:
+    """Each reply row whose lemon is live in some terminal, by channel, to that lemon's
+    channel. A lemon with no terminal is in neither pane, so its reply shows on its own."""
+    live = {n.channel for n in active.rows if n.switch_source is not None}
+    return {
+        n.channel: lemon
+        for n in active.rows
+        if (lemon := notice.lemon_of(n)) and lemon in live and lemon != n.channel
+    }
+
+
+def _with_attached(active: "view.Active", attached: abc.Mapping[str, str]) -> "view.Active":
+    """*active* with each reply row in its lemon's groups, so it is drawn there."""
+    memberships = dict(active.memberships)
+    for row, lemon in attached.items():
+        memberships[row] = memberships.get(lemon, ())
+    return dataclasses.replace(active, memberships=memberships)
+
+
+def _switchable_from(
+    active: "view.Active", source: str, attached: abc.Mapping[str, str]
+) -> "view.Active":
+    """*active* cut down to the sessions switchable from *source*, in the same order, and the
+    reply rows of those sessions, which belong to no terminal of their own. An unread reply
+    row whose lemon is gone, or that names none, shows in every terminal, on its own."""
+    here = {n.channel for n in active.rows if n.switch_source == source}
+    rows = [
+        n
+        for n in active.rows
+        if n.channel in here
+        or attached.get(n.channel) in here
+        or (notice.is_notice(n) and n.channel not in attached and n.is_unread)
+    ]
     channels = {n.channel for n in rows}
     return dataclasses.replace(
         active,
@@ -107,8 +147,12 @@ def load(
     """
     pinned = frozenset(pins.pinned_positions(conn))
     # Every live session is read once; the main table is those switchable from here.
-    everything = ordered_active(conn, None, config, brief_cache, probe, stalls, now)
-    active = _switchable_from(everything, env_filter) if env_filter else everything
+    everything = _without_read_replies(
+        ordered_active(conn, None, config, brief_cache, probe, stalls, now)
+    )
+    attached = _attached(everything)
+    everything = _with_attached(everything, attached)
+    active = _switchable_from(everything, env_filter, attached) if env_filter else everything
     focused_channels = focus.channels(active.rows, focused)
     matching_ids = (
         {result.notification.id for result in search.find(conn, search_text)}
@@ -136,8 +180,10 @@ def load(
             if n.channel in focused_channels
             or (matching_ids is not None and n.id in matching_ids)
             or (str(n.id) == current_key and current_key in unfolded_ids)
+            # a reply still to read is what attention mode is for, though it has no status
+            or (notice.is_notice(n) and n.is_unread)
         },
-    )  # a focused lemon or search match stays out of the fold, and so does the cursor's row until the cursor leaves it
+    )  # a focused lemon, search match or reply to read stays out of the fold, and so does the cursor's row until the cursor leaves it
     identities = brief.identity.by_channel(conn)
     current_members = {identities[n.channel] for n in active.rows if n.channel in identities}
     group_list = [
@@ -158,11 +204,26 @@ def load(
             or str(n.id) in {current_key, other_key}
             or (matching_ids is not None and n.id in matching_ids)
         }
-        other = [
+        elsewhere = [
             n
             for n in view.inbox_rows(everything, pinned, other_in_view)
             if n.switch_source is not None and n.switch_source != env_filter
         ]
+        # every session of another terminal, hidden ones too, which an unread reply brings back
+        lemons_elsewhere = [
+            n
+            for n in everything.rows
+            if n.switch_source is not None and n.switch_source != env_filter
+        ]
+        theirs = {n.channel for n in lemons_elsewhere}
+        other = sections.beside_their_lemons(
+            [
+                *elsewhere,
+                *(n for n in everything.rows if n.is_unread and attached.get(n.channel) in theirs),
+            ],
+            attached,
+            lemons_elsewhere,
+        )
     else:
         other = []
 
@@ -183,4 +244,5 @@ def load(
         matching_ids,
         parents,
         totals,
+        attached=attached,
     )

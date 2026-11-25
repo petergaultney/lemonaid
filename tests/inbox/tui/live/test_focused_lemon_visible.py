@@ -95,6 +95,7 @@ def _entries_frame(group: Group, focused: frozenset[str]):
         matching_ids=None,
         pinned=frozenset(),
         parents={},
+        attached={},
         other=[],
         groups=[group],
         focused_channels=focused,

@@ -74,7 +74,7 @@ A session that is already running appears in the inbox when it next takes a prom
 lemonaid skills install
 ```
 
-This installs the `brief`, `watch-doc`, `watch-pr` and `watch-briefs` skills for Claude and Codex. Put your own rules in `~/.lemons/skills/<name>/overlay.md`. See [skills](skills.md).
+This installs the `brief`, `watch-doc`, `watch-pr`, `watch-briefs` and `review-guide` skills for Claude and Codex. Put your own rules in `~/.lemons/skills/<name>/overlay.md`. See [skills](skills.md).
 
 ## 2. Creating the HQ
 

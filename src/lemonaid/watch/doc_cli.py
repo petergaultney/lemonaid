@@ -1,4 +1,5 @@
-"""`lemonaid watch doc`: a blocking waiter on Markdown documents with Relay Comments.
+"""`lemonaid watch doc`: a blocking waiter on documents with Relay Comments, or comments
+kept in the file (`lemonaid.comments`).
 
 Text documents only. Body changes report line hunks; binary files and byte ranges
 are not supported. Use `lemonaid watch file` for binary-file change notifications.
@@ -19,6 +20,8 @@ Events:
   identity search may suggest a replacement for the lemon to confirm (the watch stays put)
 - a Relay Comment thread whose last block is not by `--me` (or a `--legacy` name)
   appeared, or an unanswered one gained a block (always on)
+- in a Python or Markdown file with a threads section, which is read instead of Relay
+  blocks: a comment unanswered for `--me` (or a `--legacy` name) appeared (always on)
 - the document body changed outside comment threads, after `--quiet` seconds of no further
   change (unless `--no-edits`; a human types incrementally, and the session's own edits
   also trigger this, except those `own_edits` records - see below). A doc that doesn't

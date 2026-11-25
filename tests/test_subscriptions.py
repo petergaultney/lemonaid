@@ -121,7 +121,7 @@ def test_a_pr_row_whose_review_doc_is_the_briefs_output_is_the_reviewers(tmp_pat
 def test_a_review_doc_listed_for_relay_comments_still_wakes_for_body_edits(tmp_path):
     doc = tmp_path / "docket.md"
     text = _with_pr_row(shared.BRIEF, "https://github.com/o/r/pull/12", f"[doc]({doc})")
-    text = doc_table.add(text, doc, "PR review conversation", doc_table.Watch.RELAY_COMMENTS)
+    text = doc_table.add(text, doc, "PR review conversation", doc_table.Watch.COMMENTS)
 
     [spec] = [s for s in subscriptions.read(text, tmp_path) if s.kind == "doc"]
 

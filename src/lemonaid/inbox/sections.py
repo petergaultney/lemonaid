@@ -59,6 +59,37 @@ def group_id(key: str) -> int | None:
     return int(rest) if prefix == "group" and rest.isdigit() else None
 
 
+def beside_their_lemons(
+    rows: abc.Sequence[db.Notification],
+    attached: abc.Mapping[str, str],
+    lemons: abc.Sequence[db.Notification],
+) -> list[db.Notification]:
+    """*rows* with each attached row (a reply row) right after its lemon, oldest first, and the
+    rest in their order. A lemon an unread reply needs, folded or hidden away, comes back from
+    *lemons* where its first such reply was, since the reply is what wants your attention; a
+    read reply whose lemon isn't drawn isn't drawn either."""
+    by_channel = {n.channel: n for n in lemons}
+    present = {n.channel for n in rows if n.channel not in attached}
+    replies: dict[str, list[db.Notification]] = {}
+    for n in rows:
+        if n.channel in attached:
+            replies.setdefault(attached[n.channel], []).append(n)
+    for lemon, theirs in list(replies.items()):
+        if lemon not in present and not any(n.is_unread for n in theirs):
+            del replies[lemon]
+    result: list[db.Notification] = []
+    for n in rows:
+        lemon = attached.get(n.channel)
+        if lemon is None:
+            result.append(n)
+            result.extend(replies.pop(n.channel, []))
+        elif lemon not in present and lemon in replies:
+            present.add(lemon)
+            result.extend([by_channel[lemon]] if lemon in by_channel else [])
+            result.extend(replies.pop(lemon, []))
+    return result
+
+
 def layout(
     shown: abc.Sequence[db.Notification],
     folded: abc.Sequence[db.Notification],
@@ -76,6 +107,7 @@ def layout(
     lead_first: bool = False,
     current: abc.Sequence[db.Notification] = (),
     empty_groups: bool = True,
+    attached: abc.Mapping[str, str] | None = None,
 ) -> tuple[list[Header | Row], list[db.Notification]]:
     """The drawn list and what stays folded, from the inbox's *shown* and *folded* rows.
 
@@ -90,7 +122,10 @@ def layout(
     above any pinned or deaf rows, and a drawn member pulls its ancestors in that group into
     the drawing unless the group is collapsed. It is a lead only in that group. *current* is every
     current session, so hiding or searching members away doesn't change who leads.
+    *attached* maps a reply row to its lemon: the row is drawn right after that lemon, brings
+    the lemon back when it would be folded or hidden, and isn't counted in a header.
     """
+    attached = attached or {}
     every = [*shown, *folded]
     positions = {n.id: i for i, n in enumerate(group_order)}
     every.sort(key=lambda n: positions.get(n.id, len(positions)))
@@ -103,7 +138,8 @@ def layout(
 
     def drawn(group: groups.store.Group) -> list[Header | Row]:
         rows = grouped[group.name]
-        members = [n for n in current if group.name in memberships.get(n.channel, ())] or rows
+        lemons = [n for n in rows if n.channel not in attached]
+        members = [n for n in current if group.name in memberships.get(n.channel, ())] or lemons
         represented = Counter(statuses.get(n.channel, "") for n in members)
         lead = (
             group_lead.find(
@@ -120,6 +156,17 @@ def layout(
             or n.channel in deaf
             or f"{n.id}@{group.group_id}" in kept
             or (not group.collapsed and (fold_open or n.id not in folded_ids))
+        ]
+        # an unread reply shows wherever its lemon is drawn, a pinned lemon in a collapsed
+        # group included; a reply the fold took stays folded, as it does outside a group
+        drawn_lemons = {n.channel for n in shown_rows}
+        shown_rows += [
+            n
+            for n in rows
+            if n not in shown_rows
+            and n.is_unread
+            and n.id not in folded_ids
+            and attached.get(n.channel) in drawn_lemons
         ]
         drawn_above = {
             above
@@ -146,17 +193,18 @@ def layout(
         ordered = [n for n in visible if n.channel == lead] + [
             n for n in [*pins, *ordinary] if n.channel != lead
         ]
+        ordered = beside_their_lemons(ordered, attached, [*rows, *members])
         return [
             Header(
                 group,
-                len(rows),
+                len(lemons),
                 tuple(
                     (status, represented[status])
                     for status in order.band_names()
                     if status in represented and order.special_status(status)
                 ),
-                sum(n.id not in folded_ids for n in rows),
-                len(visible),
+                sum(n.id not in folded_ids for n in lemons),
+                sum(n.channel not in attached for n in ordered),
             ),
             *(Row(f"{n.id}@{group.group_id}", n, n.channel == lead) for n in ordered),
         ]
@@ -180,16 +228,16 @@ def layout(
             group.name in memberships.get(n.channel, ()) for n in current
         )
 
+    outside = [n for n in (every if fold_open else shown) if n.channel not in in_a_group]
+    pins = {n.channel for n in outside if n.channel in pinned}
+    by_a_pin = [n for n in outside if n.channel in pins or attached.get(n.channel) in pins]
+    loose = beside_their_lemons(
+        [n for n in outside if n not in by_a_pin], attached, [*every, *current]
+    )
     entries: list[Header | Row] = [
-        Row(str(n.id), n)
-        for n in (every if fold_open else shown)
-        if n.channel in pinned and n.channel not in in_a_group
+        Row(str(n.id), n) for n in beside_their_lemons(by_a_pin, attached, [])
     ]
-    ungrouped = [
-        Row(str(n.id), n)
-        for n in (every if fold_open else shown)
-        if n.channel not in in_a_group and n.channel not in pinned
-    ]
+    ungrouped = [Row(str(n.id), n) for n in loose]
     if ungrouped_first:
         entries.extend(ungrouped)
     for group in all_groups:
@@ -198,4 +246,7 @@ def layout(
     if not ungrouped_first:
         entries.extend(ungrouped)
 
-    return entries, [n for n in folded if n.channel not in in_a_group]
+    drawn_outside = {n.channel for n in loose}
+    return entries, [
+        n for n in folded if n.channel not in in_a_group and n.channel not in drawn_outside
+    ]

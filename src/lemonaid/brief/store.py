@@ -12,11 +12,10 @@ Until `lemonaid home migrate` has run, that folder is `~/.brief-lemons/`.
 import datetime
 import os
 import re
-import tempfile
 from collections import abc
 from pathlib import Path
 
-from .. import config, home, status_registry
+from .. import config, file, home, status_registry
 from . import frontmatter, frontmatter_edit, name_words, names, responsible
 
 # Statuses lemons once set by hand, now read as no status.
@@ -170,28 +169,6 @@ class ChangedUnderneath(Exception):
     pass
 
 
-def _replace(path: Path, text: str, *, unless_changed_from: str | None = None) -> bool:
-    """Write *path* whole, so a reader never sees half of it.
-
-    With *unless_changed_from*, the rename happens only if the file still reads
-    that text once the new text is on disk; returns whether it happened.
-    """
-    fd, temp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(text)
-        os.chmod(temp, path.stat().st_mode & 0o7777)
-        if unless_changed_from is not None and path.read_text() != unless_changed_from:
-            Path(temp).unlink(missing_ok=True)
-            return False
-
-        os.replace(temp, path)
-        return True
-    except BaseException:
-        Path(temp).unlink(missing_ok=True)
-        raise
-
-
 def _defaults(path: Path) -> frontmatter_edit.Defaults:
     """What a brief's new block says about its creation: its filename's date, else its mtime's."""
     return frontmatter_edit.Defaults(
@@ -241,7 +218,7 @@ def edit(
             if after == before:
                 return
 
-            if _replace(path, after, unless_changed_from=before):
+            if file.replace(path, after, unless_changed_from=before):
                 if written:
                     written(before, after)
                 return

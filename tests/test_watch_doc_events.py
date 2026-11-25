@@ -4,6 +4,7 @@ import hashlib
 
 import pytest
 
+from lemonaid.comments import edits
 from lemonaid.watch import delivery, doc_events
 
 _ASK = '{{authorId="1" author="Sam">>is this true?<<}}'
@@ -177,3 +178,324 @@ def test_two_new_threads_are_counted_as_two_events(doc, state_dir):
     doc_events.poll(w, _collect(sent))
 
     assert (delivery.events_in(sent[0]), delivery.has_comments(sent[0])) == (2, True)
+
+
+def _in_file_comment(path, *, author: str, comment_id: str, re_: str | None = None) -> None:
+    text = path.read_text()
+    kind = "python" if path.suffix == ".py" else "markdown"
+    added = (
+        edits.reply(
+            text, kind, re_, author=author, body=f"{comment_id} says hi", comment_id=comment_id
+        )
+        if re_
+        else edits.add_comment(
+            text, kind, 0, 0, author=author, body=f"{comment_id} says hi", comment_id=comment_id
+        )
+    )
+    path.write_text(edits.apply(text, added.edits))
+
+
+@pytest.fixture
+def code(tmp_path):
+    path = tmp_path / "work.py"
+    path.write_text("def f(x):\n    return x + 1\n")
+    return path
+
+
+def test_an_in_file_comment_is_delivered_once_with_how_to_answer_it(code, state_dir):
+    w = doc_events.open_watch(state_dir, code, _ME, [], edits=False, quiet=45)
+    _in_file_comment(code, author="Sam", comment_id="Asked")
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
+    assert len(sent) == 1
+    assert "1 new or changed unanswered comment(s)" in sent[0]
+    assert "Sam [Asked, new thread]:\nAsked says hi" in sent[0]
+    assert f"lemonaid comments reply {code} --re <id>" in sent[0]
+
+
+def test_a_reply_signed_with_the_lemon_s_signature_answers_the_comment(code, state_dir):
+    _in_file_comment(code, author="Sam", comment_id="Asked")
+    _in_file_comment(code, author="Motor Hoe (Author)", comment_id="Answer", re_="Asked")
+    w = doc_events.open_watch(state_dir, code, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
+    assert sent == []
+
+
+def test_a_reply_to_the_lemon_wakes_it_again(code, state_dir):
+    _in_file_comment(code, author="Sam", comment_id="Asked")
+    _in_file_comment(code, author="MotorHoe (Author)", comment_id="Answer", re_="Asked")
+    w = doc_events.open_watch(state_dir, code, _ME, [], edits=False, quiet=45)
+    doc_events.poll(w, _collect([]))
+    _in_file_comment(code, author="Sam", comment_id="Again", re_="Answer")
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED
+    assert "Sam [Again, re Answer]" in sent[0]
+
+
+def test_adding_an_in_file_comment_is_not_a_body_edit(code, state_dir):
+    w = doc_events.open_watch(state_dir, code, _ME, [], edits=True, quiet=0)
+    _in_file_comment(code, author="MotorHoe (Author)", comment_id="Mine")
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+    doc_events.poll(w, _collect(sent))
+
+    assert sent == []
+
+
+def test_a_relay_thread_in_a_file_with_a_threads_section_is_reported(tmp_path, state_dir):
+    doc = tmp_path / "review.md"
+    doc.write_text("# Review\n")
+    _in_file_comment(doc, author="MotorHoe (Author)", comment_id="Mine")
+    first, rest = doc.read_text().split("\n", 1)
+    doc.write_text(f"{first}\n{_ASK}\n{rest}")
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+
+    assert len(sent) == 1 and "is this true?" in sent[0]
+
+
+@pytest.mark.parametrize("with_section", [False, True])
+def test_a_plain_criticmarkup_comment_is_reported(tmp_path, state_dir, with_section):
+    doc = tmp_path / "review.md"
+    doc.write_text("# Review\n")
+    if with_section:
+        _in_file_comment(doc, author="MotorHoe (Author)", comment_id="Mine")
+    first, rest = doc.read_text().split("\n", 1)
+    doc.write_text(f"{first}\n\n{{==a claim==}}{{>>save it?<<}}\n{rest}")
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+
+    assert len(sent) == 1 and "save it?" in sent[0]
+
+
+def test_a_plain_comment_answered_with_a_signed_block_is_not_reported(doc, state_dir):
+    doc.write_text('# Review\n\n{>>save it?<<}{{author="Author (MotorHoe)">>yes<<}}\n')
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
+
+
+def test_comment_markup_quoted_in_code_or_a_record_is_not_reported(tmp_path, state_dir):
+    doc = tmp_path / "review.md"
+    doc.write_text("# Review\n\nPlain CriticMarkup is `{>>...<<}`.\n\n```\n{>>in a fence<<}\n```\n")
+    text = doc.read_text()
+    quoting = edits.add_comment(
+        text,
+        "markdown",
+        0,
+        0,
+        author="MotorHoe (Author)",
+        body="a {>>like this<<} comment",
+        comment_id="Quote",
+    )
+    doc.write_text(edits.apply(text, quoting.edits))
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
+
+
+def test_the_first_in_file_comment_does_not_turn_relay_markup_into_a_body_edit(tmp_path, state_dir):
+    doc = tmp_path / "review.md"
+    doc.write_text("# Review\n\n{==line==}" + _ASK + "\n")
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    doc_events.poll(w, _collect([]))
+    _in_file_comment(doc, author="MotorHoe (Author)", comment_id="Mine")
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+    doc_events.poll(w, _collect(sent))
+
+    assert sent == []
+
+
+def test_a_comment_added_when_strip_would_refuse_is_not_a_body_edit(code, state_dir):
+    _in_file_comment(code, author="Sam", comment_id="Asked")
+    code.write_text(
+        code.read_text().replace("# [lma:Asked]\n", "# [lma:Asked]\n# [lma:Asked]\n", 1)
+    )
+    w = doc_events.open_watch(state_dir, code, _ME, [], edits=True, quiet=0)
+    doc_events.poll(w, _collect([]))
+    text = code.read_text()
+    added = edits.add_comment(
+        text,
+        "python",
+        len("# [lma:Asked]\n" * 2),
+        len("# [lma:Asked]\n" * 2),
+        author="MotorHoe (Author)",
+        body="mine",
+        comment_id="Mine",
+    )
+    code.write_text(edits.apply(text, added.edits))
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+    doc_events.poll(w, _collect(sent))
+
+    assert sent == []
+
+
+def test_a_section_gone_for_one_poll_does_not_report_its_comments_again(code, state_dir):
+    _in_file_comment(code, author="Sam", comment_id="Asked")
+    commented = code.read_text()
+    w = doc_events.open_watch(state_dir, code, _ME, [], edits=False, quiet=45)
+    doc_events.poll(w, _collect([]))
+    code.write_text("def f(x):\n    return x + 1\n")
+    doc_events.poll(w, _collect([]))
+    code.write_text(commented)
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
+
+
+def test_a_relay_thread_hidden_by_a_section_is_not_reported_again_when_it_goes(tmp_path, state_dir):
+    doc = tmp_path / "review.md"
+    doc.write_text("# Review\n\n" + _ASK + "\n")
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    doc_events.poll(w, _collect([]))
+    relay_only = doc.read_text()
+    _in_file_comment(doc, author="MotorHoe (Author)", comment_id="Mine")
+    doc_events.poll(w, _collect([]))
+    doc.write_text(relay_only)
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
+
+
+def test_an_answered_comment_that_waits_again_is_reported_again(code, state_dir):
+    _in_file_comment(code, author="Sam", comment_id="Asked")
+    asked_only = code.read_text()
+    w = doc_events.open_watch(state_dir, code, _ME, [], edits=False, quiet=45)
+    doc_events.poll(w, _collect([]))
+    _in_file_comment(code, author="MotorHoe (Author)", comment_id="Answer", re_="Asked")
+    doc_events.poll(w, _collect([]))
+    code.write_text(asked_only)  # someone deletes the answer's record by hand
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED
+    assert "Ids: Asked" in sent[0]
+
+
+def test_the_watcher_reads_a_bare_cr_file_as_the_cli_does(tmp_path, state_dir):
+    doc = tmp_path / "ghost.py"
+    record = '# {"id": "Ghost", "author": "Sam", "at": "2026-11-19T19:40:00Z", "body": "boo"}'
+    doc.write_bytes(f"x = 1\r# [lma:threads]\r{record}\r".encode())
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+
+    assert not any("Ghost" in m for m in sent)
+
+
+def test_a_long_wake_keeps_the_ids_and_how_to_answer(code, state_dir):
+    for n in range(9):
+        text = code.read_text()
+        added = edits.add_comment(
+            text, "python", 0, 0, author="Sam", body="x" * 4001, comment_id=f"Long{n}"
+        )
+        code.write_text(edits.apply(text, added.edits))
+    w = doc_events.open_watch(state_dir, code, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+
+    assert "Ids: Long" in sent[0] and "Long8" in sent[0]
+    assert f"lemonaid comments reply {code} --re <id>" in sent[0]
+
+
+def test_a_different_comment_that_reuses_an_id_is_reported(code, state_dir):
+    original = code.read_text()
+    _in_file_comment(code, author="Sam", comment_id="Reuse")
+    w = doc_events.open_watch(state_dir, code, _ME, [], edits=False, quiet=45)
+    doc_events.poll(w, _collect([]))
+    code.write_text(original)
+    doc_events.poll(w, _collect([]))
+    text = code.read_text()
+    added = edits.add_comment(
+        text, "python", 0, 0, author="Sam", body="a new question", comment_id="Reuse"
+    )
+    code.write_text(edits.apply(text, added.edits))
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED
+    assert "Ids: Reuse." in sent[0]
+
+
+def test_editing_relay_shaped_text_in_python_code_is_a_body_edit(code, state_dir):
+    code.write_text('EXAMPLE = """{{author="Sam">>hello<<}}"""\n')
+    _in_file_comment(code, author="MotorHoe (Author)", comment_id="Mine")
+    w = doc_events.open_watch(state_dir, code, _ME, [], edits=True, quiet=0)
+    doc_events.poll(w, _collect([]))
+    code.write_text(code.read_text().replace("hello", "goodbye"))
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+    doc_events.poll(w, _collect(sent))
+
+    assert any("goodbye" in m for m in sent)
+
+
+def test_a_link_with_another_extension_is_watched_as_the_file_it_names(code, tmp_path, state_dir):
+    _in_file_comment(code, author="Sam", comment_id="Asked")
+    alias = tmp_path / "alias.md"
+    alias.symlink_to(code)
+    w = doc_events.open_watch(state_dir, alias, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED
+    assert "Ids: Asked." in sent[0]
+
+
+def test_a_relay_comment_quoting_code_keeps_its_text(doc, state_dir):
+    doc.write_text('# Review\n\n{{author="Sam">>check `alpha()` please<<}}\n')
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+
+    assert "check `alpha()` please" in sent[0]
+
+
+def test_editing_comment_markup_in_a_fenced_example_is_a_body_edit(doc, state_dir):
+    doc.write_text("# Review\n\n```\n{>>old<<}\n```\n")
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    doc_events.poll(w, _collect([]))
+    doc.write_text("# Review\n\n```\n{>>new<<}\n```\n")
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+    doc_events.poll(w, _collect(sent))
+
+    assert len(sent) == 1 and "changed" in sent[0] and "new" in sent[0]
+
+
+def test_a_plain_comment_with_a_plain_follow_up_is_answered_by_a_signed_block(doc, state_dir):
+    doc.write_text(
+        '# Review\n\n{==x==}{>>question<<}{>>follow-up<<}{{author="Author (MotorHoe)">>answer<<}}\n'
+    )
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
+
+
+def test_an_unfinished_example_in_a_fence_does_not_hide_a_comment_after_it(doc, state_dir):
+    doc.write_text("# Review\n\n```\nwrite {>> to start one\n```\n\nA claim.{>>is it true?<<}\n")
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+
+    assert len(sent) == 1 and "is it true?" in sent[0]

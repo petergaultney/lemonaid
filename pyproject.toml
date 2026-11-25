@@ -5,12 +5,19 @@ description = "Attention inbox for managing notifications from lemons and other 
 readme = "docs/pypi.md"
 requires-python = ">=3.11"
 dependencies = [
+    # CommonMark, to check a comment doesn't change how a Markdown file renders; rich has it too
+    "markdown-it-py>=3",
     "pyyaml>=6",
     "textual>=0.89.0",
     "wordybin==0.2.0",
 ]
 
 [project.optional-dependencies]
+# `lemonaid lsp`, the comments server an editor starts. The rest of lemonaid runs without it.
+lsp = [
+    "lsprotocol>=2025.0.0",
+    "pygls>=2.1",
+]
 # The grove window (`lemonaid grove window`), macOS only for now: a native web view.
 web = [
     "pywebview>=6.2",
@@ -32,6 +39,7 @@ Issues = "https://github.com/petergaultney/lemonaid/issues"
 
 [dependency-groups]
 dev = [
+    "lemonaid-inbox[lsp]",
     "pre-commit",
     "pytest",
     "pytest-xdist>=3.8.0",

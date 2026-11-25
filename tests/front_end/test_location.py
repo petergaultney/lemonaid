@@ -1,5 +1,7 @@
 """One location record, whichever terminal's keys an inbox row carries."""
 
+import pytest
+
 from lemonaid.front_end import location
 
 
@@ -55,3 +57,39 @@ def test_a_lemon_that_moved_to_wezterm_reads_wezterm_s_keys_not_the_tmux_ones_it
     assert location.of({"tmux_session": "old", "cmux_surface": "S1"}, "cmux") == location.Location(
         "cmux", pane="S1"
     )
+
+
+_TOOLS = location.Location("tmux", "/tmp/tmux-1/default", "tools", pane="%1")
+
+
+@pytest.mark.parametrize(
+    ("other", "is_near"),
+    [
+        (location.Location("tmux", "/tmp/tmux-1/default", "tools", pane="%9"), True),
+        (location.Location("tmux", "/tmp/tmux-1/default", "notes"), False),
+        (location.Location("tmux", "/tmp/tmux-1/other", "tools"), False),
+        (location.Location("wezterm", "/tmp/tmux-1/default", "tools"), False),
+    ],
+)
+def test_locations_are_near_in_the_same_workspace_of_one_instance(other, is_near) -> None:
+    assert location.near(_TOOLS, other) is is_near
+
+
+def test_a_front_end_without_workspaces_is_near_nothing() -> None:
+    surface = location.Location("cmux", pane="surface-1")
+
+    assert not location.near(surface, surface)
+
+
+def test_here_in_tmux_is_the_socket_and_session(monkeypatch) -> None:
+    monkeypatch.setattr(location.common, "detect_terminal_switch_source", lambda: "tmux")
+    monkeypatch.setattr(location.common, "get_tmux_socket", lambda: "/tmp/tmux-1/default")
+    monkeypatch.setattr(location.common, "get_tmux_session_name", lambda: "tools")
+
+    assert location.here() == location.Location("tmux", "/tmp/tmux-1/default", "tools")
+
+
+def test_here_outside_every_front_end_is_plain(monkeypatch) -> None:
+    monkeypatch.setattr(location.common, "detect_terminal_switch_source", lambda: "unknown")
+
+    assert location.here() == location.Location("plain")
