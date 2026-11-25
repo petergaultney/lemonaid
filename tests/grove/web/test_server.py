@@ -223,5 +223,7 @@ def test_a_pages_calls_share_one_connection_even_after_a_refusal(served):
 def test_both_pages_get_the_web_keys_before_their_own_scripts():
     keys = web_config.WebConfig(prefix="C-a")
     for page in (server.html(keys), server.lemon_page(keys)):
-        given = page.index('window.groveKeys = {"prefix": "C-a", "home": "Space", "literal": "h"}')
+        given = page.index(
+            'window.groveKeys = {"prefix": "C-a", "home": "prefix", "literal": "h", "brief": "b"}'
+        )
         assert given < page.index("<script>", given)
