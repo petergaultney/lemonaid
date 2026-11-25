@@ -104,3 +104,27 @@ def test_a_cleanup_failure_after_the_move_still_delivers_the_message(card, tmp_p
 
     _, text = inbox.take_next(card.inbox, tmp_path / "local", keep_days=7)
     assert text.endswith("Deliver me\n")
+
+
+def test_a_folder_note_in_the_inbox_is_not_mail(card, tmp_path):
+    (card.inbox / f"{card.inbox.name}.md").write_text("folder note\n")
+    sent = inbox.send(card, "Real mail.", "kim: other.AuditInk")
+
+    assert inbox.pending(card.inbox) == [sent]
+    inbox.take_next(card.inbox, tmp_path / "mailbox" / "plan.BlessBar", keep_days=7)
+    assert inbox.pending(card.inbox) == []
+    assert (card.inbox / f"{card.inbox.name}.md").exists()
+
+
+def test_old_read_messages_go_but_the_read_folders_note_stays(card, tmp_path):
+    read_dir = card.inbox / inbox.READ
+    read_dir.mkdir(parents=True, exist_ok=True)
+    note = read_dir / f"{read_dir.name}.md"
+    note.write_text("folder note\n")
+    old = time.time() - 30 * 86400
+    os.utime(note, (old, old))
+    inbox.send(card, "New mail.", "kim: other.AuditInk")
+
+    inbox.take_next(card.inbox, tmp_path / "mailbox" / "plan.BlessBar", keep_days=7)
+
+    assert note.exists()
