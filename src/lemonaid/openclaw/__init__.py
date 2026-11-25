@@ -1,10 +1,5 @@
-"""Lemonaid OpenClaw integration.
+"""Lemonaid's OpenClaw integration.
 
-OpenClaw is an open-source personal AI assistant. Sessions are stored at:
-~/.openclaw/agents/<agentId>/sessions/<sessionId>.jsonl
-
-Session index is at:
-~/.openclaw/agents/<agentId>/sessions/sessions.json
+`sessions` and `lemons` treat the gateway as a harness whose sessions are lemons. `watcher`,
+`notify` and `utils` follow an OpenClaw TUI session's transcript file for the inbox.
 """
-
-from . import utils, watcher  # noqa: F401

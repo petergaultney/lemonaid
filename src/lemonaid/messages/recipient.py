@@ -22,6 +22,7 @@ from ..codex import turns as codex_turns
 from ..inbox import db, turns
 from ..inbox.channel import channel_id
 from ..lemon_watchers import owners
+from ..openclaw import sessions
 from ..watch import scout_failures, scout_roster
 from . import waiter
 
@@ -184,7 +185,7 @@ def classify(
     if not channel:
         return State(NOT_STARTED, "it reads its mailbox when it starts")
 
-    if not channel.startswith(("claude:", "codex:")):
+    if not channel.startswith(("claude:", "codex:", sessions.PREFIX)):
         return State(UNKNOWN, "lemonaid can't tell whether this harness reads its mailbox")
 
     if row is None or alive is False:
@@ -228,8 +229,8 @@ def confirmed(row: db.Notification, state: State) -> State:
     deaf may have exited with another lemon now on its terminal, and one called
     dead may be running on a terminal its row doesn't record yet.
     """
-    if state.state not in (DEAF, DEAD):
-        return state
+    if state.state not in (DEAF, DEAD) or row.channel.startswith(sessions.PREFIX):
+        return state  # an OpenClaw session runs in its gateway, on no terminal
 
     running = owners.running()
     if running is None:

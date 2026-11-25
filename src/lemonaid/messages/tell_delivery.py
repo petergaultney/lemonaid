@@ -16,7 +16,8 @@ from ..brief import archive
 from ..config import load_config
 from ..launch.restart import state
 from ..log import get_logger
-from ..watch import push_scout
+from ..openclaw import sessions
+from ..watch import openclaw_scout, push_scout
 from . import autoresume, bring_back, recipient, recreate, service, store, wake
 
 _log = get_logger("messages.tell_delivery")
@@ -129,6 +130,8 @@ def deliver(to: Recipient, body: str, sender: str, wake_it: bool) -> Delivery:
         service.ensure_running()
     elif channel.startswith("claude:") and row is not None:
         push_scout.ensure(channel.removeprefix("claude:"), to.lemon_id)
+    elif channel.startswith(sessions.PREFIX) and row is not None:
+        openclaw_scout.ensure(channel, to.lemon_id, str(row.metadata.get("cwd") or ""))
     found_state = recipient.probe(channel, row, mailbox)
     if found_state.state not in recipient.UNREAD:
         return Delivery(

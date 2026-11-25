@@ -12,6 +12,7 @@ from ..hooks import session_gate
 from ..inbox import db
 from ..launch.restart import gates
 from ..messages import store, waiter
+from ..openclaw import sessions
 from . import (
     attachment,
     batch_text,
@@ -21,6 +22,7 @@ from . import (
     deaf_waiter,
     delivery,
     notes,
+    openclaw_scout,
     own_edits,
     pr_poller,
     push_scout,
@@ -34,7 +36,12 @@ from . import (
 
 def run(args: argparse.Namespace) -> int:
     thread, problem = delivery.codex_thread(args.codex_thread)
-    if args.push and not thread and not args.channel.startswith("claude:"):
+    if (
+        args.push
+        and not thread
+        and not args.channel.startswith("claude:")
+        and not sessions.hosted_codex_home()  # an OpenClaw session's thread isn't its own
+    ):
         thread = os.environ.get("CODEX_THREAD_ID", "")  # run by a Codex lemon itself
     if problem:
         print(f"not started: {problem}")
@@ -56,6 +63,8 @@ def run(args: argparse.Namespace) -> int:
     if thread and not args.push and push_scout.running(lemon_id) and not wait_state.deaf(lemon_id):
         print("push scout running; nothing to rearm")
         return 0
+    if args.push and channel.startswith(sessions.PREFIX):
+        return openclaw_scout.start(channel, lemon_id, os.getcwd())
     if args.push:
         return (
             codex_scout.start(channel, thread, lemon_id)

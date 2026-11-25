@@ -6,6 +6,8 @@ import time
 import typing as ty
 from collections import abc
 
+import lemonaid.openclaw.watcher  # noqa: F401  (sets openclaw.watcher)
+
 from .... import claude, config, handlers, openclaw, opencode, status_registry
 from ....audit import events
 from ....brief import attached

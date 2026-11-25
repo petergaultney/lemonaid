@@ -1,6 +1,34 @@
 # OpenClaw Integration
 
-Lemonaid supports [OpenClaw](https://openclaw.ai/), the open-source personal AI assistant.
+Lemonaid supports [OpenClaw](https://openclaw.ai/), the open-source personal AI assistant, in two ways:
+
+- **Gateway sessions as lemons.** On the machine running OpenClaw's gateway, each session (a Matrix room, a Signal chat) can be a lemon with a brief, mail and watchers. See below.
+- **Following a TUI session** from your inbox, described from [How It Works](#how-it-works) on.
+
+## Gateway sessions as lemons
+
+OpenClaw is two things to lemonaid, kept apart:
+
+- **The harness** is the gateway. It runs each turn, and a session's identity is its session key, such as `agent:main:matrix:channel:!room:server`. Lemonaid lists sessions with `openclaw sessions --all-agents --json` and wakes one with `openclaw gateway call agent`.
+- **The front end** is the chat room the session lives in (`openclaw-chat`). Showing the lemon opens its room; lemonaid never starts or types into one.
+
+### Registering a session
+
+Run this inside the session, with the key its `session_status` tool reports:
+
+```sh
+lemonaid openclaw register --session-key 'agent:main:matrix:channel:!room:server'
+```
+
+The session's inbox row is `openclaw:<session key>`. A shell command OpenClaw runs carries the Codex thread underneath the session (`CODEX_THREAD_ID`) but nothing naming the session, so registering records that thread, and `--self` commands from the session find their lemon by it. OpenClaw starts a new thread after a reset or compaction; `--self` then refuses with a reminder to register again, rather than mistaking the session for a Codex lemon.
+
+A lemon that registers another session, such as one it spawned, keeps its own thread: the other session keeps whatever thread it had. If a thread was given to the wrong session, run the command inside the right one with `--claim` to take it back.
+
+### Briefs, mail and watchers
+
+Once registered, the session uses briefs like any lemon: `lemonaid brief attach --self <brief>`, `lemonaid brief id --self`, and the rest. `lemonaid watch --self --push` starts its scout in the scout host, which turns each batch (mail, doc comments, PR events, children) into one gateway turn in the session. `lemonaid tell` to the lemon starts the scout if none runs.
+
+When the command that starts the scout host runs inside a systemd service (as the gateway's shell commands do), the host gets a transient user unit of its own, so a gateway restart doesn't stop it.
 
 ## How It Works
 

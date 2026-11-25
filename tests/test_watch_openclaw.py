@@ -43,7 +43,7 @@ def test_list_names_keep_their_format(lists_dir):
 def test_start_adds_the_doc_and_starts_a_lemonaid_waiter(tmp_path, lists_dir, started):
     doc = tmp_path / "note.md"
 
-    openclaw_cli.start(lists_dir, doc, "agent:main:x", "Meyer", "agent:main:main", 7)
+    openclaw_cli.start(lists_dir, doc, "agent:main:x", "Ada", "agent:main:main", 7)
 
     target = openclaw_cli.list_path(lists_dir, "agent:main:x")
     assert list(watch_list.read(target)) == [str(doc.resolve())]
@@ -61,7 +61,7 @@ def test_start_adds_the_doc_and_starts_a_lemonaid_waiter(tmp_path, lists_dir, st
         "--watch-list",
         str(target),
         "--me",
-        "Meyer",
+        "Ada",
         "--openclaw-session",
         "agent:main:x",
         "--hq-session",
@@ -75,10 +75,10 @@ def test_start_takes_the_doc_from_other_sessions_and_reuses_a_running_waiter(
     tmp_path, lists_dir, started
 ):
     doc = tmp_path / "note.md"
-    openclaw_cli.start(lists_dir, doc, "agent:main:old", "Meyer", "agent:main:main", 7)
+    openclaw_cli.start(lists_dir, doc, "agent:main:old", "Ada", "agent:main:main", 7)
     held = watch_list.hold_waiter(openclaw_cli.list_path(lists_dir, "agent:main:new"))
 
-    openclaw_cli.start(lists_dir, doc, "agent:main:new", "Meyer", "agent:main:main", 7)
+    openclaw_cli.start(lists_dir, doc, "agent:main:new", "Ada", "agent:main:main", 7)
 
     assert watch_list.read(openclaw_cli.list_path(lists_dir, "agent:main:old")) == {}
     assert len(started) == 1  # only the first session had no waiter
@@ -88,7 +88,7 @@ def test_start_takes_the_doc_from_other_sessions_and_reuses_a_running_waiter(
 
 def test_stop_and_list(tmp_path, lists_dir, started, capsys):
     doc = tmp_path / "note.md"
-    openclaw_cli.start(lists_dir, doc, "agent:main:x", "Meyer", "agent:main:main", 7)
+    openclaw_cli.start(lists_dir, doc, "agent:main:x", "Ada", "agent:main:main", 7)
 
     openclaw_cli.show(lists_dir)
     openclaw_cli.stop(lists_dir, doc)
@@ -111,7 +111,7 @@ def fake_openclaw(tmp_path, monkeypatch):
 def test_openclaw_delivery_runs_one_idempotent_turn(fake_openclaw):
     cli, args_file = fake_openclaw
 
-    delivery.to_openclaw("agent:main:x", "Meyer", "agent:main:main", str(cli), 1000)("an event")
+    delivery.to_openclaw("agent:main:x", "Ada", "agent:main:main", str(cli), 1000)("an event")
 
     argv = args_file.read_text().splitlines()
     assert argv[:5] == ["gateway", "call", "agent", "--json", "--expect-final"]
@@ -119,7 +119,7 @@ def test_openclaw_delivery_runs_one_idempotent_turn(fake_openclaw):
     assert params["sessionKey"] == "agent:main:x"
     assert params["idempotencyKey"] == hashlib.sha1(b"agent:main:x\0an event").hexdigest()
     assert params["message"].startswith("watch-doc event: an event\n")
-    assert 'author="Meyer" authorId="agent:main:x"' in params["message"]
+    assert 'author="Ada" authorId="agent:main:x"' in params["message"]
 
 
 @pytest.mark.parametrize(
@@ -137,7 +137,7 @@ def test_openclaw_delivery_fails_on_an_unsuccessful_turn(fake_openclaw, monkeypa
     monkeypatch.setenv("FAKE_OPENCLAW_EXIT", code)
 
     with pytest.raises(delivery.Failed):
-        delivery.to_openclaw("agent:main:x", "Meyer", "agent:main:main", str(cli), 1000)("e")
+        delivery.to_openclaw("agent:main:x", "Ada", "agent:main:main", str(cli), 1000)("e")
 
 
 def test_openclaw_setup_needs_the_cli(tmp_path, monkeypatch):

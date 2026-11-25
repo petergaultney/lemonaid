@@ -1,11 +1,11 @@
 """Which terminal a recorded lemon runs in, for code that only looks at terminals."""
 
-from . import cmux, interface, tmux, wezterm
+from . import chat, cmux, interface, tmux, wezterm
 
 
 def all_terminals() -> tuple[interface.Terminal, ...]:
     """In the order a caller is placed: a tmux session run inside cmux or WezTerm is tmux's."""
-    return (tmux.terminal(), wezterm.terminal(), cmux.terminal())
+    return (tmux.terminal(), wezterm.terminal(), cmux.terminal(), chat.terminal())
 
 
 def named(name: str | None) -> interface.Terminal | None:
