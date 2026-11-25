@@ -16,6 +16,7 @@ from pathlib import Path
 
 from .. import brief, docs_config
 from ..config import Config
+from ..hooks import session_brief
 from ..launch import command
 from ..log import get_logger
 from . import index, lemons, mode, paths, start
@@ -126,3 +127,15 @@ def prepare(wanted: str, directory: Path, kin: Kin, config: Config, line: str) -
 
     changed = wanted or chosen != config.docs.mode
     return Launch({**environment, **({mode.ENV: chosen} if changed else {})}, flags, warning)
+
+
+def resumed(session: str, directory: Path, config: Config, line: str) -> Launch:
+    """The docs side of resuming Claude session *session* with *line*, built afresh for
+    the mode it now has (`lemonaid docs mode` may have changed it) and its docs now."""
+    return prepare(
+        mode.wanted("claude", session, ""),
+        directory,
+        Kin(session_brief.attached({"session_id": session}, "claude")),
+        config,
+        line,
+    )

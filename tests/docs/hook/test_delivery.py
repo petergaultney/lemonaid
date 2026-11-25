@@ -7,7 +7,7 @@ import json
 import pytest
 
 from lemonaid.config import load_config
-from lemonaid.docs import compose, deliveries, hook, index, lemons, paths, start
+from lemonaid.docs import compose, deliveries, hook, index, lemons, mode, paths, start
 
 from ..shared import configure, doc
 
@@ -89,7 +89,6 @@ def test_a_claude_lemon_launched_with_its_packages_is_given_them_only_when_they_
 
     (tmp_path / "docs" / "voice.md").write_text("---\npackage: core\n---\nWrite very plainly.\n")
     assert "Write very plainly." in _run("SessionStart", source="compact").context
-    assert start.resume_flags(_SESSION) == flags
 
 
 @pytest.mark.usefixtures("root", "packages")
@@ -265,3 +264,15 @@ def test_a_trigger_only_logged_doesn_t_hide_the_same_doc_from_a_group_trigger(mo
 
     assert _run("PreToolUse", **_bash("echo shadow")).context == ""
     assert "A team rule." in _run("PreToolUse", **_bash("echo actual")).context
+
+
+@pytest.mark.usefixtures("root", "packages")
+def test_a_claude_lemon_changed_to_classic_keeps_packages_through_compaction():
+    _run("SessionStart", source="startup")
+    mode.record("claude", _SESSION, "classic")
+
+    compacted = _run("SessionStart", source="compact")
+    refused = _run("PreToolUse", **_bash("gh pr create --fill"))
+
+    assert {e["mode"] for e in compacted.entries} == {"packages"}
+    assert refused.refusal and "Open as a draft." in refused.refusal

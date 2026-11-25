@@ -138,12 +138,23 @@ def context(data: dict, harness: str) -> str:
 
 
 def _docs(data: dict, harness: str) -> str:
-    """The classic docs for a Codex history that doesn't hold them; Claude loads its own."""
+    """The classic docs for a Codex history that doesn't hold them; Claude loads its own.
+
+    A resume holds them already, unless the thread last started in another mode."""
     config = load_config()
-    mode = docs.mode.session_mode(
-        harness, data.get("session_id") or "", os.environ.get(docs.mode.ENV, ""), config.docs
-    )
-    if harness != "codex" or data.get("source", "startup") not in _DOCS_SOURCES:
+    session = data.get("session_id") or ""
+    mode = docs.mode.session_mode(harness, session, os.environ.get(docs.mode.ENV, ""), config.docs)
+    if harness != "codex":
+        return ""
+
+    source = data.get("source", "startup")
+    try:
+        before = docs.mode.began(harness, session, mode) if session else ""
+    except OSError as e:
+        _log.warning("could not record the docs mode %s started in: %s", session, e)
+        before = ""
+    changed = source == "resume" and before not in ("", mode)
+    if source not in _DOCS_SOURCES and not changed:
         return ""
 
     root = docs.mode.classic_root(config)

@@ -101,29 +101,4 @@ def claim(session: str, source: str) -> dict:
             manifest.write_text(json.dumps({**loaded, "session": session}))
         except OSError as e:
             _log.warning("could not claim %s for %s: %s", manifest, session, e)
-    record = paths.session_start(session)
-    try:
-        record.parent.mkdir(parents=True, exist_ok=True)
-        record.write_text(str(manifest))
-    except OSError as e:
-        _log.warning("could not record %s's start for its resumes: %s", session, e)
     return loaded
-
-
-def resume_flags(session: str) -> list[str]:
-    """The flags that gave Claude session *session* its start text, for a resume to pass
-    again; [] when it had none, or its files are gone."""
-    try:
-        manifest = Path(paths.session_start(session).read_text().strip())
-    except OSError:
-        return []
-
-    flags = _read(manifest).get("flags")
-    if not isinstance(flags, list) or not all(isinstance(f, str) for f in flags):
-        return []
-
-    if not all(Path(value).is_file() for value in flags[1::2]):
-        _log.warning("not resuming %s with its start docs: %s is incomplete", session, manifest)
-        return []
-
-    return flags

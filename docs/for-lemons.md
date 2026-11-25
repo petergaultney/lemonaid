@@ -346,7 +346,7 @@ Put all lemonaid options before `--`; every token after it passes to the harness
 
 When the docs hook refuses a tool call with a rule as the reason, read the rule and make the call again, changed if the rule says so; it runs the second time.
 
-`lemonaid docs --self` lists the docs your session has been given so far, and by which package or trigger, with `shadow` on those its mode only logged. `lemonaid docs who DOC` lists the live lemons holding a doc, and `lemonaid docs table` every package and trigger ([doc-delivery.md](doc-delivery.md)).
+`lemonaid docs --self` lists the docs your session has been given so far, and by which package or trigger, with `shadow` on those its mode only logged. `lemonaid docs who DOC` lists the live lemons holding a doc, and `lemonaid docs table` every package and trigger ([doc-delivery.md](doc-delivery.md)). `lemonaid docs mode --self classic|packages` changes your own mode, and `lemonaid docs mode SESSION MODE` a child's; it prints when the change takes effect, which for Claude is its next resume through lemonaid and for Codex its next compaction or resume ([doc-delivery.md](doc-delivery.md#changing-a-lemons-mode)).
 
 `--prompt TEXT` reaches the lemon command as one positional argument through its window environment. All startup options affect only creation. If a session already exists, `open` switches to it without starting another harness or sending the prompt.
 

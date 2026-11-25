@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from lemonaid import docs
 from lemonaid.claude import cli, projects, resume
 from lemonaid.inbox import db
 
@@ -135,10 +136,16 @@ def test_resumes_where_the_inbox_last_recorded_the_session(monkeypatch, tmp_path
     assert directories == [str(moved), str(tmp_path)]
 
 
-def test_a_session_launched_with_its_docs_resumes_with_them(execs, monkeypatch, tmp_path):
-    flags = ["--append-system-prompt-file", str(tmp_path / "start.md")]
-    (tmp_path / "start.md").write_text("Docs.\n")
-    monkeypatch.setattr(resume.start, "resume_flags", lambda session: flags)
+def test_a_resume_is_given_the_docs_of_its_mode_now(execs, monkeypatch):
+    flags = ("--append-system-prompt-file", "start.md")
+    asked = []
+
+    def resumed(session, directory, config, line):
+        asked.append((session, line))
+        return docs.launch.Launch({docs.mode.ENV: "packages"}, flags)
+
+    monkeypatch.setattr(docs.launch, "resumed", resumed)
+    monkeypatch.setenv(docs.mode.ENV, "classic")  # restored after the resume overwrites it
 
     _run("abc123")
     resume.forward_to_claude(["--model", "opus", "--resume", "abc123"])
@@ -149,3 +156,19 @@ def test_a_session_launched_with_its_docs_resumes_with_them(execs, monkeypatch, 
         ["claude", *flags, "--model", "opus", "--resume", "abc123"],
         ["claude", *flags, "--resume", "abc123"],
     ]
+    assert asked == [("abc123", "claude"), ("abc123", "claude --model opus --resume abc123")]
+    assert resume.os.environ[docs.mode.ENV] == "packages"
+
+
+def test_a_resume_to_classic_drops_the_start_its_shell_inherited(execs, monkeypatch):
+    monkeypatch.setenv(docs.start.START_ENV, "/old/manifest.json")
+    monkeypatch.setenv(docs.mode.ENV, "packages")
+    monkeypatch.setattr(
+        docs.launch, "resumed", lambda *args: docs.launch.Launch({docs.mode.ENV: "classic"})
+    )
+
+    _run("abc123")
+
+    assert docs.start.START_ENV not in resume.os.environ
+    assert resume.os.environ[docs.mode.ENV] == "classic"
+    assert execs == [["claude", "--resume", "abc123"]]

@@ -2,7 +2,7 @@
 began, and how many tool calls it has made.
 
 A window begins when a session starts, is cleared or is compacted; a resume continues
-it. Docs a Claude lemon was launched with are in its system prompt, which no compaction
+it, unless the session's docs mode changed since. Docs a Claude lemon was launched with are in its system prompt, which no compaction
 removes, so every window counts them as given. Its state is kept in `paths.window()` and locked while a hook changes it, since a
 lemon's parallel tool calls run their hooks at the same time.
 """
@@ -37,6 +37,7 @@ def _read(path: Path) -> dict:
         "delivered": {},
         "shadowed": {},  # the same, for what the lemon's mode only logged
         "packages": [],
+        "mode": "",  # the docs mode the window began in, which its hooks keep to
         "prompt": {},  # doc key -> mtime, for the docs in a Claude lemon's system prompt
         "lemon": {},  # what the session start learned about the lemon (`facts`)
         **state,
@@ -55,13 +56,14 @@ def opened(harness: str, session: str) -> abc.Iterator[dict]:
         path.write_text(json.dumps(state))
 
 
-def begin(state: dict, source: str, packages: abc.Sequence[str]) -> bool:
-    """Start a new window given *packages*, unless *source* is a resume of the current one,
-    which keeps the packages it was given; whether it did."""
-    if source == "resume" and state["window"]:
+def begin(state: dict, source: str, mode: str, packages: abc.Sequence[str]) -> bool:
+    """Start a new window in *mode* given *packages*, unless *source* is a resume of the
+    current one in the same mode, which keeps what it was given; whether it did."""
+    if source == "resume" and state["window"] and state["mode"] == mode:
         return False
 
     state["window"] += 1
+    state["mode"] = mode
     state["delivered"] = {
         key: {"mtime": mtime, "call": None} for key, mtime in state["prompt"].items()
     }
