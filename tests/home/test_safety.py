@@ -135,7 +135,7 @@ def test_rollback_waits_for_a_send_already_under_way_and_then_refuses():
         with guard.operation():
             in_flight.set()
             time.sleep(0.3)
-            message_store._write(mailbox, "Sent while rollback paused", "tester")
+            message_store.write(mailbox, "Sent while rollback paused", "tester")
 
     sender = threading.Thread(target=slow_send)
     sender.start()

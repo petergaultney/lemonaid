@@ -28,6 +28,7 @@ ORDER = (
     "output-doc",
     "groups",
     "hidden",
+    "po-box",
     "name-words",
     "docs-mode",
 )
@@ -70,7 +71,7 @@ def _value(key: str, shown: str) -> object:
     if key == "name-words":
         return [word for word in re.split(r"[\s,]+", shown) if word] or None
 
-    if key == "hidden":
+    if key in ("hidden", "po-box"):
         return True if shown.lower() in ("yes", "true") else None
 
     if key == "parent":
