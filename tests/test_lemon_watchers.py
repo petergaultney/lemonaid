@@ -16,6 +16,7 @@ from lemonaid.lemon_watchers import (
 )
 from lemonaid.lemon_watchers.common import ContextReading
 from lemonaid.lemon_watchers.watcher import _latest_model
+from tests import module_time
 
 
 def test_started_watcher_can_be_stopped_and_joined():
@@ -350,7 +351,7 @@ def test_watch_loop_records_each_new_context_reading_once(tmp_path, monkeypatch)
         if polls == 4:
             raise StopIteration
 
-    monkeypatch.setattr(watcher.time, "sleep", next_poll)
+    module_time.patch(monkeypatch, watcher, sleep=next_poll)
 
     with pytest.raises(StopIteration):
         watcher.unified_watch_loop(

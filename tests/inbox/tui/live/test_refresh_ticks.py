@@ -19,6 +19,14 @@ def _add(name: str) -> None:
         db.add(conn, f"claude:{name}", "message", name, {"cwd": "/tmp"})
 
 
+def _add_shown(name: str) -> None:
+    """A row the inbox draws: a tmux session's, which `_add`'s is not."""
+    with db.connect() as conn:
+        n = db.add(conn, f"claude:{name}", "message", name, {"tty": f"/dev/ttys-{name}"})
+        conn.execute("UPDATE notifications SET switch_source = 'tmux' WHERE id = ?", (n.id,))
+        conn.commit()
+
+
 def test_a_locked_database_delays_the_refresh_but_not_the_app():
     _add("worker")
 
@@ -89,7 +97,9 @@ def _count_draws(monkeypatch) -> list[float]:
 
 
 def test_a_refresh_that_reads_what_is_drawn_draws_nothing_until_something_changes(monkeypatch):
-    _add("worker")
+    _add_shown("worker")
+    monkeypatch.setattr(watcher_hooks, "start", lambda *args: None)  # nothing else redraws
+    monkeypatch.setattr(LemonaidApp, "_check_claude_patch", lambda self: None)
     drawn = _count_draws(monkeypatch)
 
     async def run() -> tuple[int, int]:
@@ -99,7 +109,7 @@ def test_a_refresh_that_reads_what_is_drawn_draws_nothing_until_something_change
             settled = len(drawn)
             await pilot.pause(1.5)  # several ticks with nothing new
             idle = len(drawn) - settled
-            _add("reviewer")
+            _add_shown("reviewer")
             for _ in range(50):  # a loaded test machine can take a while to tick
                 await pilot.pause(0.1)
                 if len(drawn) > settled + idle:
