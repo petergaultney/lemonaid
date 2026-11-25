@@ -29,6 +29,7 @@ ORDER = (
     "groups",
     "hidden",
     "name-words",
+    "docs-mode",
 )
 _PARENT = re.compile(r"(?P<id>\S+?)(?:\s+\([^)]*\))?(?:,\s*\d{4}-\d{2}-\d{2})?")
 _DATE_PREFIX = re.compile(r"(\d{4}-\d{2}-\d{2})-")

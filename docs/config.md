@@ -90,7 +90,8 @@ place of the `classic` docs, and its triggers bring other docs as it works; see
 in `classic`, with a warning.
 
 `lemonaid lemon start --docs MODE` and `lemonaid place open --docs MODE` set the mode for
-one lemon. Its harness gets the mode in `LEMONAID_DOCS`, and the SessionStart hook records
+one lemon, and so does `docs-mode: MODE` in the frontmatter of the brief it is started
+with; `--docs` wins over the brief, and the brief over `mode`. Its harness gets the mode in `LEMONAID_DOCS`, and the SessionStart hook records
 it for the session, so a resume started without the variable keeps it.
 
 With `roots` set, a `classic` lemon is also given the packages and triggers that name its

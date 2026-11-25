@@ -23,6 +23,7 @@ FIELDS = (
     ("groups", "groups"),
     ("hidden", "hidden"),
     ("name words", "name-words"),
+    ("docs mode", "docs-mode"),
 )
 _LABELS = {
     "brief-id": "Brief-ID",
@@ -33,9 +34,10 @@ _LABELS = {
     "groups": "Groups",
     "hidden": "Hidden",
     "name-words": "Name words",
+    "docs-mode": "Docs mode",
 }
 _HEADER = re.compile(
-    r"(?P<label>Brief-ID|Lemon-ID|Status|Parent|Output-Doc|Area|Groups|Hidden|Name words"
+    r"(?P<label>Brief-ID|Lemon-ID|Status|Parent|Output-Doc|Area|Groups|Hidden|Name words|Docs mode"
     r"|type|created):(?P<value>.*)",
     re.IGNORECASE,
 )

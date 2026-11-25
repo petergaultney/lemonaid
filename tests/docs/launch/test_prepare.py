@@ -100,3 +100,24 @@ def test_a_claude_line_with_its_own_settings_falls_back_to_classic(tmp_path):
     started = _prepare(tmp_path, line="claude --settings '{\"x\": 1}'")
 
     assert "--settings" in started.warning and started.environment[mode.ENV] == "classic"
+
+
+def _brief(tmp_path, mode: str) -> Path:
+    path = tmp_path / "brief.md"
+    path.write_text(f"---\ntype: Brief\ndocs-mode: {mode}\n---\n# Work\n")
+    return path
+
+
+@pytest.mark.usefixtures("root")
+def test_a_brief_s_docs_mode_applies_unless_docs_overrides_it(tmp_path):
+    kin = launch.Kin(brief=_brief(tmp_path, "packages"))
+
+    assert _prepare(tmp_path, wanted="", kin=kin).environment[mode.ENV] == "packages"
+    assert _prepare(tmp_path, wanted="classic", kin=kin).environment[mode.ENV] == "classic"
+
+
+@pytest.mark.usefixtures("root")
+def test_a_brief_s_unknown_docs_mode_is_ignored(tmp_path):
+    kin = launch.Kin(brief=_brief(tmp_path, "lean"))
+
+    assert _prepare(tmp_path, wanted="", kin=kin) == launch.Launch()
