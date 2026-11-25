@@ -7,9 +7,11 @@ reads as a message rather than as its user.
 
 import getpass
 import os
+import time
 from pathlib import Path
 
-from ... import brief, conversation, front_end
+from ... import conversation, front_end
+from ...brief import attached, family, pr, render, target
 from ...config import Config
 from ...front_end import chat, interface, pick
 from ...inbox import db
@@ -46,20 +48,31 @@ def _conversation(row: db.Notification) -> list[conversation.entry.Entry]:
     raise OSError(f"lemonaid can't read a conversation on {row.channel}")
 
 
-def _brief(channel: str) -> tuple[str, str]:
-    """(path, text) of the brief attached to *channel*, or ("", "")."""
+def _brief(row: db.Notification, config: Config, prs: pr.Lookup) -> tuple[str, str]:
+    """(path, Markdown) of *row*'s brief as `lemonaid brief show` summarizes it for the tmux
+    sidebar, or ("", "") without one."""
     with db.connect() as conn:
-        path = brief.attached.by_channel(conn, [channel]).get(channel)
+        found = attached.by_channel(conn, [row.channel])
+    path = found.get(row.channel)
     if path is None:
         return "", ""
 
-    try:
-        return str(path), path.read_text()
-    except OSError:
-        return str(path), ""
+    now = time.time()
+    shown = family.added(
+        render.view(
+            target.for_notification(row, found),
+            now,
+            prs,
+            config.places.roots,
+            config.brief.vaults,
+            render.SummaryPolicy(config.brief.summary_open, config.brief.summary_long),
+        )
+    )
+    return str(path), render.to_markdown(shown, now)
 
 
-def view(channel: str) -> dict:
+def view(channel: str, config: Config, prs: pr.Lookup) -> dict:
+    """*prs* answers a PR's state, as a `pr.Cache` does without waiting."""
     with db.connect() as conn:
         row = db.get_by_channel(conn, channel, unread_only=False)
     if row is None:
@@ -67,7 +80,7 @@ def view(channel: str) -> dict:
 
     name, found = _front_end(row)
     how = name if found and found.prompt else MAIL
-    path, text = _brief(channel)
+    path, text = _brief(row, config, prs)
     try:
         entries, problem = _conversation(row), ""
     except OSError as error:

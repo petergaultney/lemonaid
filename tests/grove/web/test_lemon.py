@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from lemonaid.brief import attached
+from lemonaid.brief import attached, pr
 from lemonaid.brief import store as brief_store
 from lemonaid.config import Config
 from lemonaid.front_end import interface, pick
@@ -39,15 +39,18 @@ def worker(tmp_path):
 
 
 def test_view_shows_the_brief_the_conversation_and_how_text_goes_in(worker):
-    shown = lemon.view(CHANNEL)
+    shown = lemon.view(CHANNEL, Config(), pr.no_state)
 
-    assert (shown["name"], shown["brief"], shown["how"]) == ("worker", "# Worker\n", "tmux")
+    assert (shown["name"], shown["how"]) == ("worker", "tmux")
+    assert "**Worker**" in shown["brief"]  # the summary `brief show` gives the tmux sidebar
     assert [each["text"] for each in shown["entries"]] == ["hi"]
     assert shown["conversation_problem"] == ""
 
 
 def test_view_of_a_lemon_that_isnt_there():
-    assert lemon.view("claude:gone") == {"error": "No live lemon on claude:gone"}
+    assert lemon.view("claude:gone", Config(), pr.no_state) == {
+        "error": "No live lemon on claude:gone"
+    }
 
 
 def test_say_types_through_the_front_end(worker, monkeypatch):
@@ -77,7 +80,7 @@ def test_say_sends_mail_when_the_front_end_cant_type(worker, monkeypatch):
 
     assert lemon.say(CHANNEL, "when you can", Config()) == ""
     assert [(body, web) for _, body, web in sent] == [("when you can", True)]
-    assert lemon.view(CHANNEL)["how"] == lemon.MAIL
+    assert lemon.view(CHANNEL, Config(), pr.no_state)["how"] == lemon.MAIL
 
 
 def test_say_refuses_empty_text(worker):

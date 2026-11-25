@@ -13,6 +13,7 @@ import urllib.request
 import pytest
 
 from lemonaid import web_config
+from lemonaid.brief import pr
 from lemonaid.config import Config
 from lemonaid.front_end import chat
 from lemonaid.grove.web import changes, server
@@ -148,10 +149,12 @@ def test_a_jump_opens_the_lemons_page():
             metadata={"session_key": ROOM_KEY},
             switch_source=chat.NAME,
         )
-    calls = server._WebApi(api.Shared(Config()), *[lambda: None] * 5)
+    window = dict.fromkeys(("hide", "refresh", "leave", "stick", "drag"), lambda: None)
+    calls = server._WebApi(api.Shared(Config()), pr.no_state, **window)
 
     assert calls.jump(f"openclaw:{ROOM_KEY}") == {"lemon": f"openclaw:{ROOM_KEY}"}
     assert calls.jump("claude:missing") == "No live lemon on claude:missing"
+    assert calls.lemon("claude:missing") == {"error": "No live lemon on claude:missing"}
 
 
 def test_an_open_page_hears_each_change(served, seen):
