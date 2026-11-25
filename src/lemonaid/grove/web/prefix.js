@@ -1,8 +1,19 @@
 // The web grove's prefix key (`[web]` in lemonaid's config): the prefix and then the home key (the
 // prefix again, by default) go back to the grove from anywhere, a text box included; the prefix and
 // then the literal key type the prefix; the prefix and then the brief key focus a lemon's brief, on
-// a page that has one. Any other key after the prefix is dropped.
+// a page that has one. Any other key after the prefix is dropped. On the grove itself, the home key
+// goes back to the lemon last shown, as closing the grove window does.
 (() => {
+  // The lemon page last shown in this browser, for the grove to go back to.
+  const lastKey = "lemonaid-last-lemon";
+  const onLemon = location.pathname.endsWith("/lemon");
+  if (onLemon) { try { localStorage.setItem(lastKey, location.search); } catch {} }
+  window.groveBack = () => {
+    let last = null;
+    try { last = localStorage.getItem(lastKey); } catch {}
+    if (last) location.href = new URL(`lemon${last}`, location.href).href;
+  };
+
   const {prefix, home, literal, brief} = window.groveKeys || {};
   if (!prefix) return;
 
@@ -30,7 +41,10 @@
     if (!armed) { armed = true; return; }
 
     armed = false;
-    if (is(event, back)) location.href = new URL("./", location.href).href;
+    if (is(event, back)) {
+      if (onLemon) location.href = new URL("./", location.href).href;
+      else window.groveBack();
+    }
     else if (is(event, typed) && !p.ctrl) typeIn(prefix);
     else if (is(event, toBrief)) document.dispatchEvent(new CustomEvent("grove-brief"));
   }, true);
