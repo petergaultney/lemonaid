@@ -15,21 +15,39 @@ SOURCE: ty.Final = "lemonaid"
 _GIST_LENGTH: ty.Final = 80
 
 
+class AnchorKey(ty.NamedTuple):
+    """An anchor as the threads key sees it: its markers' text, which holds no positions."""
+
+    id: str
+    opening: str  # the text its opening marker carries
+    closing: str | None  # its closing marker's, None for a point
+
+
 class ThreadsKey(ty.NamedTuple):
     """What decides whether clients need new threads: an anchor that only moved doesn't
     count, since clients track each anchor from where the last notification put it, and
-    neither does a record that only moved because you typed above the section."""
+    neither does a record that only moved because you typed above the section. Its
+    markers' text does: a closing marker added to a point makes it a range, and a marker
+    respelled for its own line carries its line, and a client tracking the old markers
+    still finds them where they were."""
 
     comments: tuple[model.Comment, ...]
     resolutions: tuple[model.Resolution, ...]
-    anchor_ids: frozenset[str]
+    anchors: frozenset[AnchorKey]
 
 
-def threads_key(doc: model.Document) -> ThreadsKey:
+def threads_key(doc: model.Document, text: str) -> ThreadsKey:
     return ThreadsKey(
         comments=tuple(dataclasses.replace(c, offset=0) for c in doc.comments),
         resolutions=tuple(dataclasses.replace(r, offset=0) for r in doc.resolutions),
-        anchor_ids=frozenset(a.id for a in doc.anchors),
+        anchors=frozenset(
+            AnchorKey(
+                id=a.id,
+                opening=text[a.opening[0] : a.opening[1]],
+                closing=text[a.closing[0] : a.closing[1]] if a.closing else None,
+            )
+            for a in doc.anchors
+        ),
     )
 
 

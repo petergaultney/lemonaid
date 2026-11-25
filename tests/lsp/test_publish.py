@@ -1,3 +1,4 @@
+import pytest
 from lsprotocol import types
 
 from lemonaid.comments import parse
@@ -56,8 +57,8 @@ def test_a_format_error_is_an_error_diagnostic() -> None:
 def test_typing_above_the_section_or_moving_an_anchor_keeps_the_threads_key() -> None:
     moved = "# a new first line\n\n" + _FILE.replace("x = 1\n", "x = 1\ny = 2\n")
 
-    assert publish.threads_key(parse.parse(moved, "python")) == publish.threads_key(
-        parse.parse(_FILE, "python")
+    assert publish.threads_key(parse.parse(moved, "python"), moved) == publish.threads_key(
+        parse.parse(_FILE, "python"), _FILE
     )
 
 
@@ -67,10 +68,32 @@ def test_a_new_resolution_or_a_lost_anchor_changes_the_threads_key() -> None:
         + '# {"resolves": "SleepRib", "author": "Caleb Gregory", "at": "2026-11-19T20:00:00Z"}\n'
     )
     unanchored = _FILE.replace("# [lma:SleepRib]\n", "").replace("# [/lma:SleepRib]\n", "")
-    key = publish.threads_key(parse.parse(_FILE, "python"))
+    key = publish.threads_key(parse.parse(_FILE, "python"), _FILE)
 
-    assert publish.threads_key(parse.parse(resolved, "python")) != key
-    assert publish.threads_key(parse.parse(unanchored, "python")) != key
+    assert publish.threads_key(parse.parse(resolved, "python"), resolved) != key
+    assert publish.threads_key(parse.parse(unanchored, "python"), unanchored) != key
+
+
+@pytest.mark.parametrize(
+    ("before", "after"),
+    [
+        # a closing marker added to a point makes it a range
+        ("<!-- [lma:Point] -->words\n", "<!-- [lma:Point] -->words<!-- [/lma:Point] -->\n"),
+        # respelled for its own line, a marker carries its line
+        (
+            "<!-- [lma:Own] -->\n```\nx\n```\n",
+            "<!-- [lma:Own]: -->\n```\nx\n```\n",
+        ),
+    ],
+)
+def test_a_change_to_an_anchor_s_markers_changes_the_threads_key(before: str, after: str) -> None:
+    comment_id = "Point" if "Point" in before else "Own"
+    section = f'\n<!-- [lma:threads]\n{{"id": "{comment_id}", "author": "A", "at": "2026-11-19T19:40:00Z", "body": "b"}}\n-->\n'
+    before, after = before + section, after + section
+
+    assert publish.threads_key(parse.parse(after, "markdown"), after) != publish.threads_key(
+        parse.parse(before, "markdown"), before
+    )
 
 
 def test_a_thread_names_only_its_own_markers() -> None:

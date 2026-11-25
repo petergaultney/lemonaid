@@ -870,3 +870,25 @@ def test_a_save_that_removes_a_comment_drops_it_from_the_inbox(env, tmp_path) ->
         assert saved_unchanged == unsaved_without_it == ["Kept", "NotYetSaved"]
 
     _drive(env, tmp_path, scenario)
+
+
+def test_a_closing_marker_added_to_a_point_sends_the_threads_again(env, tmp_path) -> None:
+    notes = tmp_path / "notes.md"
+    section = (
+        '\n<!-- [lma:threads]\n{"id": "Point", "author": "A", "at": "2026-11-19T19:40:00Z",'
+        ' "body": "b"}\n-->\n'
+    )
+    notes.write_text("<!-- [lma:Point] -->some words\nmore\n" + section)
+
+    async def scenario(editor: _Editor) -> None:
+        uri = editor.open(notes)
+        await _until(lambda: len(editor.threads) == 1)
+        editor.change(uri, "<!-- [lma:Point] -->some words\nmore<!-- [/lma:Point] -->\n" + section)
+        await _until(lambda: len(editor.threads) == 2)
+
+        [thread] = editor.threads[-1]["threads"]
+        [hint] = editor.diagnostics[-1].diagnostics
+        assert thread["anchor"]["end"]["line"] == hint.range.end.line == 1
+        assert len(thread["markers"]) == 2
+
+    _drive(env, tmp_path, scenario)

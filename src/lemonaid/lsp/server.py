@@ -218,7 +218,7 @@ def _refresh(ls: CommentsServer, uri: str) -> None:
             uri=document.uri, version=document.version, diagnostics=publish.diagnostics(doc, codec)
         )
     )
-    threads_key = publish.threads_key(doc)
+    threads_key = publish.threads_key(doc, document.source)
     if ls.sent_keys.get(key) != threads_key:
         ls.sent_keys[key] = threads_key
         ls.protocol.notify(
