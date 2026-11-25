@@ -28,7 +28,7 @@ from ...inbox import db
 from ...log import get_logger
 from ...openclaw import gateway
 from ..window import api, data, page
-from . import changes, lemon
+from . import brief_page, changes, lemon
 
 _log = get_logger("grove.web")
 
@@ -54,8 +54,8 @@ class _WebApi(api.Api):
         """The window's jump, which switches the server's terminal."""
         return super().jump(channel)
 
-    def lemon(self, channel: str) -> dict:
-        return lemon.view(channel, self._shared.config, self._prs)
+    def lemon(self, channel: str, width: int = brief_page.WIDTH) -> dict:
+        return lemon.view(channel, self._shared.config, self._prs, int(width))
 
     def talk(self, channel: str) -> dict:
         return lemon.talk(channel)

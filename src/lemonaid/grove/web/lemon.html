@@ -28,6 +28,15 @@ main { flex:1; display:flex; min-height:0; }
 .entry.tool summary { cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .entry.tool .tools div { white-space:pre-wrap; margin:2px 0 2px 12px; }
 .problem { color:#f2c14e; }
+#brief pre.drawn { white-space:pre-wrap; margin:0 0 12px; font:inherit; line-height:1.35; background:none; padding:0; overflow:visible; }
+#brief pre.drawn a { color:inherit; }
+#brief .session { background:#2b3a55; color:#e6ebf2; font-weight:700; text-align:center; margin:0 0 10px; padding:1px 0; }
+#brief .needs blockquote { border-left:3px solid #e3cf65; color:#e3cf65; margin:0 0 12px; padding:2px 10px; background:#14161b; }
+#brief .needs.held blockquote { border-left-color:#5a6270; color:#8b93a1; }
+#brief .files { color:#7c8696; }
+#brief hr { border:0; border-top:1px solid #3a4250; margin:12px 0; }
+#brief a { color:#6cb6ff; }
+#brief details.summary summary { cursor:pointer; color:#aab3c2; }
 pre { background:#161b24; padding:6px 8px; overflow:auto; white-space:pre-wrap; }
 code { background:#161b24; padding:0 3px; }
 h1,h2,h3,h4 { color:#f2d94e; margin:12px 0 4px; font-size:14px; }
@@ -165,14 +174,51 @@ $("log").addEventListener("toggle", ev => {
   if (key) ev.target.open ? opened.add(key) : opened.delete(key);
 }, true);
 let shownBrief = null, shownLog = null, busy = false;
+// The brief as the inbox's brief pane draws it: the server's drawn card, children and files
+// (sanitized HTML), and the worker's Markdown between them.
+const clean = html => window.DOMPurify
+  ? DOMPurify.sanitize(html, {SANITIZE_NAMED_PROPS: true})
+  : escape(new DOMParser().parseFromString(html, "text/html").body.textContent);
+const drawn = (html, kind = "") => `<pre class="drawn ${kind}">${clean(html)}</pre>`;
+const drawSection = s => [
+  drawn(s.card),
+  s.summary ? `<details class="summary"${s.summary_open ? " open" : ""}><summary>${escape(s.summary_title)}</summary>${rich(s.summary)}</details>` : "",
+  s.needs ? `<div class="needs${s.held ? " held" : ""}">${rich(s.needs)}</div>` : "",
+  s.body ? rich(s.body) : "",
+  s.children ? drawn(s.children) : "",
+  s.tail ? rich(s.tail) : "",
+].join("");
+const drawBrief = b => {
+  if (!b || (!b.sections && !b.fallback)) return '<div class="problem">No brief attached.</div>';
+  if (b.fallback) return rich(b.fallback);
+  return (b.session ? `<div class="session">${escape(b.session)}</div>` : "")
+    + (b.header ? rich(b.header) : "")
+    + b.sections.map(drawSection).join("<hr>")
+    + "<hr>" + drawn(b.files, "files");
+};
+// How many characters fit across the brief pane, so the server draws the card that wide.
+const briefColumns = () => {
+  const probe = document.createElement("pre");
+  probe.className = "drawn";
+  probe.style.cssText = "position:absolute; visibility:hidden; white-space:pre; padding:0; font:inherit";
+  probe.textContent = "M".repeat(50);
+  document.body.appendChild(probe);
+  const each = probe.getBoundingClientRect().width / 50;
+  probe.remove();
+  const pane = $("brief"), style = getComputedStyle(pane);  // a hidden pane (a phone's chat tab) would be the page's width
+  const inner = (pane.clientWidth || document.documentElement.clientWidth)
+    - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  return each > 0 && inner > 0 ? Math.floor(inner / each) : 80;
+};
 const showView = v => {
   if (v.error) { $("log").innerHTML = `<div class="problem">${escape(v.error)}</div>`; return; }
   document.title = v.name; $("name").textContent = v.name;
   if (v.room) { $("room").href = v.room; $("room").textContent = "room"; }
   $("how").textContent = v.how_text;
-  if (v.brief !== shownBrief) {
-    shownBrief = v.brief;
-    $("brief").innerHTML = v.brief ? rich(v.brief) : '<div class="problem">No brief attached.</div>';
+  const brief = JSON.stringify(v.brief);
+  if (brief !== shownBrief) {
+    shownBrief = brief;
+    $("brief").innerHTML = drawBrief(v.brief);
   }
 };
 const showTalk = c => {
@@ -196,7 +242,7 @@ const showTalk = c => {
 const refresh = async () => {
   if (busy) return;
   busy = true;
-  const shown = [call("lemon", [channel]).then(showView), call("talk", [channel]).then(showTalk)];
+  const shown = [call("lemon", [channel, briefColumns()]).then(showView), call("talk", [channel]).then(showTalk)];
   for (const result of await Promise.allSettled(shown))
     if (result.status === "rejected") $("said").textContent = String(result.reason);
   busy = false;
