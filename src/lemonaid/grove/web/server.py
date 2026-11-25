@@ -26,6 +26,7 @@ from ...brief import pr
 from ...config import Config
 from ...inbox import db
 from ...log import get_logger
+from ...openclaw import gateway
 from ..window import api, data, page
 from . import changes, lemon
 
@@ -228,6 +229,7 @@ def _refresher(shared: api.Shared, seen: changes.Changes) -> None:
 
 
 def serve(config: Config, host: str, port: int) -> None:
+    gateway.hold()
     shared, seen = api.Shared(config), changes.Changes()
     _reload(shared, seen)
     nothing = lambda: None  # noqa: E731

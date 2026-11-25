@@ -63,6 +63,43 @@ def test_read_marks_input_from_someone_other_than_the_owner(tmp_path):
     assert found[0].at.startswith("2026-11-25T")
 
 
+def _paged_cli(tmp_path, pages: list[list[dict]]) -> str:
+    """A CLI that answers `chat.history` a page at a time, the newest page first."""
+    cli = tmp_path / "openclaw"
+    cli.write_text(
+        "#!/usr/bin/env python3\nimport json, sys\n"
+        f"pages = json.loads({json.dumps(json.dumps(pages))})\n"
+        'given = json.loads(sys.argv[sys.argv.index("--params") + 1])\n'
+        'at = given["offset"] // given["limit"]\n'
+        'print(json.dumps({"messages": pages[at], "hasMore": at + 1 < len(pages)}))\n'
+    )
+    cli.chmod(cli.stat().st_mode | stat.S_IXUSR)
+    return str(cli)
+
+
+def _said(text: str) -> dict:
+    return {"role": "assistant", "content": [{"type": "text", "text": text}]}
+
+
+def _ran(command: str) -> list[dict]:
+    call = {"type": "toolCall", "name": "exec", "arguments": {"command": command}}
+    return [{"role": "assistant", "content": [call]}, {"role": "toolResult", "content": []}]
+
+
+def test_read_goes_back_past_a_page_of_tool_calls_for_the_newest_messages(tmp_path):
+    older = [_said("first"), _said("second"), *_ran("ls")]
+    newest = [*_ran("make"), _said("third")]
+
+    found = openclaw.read(KEY, _paged_cli(tmp_path, [newest, older]), 2)
+
+    assert [(each.role, each.text) for each in found] == [
+        (entry.LEMON, "second"),
+        (entry.TOOL, "exec: ls"),
+        (entry.TOOL, "exec: make"),
+        (entry.LEMON, "third"),
+    ]
+
+
 def test_read_raises_oserror_when_the_gateway_fails(tmp_path):
     with pytest.raises(OSError):
         openclaw.read(KEY, _cli(tmp_path, {}, code=1), 10)

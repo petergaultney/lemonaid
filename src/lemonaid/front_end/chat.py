@@ -5,8 +5,6 @@ starts one here, since the gateway runs its turns (see `openclaw`); prompting on
 text with `chat.send`, the call OpenClaw's own chat clients make for what their user types.
 """
 
-import json
-import subprocess
 import uuid
 import webbrowser
 from collections import abc
@@ -14,7 +12,7 @@ from collections import abc
 from ..config import Config
 from ..inbox import db
 from ..log import get_logger
-from ..openclaw import sessions
+from ..openclaw import gateway, sessions
 from . import interface
 
 _log = get_logger("front_end.chat")
@@ -59,22 +57,10 @@ def prompt(row: db.Notification, config: Config, text: str) -> str:
         return f"{row.channel} is not an OpenClaw session"
 
     params = {"sessionKey": key, "message": text, "idempotencyKey": str(uuid.uuid4())}
-    argv = [
-        sessions.cli(),
-        "gateway",
-        "call",
-        "chat.send",
-        "--json",
-        "--params",
-        json.dumps(params),
-    ]
     try:
-        done = subprocess.run(argv, capture_output=True, text=True, timeout=_SEND_TIMEOUT_SECONDS)
-    except (OSError, subprocess.TimeoutExpired) as error:
+        gateway.call(sessions.cli(), "chat.send", params, _SEND_TIMEOUT_SECONDS)
+    except OSError as error:
         return f"chat.send failed: {error}"
-
-    if done.returncode != 0:
-        return f"chat.send failed: {done.stderr.strip() or done.returncode}"
 
     return ""
 
