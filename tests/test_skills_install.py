@@ -148,7 +148,7 @@ def test_user_file_mistakes_are_refused(homes):
     both = _install("watch-doc")
 
     assert frontmatter.returncode == 2
-    assert "starts with frontmatter" in frontmatter.stderr
+    assert "sets the skill's name or description" in frontmatter.stderr
     assert both.returncode == 2
     assert "has both overlay.md and SKILL.md" in both.stderr
     assert _install("nope").stderr.startswith("no packaged skill 'nope'")
@@ -238,3 +238,11 @@ def test_an_unknown_harness_in_a_section_marker_is_refused(homes):
 
     assert result.returncode == 2
     assert "unknown harness 'codx'" in result.stderr
+
+
+def test_an_overlay_s_other_frontmatter_is_dropped(homes):
+    _user_file(homes, "watch-pr", "overlay.md", "---\nload-when:\n  - command: x\n---\n## Mine\n")
+
+    result = _install("--print", "watch-pr")
+
+    assert result.stdout == _packaged("watch-pr", "claude").rstrip() + "\n\n## Mine\n"

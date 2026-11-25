@@ -22,8 +22,10 @@ The packaged text names no particular user, repo or folder. To add yours, write 
 per skill in `~/.lemons/skills/<name>/`:
 
 - `overlay.md` is appended after the packaged text. Use it for your own procedures, paths
-  and review policy. It may not start with frontmatter, so the packaged name and
-  description always apply, and it keeps following packaged updates.
+  and review policy. It may not set `name` or `description` in frontmatter, so the
+  packaged ones always apply, and it keeps following packaged updates. Any other
+  frontmatter, such as a doc's [packages and triggers](doc-delivery.md), is dropped from
+  the installed skill.
 - `SKILL.md` replaces the packaged text entirely, frontmatter included. Use it only to
   change a packaged paragraph; it stops following packaged updates.
 
