@@ -27,3 +27,9 @@ def test_a_road_crosses_the_stream():
     stream_y = {x: y for x, y in DEFAULT_STREAM()}
     south = DEFAULT_ROADS()[-1]
     assert south[0][1] < stream_y[100] < south[-1][1]
+
+
+def test_without_the_packhouse_blocks_gather_around_the_grove_s_middle():
+    off = landmarks.with_packhouse({"plots": {}, "trees": {}}, False)
+    assert landmarks.gathering(off) == (WORLD_WIDTH / 2, WORLD_HEIGHT / 2)
+    assert landmarks.gathering({"plots": {}, "trees": {}}) is None  # the packhouse, not yet built

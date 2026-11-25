@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 import pytest
 
 from lemonaid.config import load_config
@@ -201,3 +204,20 @@ def test_open_ground_moves_and_resizes_like_a_block(monkeypatch):
     assert data.reframe(grove, "open:0", ["right"], 4, 0) == ""
     assert data.load(load_config()).arrangement.open[0].w == 44
     assert data.block_refusal(grove, "open:5", [], 1, 0) == "that block is gone"
+
+
+def test_a_drop_in_a_window_saves_the_layout_in_the_mode_it_drew(monkeypatch):
+    monkeypatch.setattr(
+        blocks, "blocks", lambda *_args: (block("", "0", tree("hq"), tree("misc")),)
+    )
+    Path(os.environ["LEMONAID_CONFIG"]).write_text("[tui]\ngrove_packhouse = true\n")
+    live.fresh(load_config(), None)  # the packhouse, saved
+    Path(os.environ["LEMONAID_CONFIG"]).write_text("[tui]\ngrove_packhouse = false\n")
+    grove = data.load(load_config())  # previews without saving
+    standing = grove.arrangement.trees[("", "hq")]
+
+    assert data.plant(grove, "0", "hq", standing.cx + 1, standing.cy) == ""
+    saved = state.load()
+    assert saved["packhouse"] is False and saved["plots"][""]["texture"] != "house"
+    assert saved["aside"]["plot"]["texture"] == "house"
+    assert saved["trees"][""]["hq"]["x"] == standing.cx + 1

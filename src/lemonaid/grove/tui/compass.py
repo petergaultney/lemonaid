@@ -45,9 +45,9 @@ def handles(where: keys.Where, key: str) -> bool:
 
 
 def _middle(grove: Grove) -> tuple[float, float]:
-    house = grove.arrangement.plots.get(landmarks.PACKHOUSE)
-    if house:
-        return house.x + house.w / 2, house.y + house.h / 2
+    found = landmarks.gathering(grove.saved)
+    if found:
+        return found
 
     right, bottom = scene_parts.extent(grove.arrangement)
     return right / 2, bottom / 2

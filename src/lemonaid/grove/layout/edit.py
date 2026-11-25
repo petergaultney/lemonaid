@@ -9,7 +9,7 @@ back onto it, and a tree too big for it stands afresh inside, squeezed in.
 import copy
 from typing import Any
 
-from . import arrange, lead_spot, placement, terrain
+from . import arrange, landmarks, lead_spot, placement, terrain
 
 OPEN = (
     "open:"  # prefix of an address for open ground: `open:0` is the first in `show --json`'s `open`
@@ -75,7 +75,7 @@ def settle(changed: dict[str, Any], group: str) -> None:
     ground can't be put on a block. Neither can go over a road or the stream.
     """
     plot = changed["plots"][group]
-    if terrain.crosses_saved(changed, plot):
+    if group != landmarks.PACKHOUSE and terrain.crosses_saved(changed, plot):
         raise EditError("A road or the stream runs there")
     if _is_open(plot):
         for name, other in changed["plots"].items():

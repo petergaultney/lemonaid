@@ -4,6 +4,7 @@ Judged as drawn on a screen of a given size: tags and crowns in the grove view, 
 block zoomed in.
 """
 
+import dataclasses
 import itertools
 import math
 from typing import NamedTuple
@@ -89,13 +90,12 @@ def _bumps(drawn: list[_Drawn]) -> list[tuple[_Drawn, str, str]]:
 
 
 def _lead_far(block: Block, arrangement: Arrangement) -> list[tuple[str, str, str]]:
-    """A warning on *block*'s lead when another of its trees stands nearer the packhouse."""
-    house = arrangement.plots.get(landmarks.PACKHOUSE)
+    """A warning on *block*'s lead when another of its trees stands nearer the grove's middle."""
+    plot, house = arrangement.plots[block.name], arrangement.plots.get(landmarks.PACKHOUSE)
     lead = next((t for t in block.trees if t.lead), None)
-    if house is None or lead is None or block.name == landmarks.PACKHOUSE:
+    middle = landmarks.middle(dataclasses.asdict(house) if house else None)
+    if lead is None or middle is None or plot.texture == "house":
         return []
-
-    plot, middle = arrangement.plots[block.name], (house.x + house.w / 2, house.y + house.h / 2)
 
     def away(key: str) -> float:
         s = arrangement.trees[(block.name, key)]

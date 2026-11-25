@@ -60,14 +60,14 @@ def _place_plots(
         elif data.get("open_since") is None:
             data["open_since"] = now
     house = plots.get(landmarks.PACKHOUSE)
-    if house and house.get("texture") != "house":
+    if house and house.get("texture") != "house" and landmarks.has_house(saved):
         del plots[landmarks.PACKHOUSE]  # from before there was a packhouse: rebuild it
-    for block in blocks:
+    for block in sorted(blocks, key=lambda b: b.name != landmarks.PACKHOUSE):  # it takes the middle
         if block.name in plots:
             continue
 
         taken = [(d["x"], d["y"], d["w"], d["h"]) for d in plots.values()]
-        if block.name == landmarks.PACKHOUSE:
+        if block.name == landmarks.PACKHOUSE and landmarks.has_house(saved):
             plots[block.name] = _plot_data(landmarks.packhouse(len(block.trees), taken))
             continue
 
@@ -99,18 +99,20 @@ def _place_plots(
                 block.name,
                 placement.plot_size(need, largest),
                 taken,
-                functools.partial(terrain.crosses_box, ground, gap=terrain.GAP),
+                # the roads meet at the middle, under block 0 as under the packhouse
+                (lambda _: False)
+                if block.name == landmarks.PACKHOUSE
+                else functools.partial(terrain.crosses_box, ground, gap=terrain.GAP),
             )
         )
 
 
-def _toward_packhouse(name: str, plot: Plot, saved: dict[str, Any]) -> tuple[float, float] | None:
-    """The packhouse's middle relative to block *name*'s corner, or None for the packhouse."""
-    house = saved["plots"].get(landmarks.PACKHOUSE)
-    if name == landmarks.PACKHOUSE or not house:
-        return None
-
-    return house["x"] + house["w"] / 2 - plot.x, house["y"] + house["h"] / 2 - plot.y
+def _toward_middle(plot: Plot, saved: dict[str, Any]) -> tuple[float, float] | None:
+    """The grove's middle (`landmarks.middle`) relative to *plot*'s corner, or None for the
+    packhouse.
+    """
+    found = None if plot.texture == "house" else landmarks.gathering(saved)
+    return found and (found[0] - plot.x, found[1] - plot.y)
 
 
 def _off(w: int, h: int, spot: dict[str, Any]) -> bool:
@@ -159,7 +161,7 @@ def _stand(block: Block, kept: dict[str, Any], now: float) -> dict[str, stand.St
     """
     plot = _plot(kept["plots"][block.name])
     house = plot.texture == "house"
-    toward = _toward_packhouse(block.name, plot, kept)
+    toward = _toward_middle(plot, kept)
     if block.name in kept["trees"] and not house:
         _free_lead(block, plot, kept["trees"][block.name])
     standing = stand.stand_trees(block, plot, kept, now, toward, bays=house)

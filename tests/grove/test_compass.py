@@ -1,7 +1,8 @@
 import pytest
 
 from lemonaid.grove.draw import scene_parts
-from lemonaid.grove.layout import arrange
+from lemonaid.grove.layout import arrange, landmarks
+from lemonaid.grove.model import WORLD_HEIGHT, WORLD_WIDTH
 from lemonaid.grove.tui import compass
 from lemonaid.grove.tui.frame import Grove, clamp_pan
 from lemonaid.grove.tui.keys import Where
@@ -61,3 +62,14 @@ def test_the_compass_stays_out_of_blocks_and_searches():
     assert not compass.handles(Where(search="x"), "home")
     assert not compass.handles(Where(), "a")
     assert not compass.handles(Where(block="1", digits="1"), "right")
+
+
+def test_without_the_packhouse_home_centers_the_grove_s_fixed_middle():
+    saved = landmarks.with_packhouse({"plots": {}, "trees": {}}, False)
+    laid_out = arrange.arrange(BLOCKS, saved, NOW)
+    far = {**laid_out[1]["plots"][""], "x": 300, "y": 100}  # block 0 moved far out
+    moved = {**laid_out[1], "plots": {**laid_out[1]["plots"], "": far}}
+    grove = Grove(BLOCKS, *arrange.arrange(BLOCKS, moved, NOW))
+    x, y = compass.step(grove, Where(), "home", (WIDTH, HEIGHT), (2, 1)).pan
+    assert x < WORLD_WIDTH / 2 < x + ACROSS
+    assert y < WORLD_HEIGHT / 2 < y + DOWN
