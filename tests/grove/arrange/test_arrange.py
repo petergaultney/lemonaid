@@ -181,6 +181,13 @@ def test_a_tree_shows_the_name_given_to_its_main_lemon():
     assert found.trees[("g", "edi/other")].label == "other"
 
 
+def test_a_chat_lemons_tree_shows_its_name_rather_than_its_channels_words():
+    room = "openclaw:agent:main:matrix:channel:!r00mA1b2:grove.example"
+    chat = dataclasses.replace(lemon(room), name="Ada - room r00mA1")
+    found, _ = arrange((block("g", "1", tree(room, chat)),), EMPTY, NOW)
+    assert found.trees[("g", room)].label == "Ada - room r00mA1"
+
+
 def test_a_packhouse_bay_with_one_lemon_shows_its_name_but_a_shared_bay_keeps_its_session():
     alone = lemon("claude:x")
     pair = (lemon("claude:y"), lemon("claude:z"))
