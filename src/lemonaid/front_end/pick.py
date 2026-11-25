@@ -42,8 +42,8 @@ def _front_end(terminal: interface.Terminal) -> interface.FrontEnd | None:
             return interface.FrontEnd(
                 terminal, where.in_new_cmux_workspace, autoresume_cmux.start, None
             )
-        case chat.NAME:  # the gateway runs its turns, so lemonaid neither starts nor prompts one
-            return interface.FrontEnd(terminal, _beside_chat, None, None)
+        case chat.NAME:  # the gateway runs its turns, so lemonaid never starts one
+            return interface.FrontEnd(terminal, _beside_chat, None, chat.prompt)
         case _:
             return None
 

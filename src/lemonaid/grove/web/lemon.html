@@ -1,0 +1,223 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lemon</title>
+<style>
+html,body { margin:0; height:100%; background:#0b0e13; color:#e6ebf2; }
+body { font:13px/1.5 "SF Mono", Menlo, monospace; display:flex; flex-direction:column; }
+a { color:#8ab4f8; }
+header { display:flex; gap:12px; align-items:center; padding:4px 10px; background:#161b24; white-space:nowrap; overflow:hidden; }
+header .chip { background:#f2d94e; color:#0b0e13; padding:1px 6px; font-weight:800; overflow:hidden; text-overflow:ellipsis; }
+header .tabs { display:none; margin-left:auto; gap:6px; }
+header .tabs button { font:inherit; background:#2d3442; color:#e6ebf2; border:0; padding:2px 10px; }
+header .tabs button.on { background:#f2d94e; color:#0b0e13; }
+main { flex:1; display:flex; min-height:0; }
+#brief { flex:0 0 var(--brief, 42%); overflow:auto; padding:8px 14px; }
+#divider { flex:0 0 6px; cursor:col-resize; background:#3a4250; touch-action:none; }
+#divider:hover, #divider.dragging { background:#f2d94e; }
+#chat { flex:1; display:flex; flex-direction:column; min-width:0; }
+#log { flex:1; overflow:auto; padding:8px 14px; }
+.entry { margin:0 0 10px; overflow-wrap:anywhere; }
+.entry .who { color:#7c8696; font-size:11px; }
+.entry.user .body { background:#1f2a3a; border-left:3px solid #f2d94e; padding:4px 8px; }
+.entry.pending { opacity:0.55; }
+.entry.other .body { border-left:3px solid #3a4250; padding:4px 8px; color:#aab3c2; }
+.entry.tool { color:#7c8696; margin:0 0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.problem { color:#f2c14e; }
+pre { background:#161b24; padding:6px 8px; overflow:auto; white-space:pre-wrap; }
+code { background:#161b24; padding:0 3px; }
+h1,h2,h3,h4 { color:#f2d94e; margin:12px 0 4px; font-size:14px; }
+ul { margin:4px 0; padding-left:20px; }
+table { border-collapse:collapse; margin:4px 0; } td { border:1px solid #3a4250; padding:1px 6px; }
+form { display:flex; flex-direction:column; gap:4px; padding:6px 10px; background:#161b24; }
+textarea { font:inherit; background:#0b0e13; color:#e6ebf2; border:1px solid #3a4250; padding:6px; resize:vertical; min-height:3em; }
+form .row { display:flex; gap:8px; align-items:center; }
+form .how { color:#7c8696; flex:1; }
+form button { font:inherit; background:#f2d94e; color:#0b0e13; border:0; padding:3px 12px; font-weight:700; }
+#said { color:#f2c14e; }
+@media (max-width: 760px) {
+  header .tabs { display:flex; }
+  #brief { flex:1; }
+  #divider { display:none; }
+  body.chat-tab #brief, body.brief-tab #chat { display:none; }
+}
+</style></head><body class="chat-tab">
+<header><a href="./">grove</a><span class="chip" id="name"></span><a id="room" target="_blank" rel="noopener"></a>
+<span class="tabs"><button data-tab="brief">brief</button><button data-tab="chat" class="on">chat</button></span></header>
+<main>
+<section id="brief"></section>
+<div id="divider" title="drag to size the brief"></div>
+<section id="chat"><div id="log"></div>
+<form id="say"><textarea id="text" placeholder="Say something"></textarea>
+<div class="row"><span class="how" id="how"></span><span id="said"></span><button type="submit">send</button></div></form>
+</section>
+</main>
+<script>
+const channel = new URLSearchParams(location.search).get("channel") || "";
+const $ = id => document.getElementById(id);
+const call = async (name, args) => {
+  const r = await fetch(`api/${name}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(args)});
+  if (!r.ok) throw new Error(`${name}: HTTP ${r.status} ${await r.text()}`);
+  return r.json();
+};
+const escape = s => s.replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const inline = s => escape(s)
+  .replace(/`([^`]+)`/g, "<code>$1</code>")
+  .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+  .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+|obsidian:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+// Enough Markdown for briefs and chat: fences, headings, bullets, paragraphs.
+const markdown = text => {
+  const out = []; let list = false, table = false, fence = null;
+  for (const line of text.split("\n")) {
+    if (fence !== null) {
+      if (line.startsWith("```")) { out.push(`<pre>${escape(fence.join("\n"))}</pre>`); fence = null; } else fence.push(line);
+      continue;
+    }
+    if (line.startsWith("```")) { fence = []; continue; }
+    const row = line.match(/^\s*\|(.*)\|\s*$/);
+    if (table && !row) { out.push("</table>"); table = false; }
+    if (row) {
+      if (/^[\s|:-]+$/.test(row[1])) continue;  // the header's underline
+      if (!table) { out.push("<table>"); table = true; }
+      out.push(`<tr>${row[1].split("|").map(cell => `<td>${inline(cell.trim())}</td>`).join("")}</tr>`);
+      continue;
+    }
+    const bullet = line.match(/^\s*[-*] (.*)/);
+    if (list && !bullet) { out.push("</ul>"); list = false; }
+    const heading = line.match(/^(#{1,4}) (.*)/);
+    if (heading) out.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`);
+    else if (bullet) { if (!list) { out.push("<ul>"); list = true; } out.push(`<li>${inline(bullet[1])}</li>`); }
+    else if (line.trim()) out.push(`<div>${inline(line)}</div>`);
+  }
+  if (fence !== null) out.push(`<pre>${escape(fence.join("\n"))}</pre>`);
+  if (list) out.push("</ul>");
+  if (table) out.push("</table>");
+  return out.join("");
+};
+const withoutFrontmatter = text => text.replace(/^---\n[\s\S]*?\n---\n/, "");
+// A brief keeps every heading, filled or not; the page shows only those with something under them.
+// A line in a code fence is never a heading.
+const withoutEmptySections = text => {
+  const lines = text.split("\n");
+  let fenced = false;
+  const levels = lines.map(line => {
+    if (line.startsWith("```")) { fenced = !fenced; return 0; }
+    return fenced ? 0 : (line.match(/^(#{1,6}) /) || [, ""])[1].length;
+  });
+  const kept = lines.filter((line, i) => {
+    if (!levels[i]) return true;
+    const next = lines.findIndex((each, j) => j > i && each.trim());
+    return next !== -1 && (!levels[next] || levels[next] > levels[i]);
+  });
+  return kept.length === lines.length ? text : withoutEmptySections(kept.join("\n"));  // a parent left empty goes too
+};
+const time = at => at ? new Date(at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "";
+const who = e => ({user: "you", lemon: $("name").textContent, other: e.sender || "message"})[e.role] || e.role;
+const render = e => e.role === "tool"
+  ? `<div class="entry tool">${escape(e.text)}</div>`
+  : `<div class="entry ${e.role}"><div class="who">${escape(who(e))} ${time(e.at)}</div><div class="body">${markdown(e.text)}</div></div>`;
+
+// What you sent stays shown, dimmed, until the conversation records it. Kept in this browser,
+// so a reload doesn't lose it.
+const pendingKey = `lemonaid-pending:${channel}`;
+const loadPending = () => { try { return JSON.parse(localStorage.getItem(pendingKey) || "[]"); } catch { return []; } };
+const savePending = list => { try { localStorage.setItem(pendingKey, JSON.stringify(list)); } catch {} };
+let pending = loadPending();
+// A send counts as recorded once the conversation holds more entries with its text than when it
+// was sent, so an earlier identical message doesn't clear it.
+const matching = (text, entries) => entries.filter(e => (e.role === "user" || e.role === "other") && e.text.includes(text.trim())).length;
+const recorded = (p, entries) => matching(p.text, entries) > (p.seen ?? 0);
+let lastEntries = [];
+const renderPending = p => `<div class="entry user pending"><div class="who">you ${time(new Date(p.at).toISOString())}`
+  + ` \u00b7 ${p.unsure ? "may not have been sent: the server didn't answer" : "sent"}, waiting for the lemon's record of it</div>`
+  + `<div class="body">${markdown(p.text)}</div></div>`;
+
+let shownBrief = null, shownLog = null, busy = false;
+const refresh = async () => {
+  if (busy) return;
+  busy = true;
+  try {
+    const v = await call("lemon", [channel]);
+    if (v.error) { $("log").innerHTML = `<div class="problem">${escape(v.error)}</div>`; return; }
+    document.title = v.name; $("name").textContent = v.name;
+    if (v.room) { $("room").href = v.room; $("room").textContent = "room"; }
+    $("how").textContent = v.how_text;
+    if (v.brief !== shownBrief) {
+      shownBrief = v.brief;
+      $("brief").innerHTML = v.brief ? markdown(withoutEmptySections(withoutFrontmatter(v.brief))) : '<div class="problem">No brief attached.</div>';
+    }
+    if (!v.conversation_problem) {
+      lastEntries = v.entries;
+      const left = pending.filter(p => !recorded(p, v.entries));
+      if (left.length !== pending.length) { pending = left; savePending(pending); }
+    }
+    const html = (v.conversation_problem
+      ? `<div class="problem">${escape(v.conversation_problem)}</div>`
+      : v.entries.map(render).join("")) + pending.map(renderPending).join("");
+    if (html !== shownLog) {
+      const log = $("log"), atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+      log.innerHTML = shownLog = html;
+      if (atEnd) log.scrollTop = log.scrollHeight;
+    }
+  } catch (error) {
+    $("said").textContent = String(error);
+  } finally {
+    busy = false;
+  }
+};
+
+const send = async () => {
+  const text = $("text").value;
+  const seen = matching(text, lastEntries) + pending.filter(p => p.text === text).length;  // before the send can be recorded
+  $("said").textContent = "sending...";
+  try {
+    const problem = await call("say", [channel, text]);
+    $("said").textContent = problem || "sent";
+    if (!problem) {
+      $("text").value = "";
+      pending = [...pending, {text, at: Date.now(), seen}];
+      savePending(pending);
+      shownLog = null;
+      $("log").scrollTop = $("log").scrollHeight;
+    }
+  } catch (error) {  // the request may have reached the server, so resending could say it twice
+    $("said").textContent = `${error}; check the conversation before sending again`;
+    $("text").value = "";
+    pending = [...pending, {text, at: Date.now(), seen, unsure: true}];
+    savePending(pending);
+    shownLog = null;
+  }
+  refresh();
+};
+$("say").addEventListener("submit", event => { event.preventDefault(); send(); });
+$("text").addEventListener("keydown", event => {
+  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); send(); }
+});
+for (const button of document.querySelectorAll(".tabs button")) {
+  button.addEventListener("click", () => {
+    document.body.className = `${button.dataset.tab}-tab`;
+    for (const each of document.querySelectorAll(".tabs button")) each.classList.toggle("on", each === button);
+  });
+}
+// The brief's share of the width, dragged on the divider and kept in this browser.
+const sizeKey = "lemonaid-brief-width";
+const setBrief = percent => document.body.style.setProperty("--brief", `${Math.min(80, Math.max(15, percent))}%`);
+try { const kept = Number(localStorage.getItem(sizeKey)); if (kept) setBrief(kept); } catch {}
+$("divider").addEventListener("pointerdown", down => {
+  const divider = $("divider"), main = divider.parentElement.getBoundingClientRect();
+  divider.setPointerCapture(down.pointerId);
+  divider.classList.add("dragging");
+  let percent = null;
+  const move = event => { percent = (event.clientX - main.left) / main.width * 100; setBrief(percent); };
+  const up = () => {
+    divider.classList.remove("dragging");
+    divider.removeEventListener("pointermove", move);
+    try { if (percent !== null) localStorage.setItem(sizeKey, String(Math.min(80, Math.max(15, percent)))); } catch {}
+  };
+  divider.addEventListener("pointermove", move);
+  divider.addEventListener("pointerup", up, {once: true});
+});
+
+refresh();
+setInterval(refresh, 4000);
+</script>
+</body></html>

@@ -1,5 +1,5 @@
-"""The grove window's page, served over HTTP: its calls reach the window's `Api`, and a chat
-lemon's jump opens its room in the browser."""
+"""The grove window's page, served over HTTP: its calls reach the window's `Api`, and a jump
+opens the lemon's own page."""
 
 import gzip
 import http.client
@@ -12,8 +12,10 @@ import urllib.request
 
 import pytest
 
+from lemonaid.config import Config
 from lemonaid.front_end import chat
 from lemonaid.grove.web import changes, server
+from lemonaid.grove.window import api
 from lemonaid.inbox import db
 
 ROOM_KEY = "agent:garden:matrix:channel:!g4rd3n:grove.example"
@@ -26,6 +28,9 @@ class _Calls:
     def search(self, text):
         return [text]
 
+    def switch(self, channel):
+        return f"switched to {channel}"
+
 
 @pytest.fixture
 def seen():
@@ -35,7 +40,8 @@ def seen():
 @pytest.fixture
 def served(seen):
     httpd = http.server.ThreadingHTTPServer(
-        ("127.0.0.1", 0), server._handler(_Calls(), b"<html>page</html>", seen)
+        ("127.0.0.1", 0),
+        server._handler(_Calls(), b"<html>page</html>", b"<html>lemon</html>", seen),
     )
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -116,7 +122,22 @@ def test_the_page_gets_the_shim_before_its_own_scripts():
     assert page.index("window.pywebview = {api") < page.index("window.groveData = async")
 
 
-def test_a_chat_lemons_jump_opens_its_room():
+def test_the_lemon_page_is_served_with_its_query(served):
+    with urllib.request.urlopen(served + "/lemon?channel=claude%3Aabc") as response:
+        assert response.read() == b"<html>lemon</html>"
+
+
+def test_a_browser_on_the_server_may_switch_its_terminal(served):
+    assert _post(served + "/api/switch", ["claude:abc"]) == (200, "switched to claude:abc")
+
+
+def test_a_browser_elsewhere_may_not_switch_the_servers_terminal(served, monkeypatch):
+    monkeypatch.setattr(server, "_LOOPBACK", frozenset())
+
+    assert _post(served + "/api/switch", ["claude:abc"])[0] == 403
+
+
+def test_a_jump_opens_the_lemons_page():
     with db.connect() as conn:
         db.register_working(
             conn,
@@ -126,18 +147,10 @@ def test_a_chat_lemons_jump_opens_its_room():
             metadata={"session_key": ROOM_KEY},
             switch_source=chat.NAME,
         )
+    calls = server._WebApi(api.Shared(Config()), *[lambda: None] * 5)
 
-    assert server._jump(f"openclaw:{ROOM_KEY}") == {
-        "open": "https://matrix.to/#/!g4rd3n:grove.example"
-    }
-
-
-def test_a_terminal_lemon_cant_be_jumped_to_from_a_browser():
-    with db.connect() as conn:
-        db.register_working(conn, "claude:abc", "", name="worker", switch_source="tmux")
-
-    assert "runs in a terminal" in server._jump("claude:abc")
-    assert server._jump("claude:missing") == "No live lemon on claude:missing"
+    assert calls.jump(f"openclaw:{ROOM_KEY}") == {"lemon": f"openclaw:{ROOM_KEY}"}
+    assert calls.jump("claude:missing") == "No live lemon on claude:missing"
 
 
 def test_an_open_page_hears_each_change(served, seen):

@@ -2,8 +2,9 @@
 
 The page and its calls into Python are the grove window's (`window/api.py`). What a browser on
 another machine can't use is left out: placing the window, and switching a terminal on the server.
-A lemon whose front end is a chat room opens its room in the browser instead. Each page hears
-when the grove changed over its own open stream (`changes.py`), where the window has Python push it.
+Jumping to a lemon opens its own page instead (`lemon.py`), except for a browser on the server
+itself, which can switch the terminal as the window does. Each page hears when the grove changed
+over its own open stream (`changes.py`), where the window has Python push it.
 """
 
 import functools
@@ -19,59 +20,36 @@ import urllib.parse
 from importlib import resources
 
 from ...config import Config
-from ...front_end import chat
 from ...inbox import db
 from ...log import get_logger
 from ..window import api, data, page
-from . import changes
+from . import changes, lemon
 
 _log = get_logger("grove.web")
 
 REFRESH_SECONDS = 3.0
 _ZIP_ABOVE = 1024  # bytes; a smaller answer goes as it is
-# What a browser may call, named one by one so a method added to the native window isn't served
-# by accident. The window's own placing (dismiss, drag, stick, to_terminal) and open_link are the
-# browser's to do (shim.js) and aren't here.
-_CALLS = frozenset(
-    {
-        "block_refusal",
-        "data",
-        "edit",
-        "edit_info",
-        "jump",
-        "keep",
-        "log",
-        "look",
-        "plant",
-        "reframe",
-        "refusal",
-        "search",
-        "settings",
-        "stump_drop",
-        "stump_refusal",
-        "usage",
-    }
-)
-
-
-def _jump(channel: str) -> str | dict[str, str]:
-    """{"open": url} for the browser to open, or why it can't jump."""
-    with db.connect() as conn:
-        found = db.get_by_channel(conn, channel, unread_only=False)
-    if found is None:
-        return f"No live lemon on {channel}"
-
-    name = found.name or channel
-    if found.switch_source != chat.NAME:
-        return f"{name} runs in a terminal; open it from its own machine"
-
-    url = chat.room_url(str(found.metadata.get("session_key") or ""))
-    return {"open": url} if url else f"{name} has no chat room to open"
+_LOOPBACK = frozenset({"127.0.0.1", "::1"})
 
 
 class _WebApi(api.Api):
     def jump(self, channel: str) -> str | dict[str, str]:  # type: ignore[override]
-        return _jump(channel)
+        with db.connect() as conn:
+            found = db.get_by_channel(conn, channel, unread_only=False)
+        return {"lemon": channel} if found else f"No live lemon on {channel}"
+
+    def switch(self, channel: str) -> str:
+        """The window's jump, which switches the server's terminal."""
+        return super().jump(channel)
+
+    def lemon(self, channel: str) -> dict:
+        return lemon.view(channel)
+
+    def say(self, channel: str, text: str) -> str:
+        return lemon.say(channel, text, self._shared.config)
+
+
+_CALLS = frozenset(name for name in (*vars(api.Api), *vars(_WebApi)) if not name.startswith("_"))
 
 
 def html() -> str:
@@ -82,8 +60,12 @@ def html() -> str:
     return f"{window_page[:at]}<script>\n{shim}</script>\n{window_page[at:]}"
 
 
+def _lemon_page() -> str:
+    return resources.files(__package__).joinpath("lemon.html").read_text()
+
+
 def _handler(
-    calls: api.Api, body: bytes, seen: changes.Changes
+    calls: api.Api, body: bytes, lemon_page: bytes, seen: changes.Changes
 ) -> type[http.server.BaseHTTPRequestHandler]:
     class Handler(http.server.BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"  # a page's calls share one connection, not one each
@@ -117,10 +99,13 @@ def _handler(
             self._send(200, content, kind, cache="no-cache", tag=tag)
 
         def do_GET(self) -> None:
-            if self.path in ("/", "/index.html"):
+            path = urllib.parse.urlsplit(self.path).path
+            if path in ("/", "/index.html"):
                 self._page(body, "text/html; charset=utf-8")
-            elif self.path == "/api/changes":
+            elif path == "/api/changes":
                 self._changes()
+            elif path == "/lemon":
+                self._send(200, lemon_page, "text/html; charset=utf-8")
             else:
                 self._send(404, b"not found", "text/plain")
 
@@ -184,6 +169,12 @@ def _handler(
                 self._send(403, b"only the grove page may call this", "text/plain")
                 return
 
+            if name == "switch" and self.client_address[0] not in _LOOPBACK:
+                self._send(
+                    403, b"only a browser on this machine can switch its terminal", "text/plain"
+                )
+                return
+
             try:
                 args = json.loads(sent or b"[]")
                 result = getattr(calls, name)(*args)
@@ -227,7 +218,7 @@ def serve(config: Config, host: str, port: int) -> None:
     )
     threading.Thread(target=functools.partial(_refresher, shared, seen), daemon=True).start()
     with http.server.ThreadingHTTPServer(
-        (host, port), _handler(calls, html().encode(), seen)
+        (host, port), _handler(calls, html().encode(), _lemon_page().encode(), seen)
     ) as server:
         print(
             f"serving the grove at http://{host}:{port}/ with no login: anyone who reaches"
