@@ -18,6 +18,7 @@ from .draw import block_scene, canvas, scenes
 from .layout import advice, state
 from .source import block_numbers, live, standalone
 from .tui.frame import Grove
+from .web import cli as web_cli
 from .window import cli as window_cli
 
 
@@ -136,3 +137,4 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     graft_cli.add_parsers(grove_subparsers)
     layout_cli.add_parsers(grove_subparsers)
     window_cli.add_parsers(grove_subparsers)
+    web_cli.add_parsers(grove_subparsers)
