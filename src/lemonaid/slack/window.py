@@ -21,7 +21,7 @@ import webview
 from PyObjCTools import AppHelper
 from webview.platforms import cocoa
 
-from . import api, signin
+from . import api, session, signin
 
 _STORE = str(uuid.uuid5(uuid.NAMESPACE_URL, "lemonaid/slack-signin")).upper()
 _TITLE = "lemonaid: sign in to Slack for your lemons"
@@ -154,9 +154,18 @@ def _lemon() -> AppKit.NSImage:
     return image
 
 
-def _wait_for_session(window: webview.Window, workspace: str, result: list[str]) -> None:
+def _wait_for_session(
+    window: webview.Window, workspace: str, result: list[str], status: list[str], failure: list[str]
+) -> None:
+    """*status* holds the last thing said about what the sign-in is waiting on."""
     shown = [""]
     looked = 0.0
+
+    def say(text: str) -> None:
+        if status[-1:] != [text]:
+            status.append(text)
+            print(text, flush=True)
+
     while window.uid in cocoa.BrowserView.instances:  # until the user closes it
         time.sleep(_TITLE_EVERY)
         AppHelper.callAfter(_retitle, window, shown)
@@ -166,24 +175,56 @@ def _wait_for_session(window: webview.Window, workspace: str, result: list[str])
         looked = time.monotonic()
         look = _browser(window).evaluate_js(_LOOK_JS, True) or {}  # None mid-navigation
         candidates = signin.tokens(look) if isinstance(look, dict) else []
-        cookie = _cookie(window) if candidates else None
+        if not candidates:
+            say(
+                "Waiting for the page to hold a Slack web token: finish signing in to the workspace"
+            )
+            continue
+
+        cookie = _cookie(window)
         if not cookie:
+            say("Waiting for Slack's `d` cookie, which the window has not received yet")
+            continue
+
+        rejections: list[str] = []
+        try:
+            found = signin.capture(candidates, *cookie, workspace, rejections)
+        except api.Unavailable as error:
+            say(f"Can't reach Slack to check the sign-in ({error}); trying again")
+            continue
+
+        if not found:
+            say(rejections[-1] if rejections else "Slack accepted no token the page holds")
             continue
 
         try:
-            found = signin.capture(candidates, *cookie, workspace)
-        except api.Unavailable as error:
-            print(f"can't reach Slack to check the sign-in ({error}); trying again", flush=True)
-            continue
-        if found:
             signin.keep(found)
-            result.append(f"Signed in to Slack as {found.user} on {found.team}")
+        except session.KeychainError as error:
+            failure.append(f"Signed in, but the session was not saved: {error}")
             window.destroy()
             return
+
+        result.append(f"Signed in to Slack as {found.user} on {found.team}")
+        window.destroy()
+        return
+
+
+def closing(result: list[str], status: list[str], failure: list[str]) -> str:
+    if result:
+        return result[0]
+
+    if failure:
+        return failure[0]
+
+    return "Closed before signing in; nothing saved" + (
+        f". Last status: {status[-1]}" if status else ""
+    )
 
 
 def run(workspace: str) -> int:
     result: list[str] = []
+    status: list[str] = []
+    failure: list[str] = []
     window = webview.create_window(_TITLE, workspace, width=1000, height=800)
 
     def started() -> None:
@@ -191,9 +232,9 @@ def run(workspace: str) -> int:
             lambda: AppKit.NSApplication.sharedApplication().setApplicationIconImage_(_lemon())
         )
         threading.Thread(
-            target=_wait_for_session, args=(window, workspace, result), daemon=True
+            target=_wait_for_session, args=(window, workspace, result, status, failure), daemon=True
         ).start()
 
     webview.start(started, private_mode=False, user_agent=_user_agent())
-    print(result[0] if result else "Closed before signing in; nothing saved")
+    print(closing(result, status, failure))
     return 0 if result else 1

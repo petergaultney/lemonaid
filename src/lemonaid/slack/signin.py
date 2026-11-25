@@ -24,9 +24,14 @@ def tokens(look: dict) -> list[str]:
 
 
 def capture(
-    candidates: abc.Iterable[str], cookie: str, cookie_expires: str, workspace: str
+    candidates: abc.Iterable[str],
+    cookie: str,
+    cookie_expires: str,
+    workspace: str,
+    rejections: list[str] | None = None,
 ) -> session.Session | None:
-    """The session for the first candidate Slack accepts, or None."""
+    """The session for the first candidate Slack accepts, or None; each refusal's reason goes on
+    *rejections*."""
     for token in candidates:
         probe = session.Session(
             api_url=workspace,
@@ -40,7 +45,9 @@ def capture(
         )
         try:
             body = api.call(probe, "auth.test")
-        except (api.Expired, api.Failed):
+        except (api.Expired, api.Failed) as error:
+            if rejections is not None:
+                rejections.append(f"Slack rejected the page's token ({error})")
             continue
 
         return dataclasses.replace(

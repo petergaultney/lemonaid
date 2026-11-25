@@ -63,3 +63,16 @@ def test_keeping_a_session_ends_the_pause_a_refused_one_caused(monkeypatch):
 @pytest.mark.parametrize("look", [{}, {"teams": None, "called": ""}])
 def test_a_page_with_no_token_has_no_candidates(look):
     assert signin.tokens(look) == []
+
+
+def test_a_refused_token_leaves_its_reason_and_no_secret(monkeypatch):
+    def refuse(current, method, **params):
+        raise api.Expired(f"{method}: invalid_auth")
+
+    monkeypatch.setattr(api, "call", refuse)
+    rejections: list[str] = []
+
+    assert (
+        signin.capture(["xoxc-secret"], COOKIE, "", "https://acme.slack.com/", rejections) is None
+    )
+    assert rejections == ["Slack rejected the page's token (auth.test: invalid_auth)"]
