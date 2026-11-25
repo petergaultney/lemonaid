@@ -22,6 +22,12 @@ slack = [
     "pywebview>=6.2",
     "websockets>=15",
 ]
+# Talking to an OpenClaw gateway over one held connection (the web grove's lemon pages), rather
+# than a CLI process per call.
+openclaw = [
+    "cryptography>=42",
+    "websockets>=15",
+]
 
 [project.urls]
 Homepage = "https://github.com/petergaultney/lemonaid"
@@ -32,10 +38,12 @@ Issues = "https://github.com/petergaultney/lemonaid/issues"
 
 [dependency-groups]
 dev = [
+    "cryptography>=42",
     "pre-commit",
     "pytest",
     "pytest-xdist>=3.8.0",
     "ruff",
+    "websockets>=15",
 ]
 
 [project.scripts]

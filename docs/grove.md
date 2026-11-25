@@ -134,6 +134,8 @@ The page draws, searches and gardens as the grove window does. The server re-rea
 
 Jumping to a lemon opens its page: the brief on the left and the conversation on the right, read from the harness's own record (Claude's transcript, Codex's rollout, or the OpenClaw gateway's `chat.history`). On a narrow screen the two become tabs. The box at the bottom sends what you type through the lemon's front end, so its harness takes it as your own words: typed into its tmux or WezTerm pane (only when the pane shows an empty prompt), or sent with OpenClaw's `chat.send`. A lemon in cmux can't be typed into, so there the box sends mail, which the lemon reads as a message rather than as you, and the page says so before you send. An OpenClaw lemon's page also links its Matrix room.
 
+With the `openclaw` extra installed (`uv tool install 'lemonaid-inbox[openclaw]'`), `grove serve` keeps one connection open to the OpenClaw gateway on the same machine, so an OpenClaw lemon's page reads and sends in tens of milliseconds rather than the second each `openclaw gateway call` takes. It signs in as a device of its own, which the gateway pairs without asking because it connects over loopback; its key is `openclaw-device.pem` in lemonaid's state directory. Without the extra, or when the connection fails, it uses the CLI.
+
 A browser on the server itself (`localhost`) switches the terminal instead, as the grove window does.
 
 The pages have a prefix key of their own, backtick by default. The prefix and then Space go back to the grove from anywhere, a text box included, and the prefix and then `h` type a backtick. `[web]` in the config sets all three keys; see [config.md](config.md#web).

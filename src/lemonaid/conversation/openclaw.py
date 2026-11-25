@@ -6,13 +6,14 @@ OpenClaw's own clients, such as the web grove's `chat.send`, are the owner.
 """
 
 import datetime
-import json
-import subprocess
 from collections import abc
 
+from ..openclaw import gateway
 from . import entry
 
 _TIMEOUT_SECONDS = 30
+_PAGE = 500  # messages per `chat.history` call
+_MOST = 2000  # messages read back at most, for a session that is nearly all tool calls
 
 
 def _at(milliseconds: object) -> str:
@@ -59,31 +60,32 @@ def _entries(message: dict) -> abc.Iterator[entry.Entry]:
                     yield entry.Entry(entry.TOOL, _tool(block), at)
 
 
-def _history(session_key: str, cli: str, limit: int) -> subprocess.CompletedProcess[str]:
-    params = json.dumps({"sessionKey": session_key, "limit": limit})
-    return subprocess.run(
-        [cli, "gateway", "call", "chat.history", "--json", "--params", params],
-        capture_output=True,
-        text=True,
-        timeout=_TIMEOUT_SECONDS,
+def _page(session_key: str, cli: str, offset: int) -> tuple[list[entry.Entry], bool]:
+    """The entries of the page *offset* messages back from the newest, and whether older ones
+    remain."""
+    found = gateway.call(
+        cli,
+        "chat.history",
+        {"sessionKey": session_key, "limit": _PAGE, "offset": offset},
+        _TIMEOUT_SECONDS,
     )
+    messages = found.get("messages") or []
+    return [
+        each for message in messages if isinstance(message, dict) for each in _entries(message)
+    ], bool(found.get("hasMore"))
 
 
 def read(session_key: str, cli: str, limit: int) -> list[entry.Entry]:
-    """The session's newest entries, oldest first. Raises OSError when the gateway can't answer."""
-    try:
-        done = _history(session_key, cli, limit)
-    except subprocess.TimeoutExpired as error:
-        raise OSError(f"chat.history took longer than {_TIMEOUT_SECONDS}s") from error
+    """The session's newest *limit* messages and the tool calls among them, oldest first. Raises
+    OSError when the gateway can't answer.
 
-    if done.returncode != 0:
-        raise OSError(done.stderr.strip() or f"chat.history exited {done.returncode}")
+    `chat.history` counts each tool call and each tool result as a message, so a busy session's
+    newest page may hold only a few lines of talk; pages are read back until there are *limit*."""
+    found: list[entry.Entry] = []
+    for offset in range(0, _MOST, _PAGE):
+        page, more = _page(session_key, cli, offset)
+        found = page + found
+        if not more or sum(each.role != entry.TOOL for each in found) >= limit:
+            break
 
-    try:
-        messages = json.loads(done.stdout).get("messages") or []
-    except json.JSONDecodeError as error:
-        raise OSError(f"chat.history said something other than JSON: {error}") from error
-
-    return [
-        each for message in messages if isinstance(message, dict) for each in _entries(message)
-    ][-limit:]
+    return entry.newest(found, limit)
