@@ -10,7 +10,8 @@ _HEADING = re.compile(r"(#{1,6})\s+(.*?)\s*#*\s*$")
 _FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
 
 
-def _body(text: str) -> str:
+def without_frontmatter(text: str) -> str:
+    """*text* less a leading frontmatter block."""
     lines = text.split("\n")
     if lines[0].rstrip() != "---":
         return text
@@ -37,7 +38,7 @@ def _headings(lines: list[str]) -> list[tuple[int, int, str]]:
 
 def text(doc: str, section: str = "") -> str:
     """*doc*'s body, or its section headed *section*; "" when it has no such section."""
-    body = _body(doc).strip("\n")
+    body = without_frontmatter(doc).strip("\n")
     if not section:
         return body
 
