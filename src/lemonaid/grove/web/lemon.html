@@ -20,6 +20,7 @@ main { flex:1; display:flex; min-height:0; }
 #log { flex:1; overflow:auto; padding:8px 14px; }
 .entry { margin:0 0 10px; overflow-wrap:anywhere; }
 .entry .who { color:#7c8696; font-size:11px; }
+.day { color:#7c8696; font-size:11px; text-align:center; margin:14px 0 8px; border-top:1px solid #262c36; padding-top:4px; }
 .entry.user .body { background:#1f2a3a; border-left:3px solid #f2d94e; padding:4px 8px; }
 .entry.pending { opacity:0.55; }
 .entry.other .body { border-left:3px solid #3a4250; padding:4px 8px; color:#aab3c2; }
@@ -109,6 +110,20 @@ const rich = text => window.marked && window.DOMPurify
     })
   : markdown(text);
 const time = at => at ? new Date(at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "";
+const day = at => {
+  if (!at) return "";
+  const d = new Date(at), year = d.getFullYear() === new Date().getFullYear() ? {} : {year: "numeric"};
+  return d.toLocaleDateString([], {weekday: "short", month: "short", day: "numeric", ...year});
+};
+// Each [at, html] after a heading for its day whenever the day changes.
+const byDay = items => {
+  let last = "";
+  return items.map(([at, html]) => {
+    const d = day(at), heading = d && d !== last ? `<div class="day">${escape(d)}</div>` : "";
+    last = d || last;
+    return heading + html;
+  }).join("");
+};
 const who = e => ({user: "you", lemon: $("name").textContent, other: e.sender || "message"})[e.role] || e.role;
 const render = e => e.role === "tool"
   ? `<div class="entry tool">ran ${escape(e.text)}</div>`
@@ -148,9 +163,9 @@ const refresh = async () => {
       const left = pending.filter(p => !recorded(p, v.entries));
       if (left.length !== pending.length) { pending = left; savePending(pending); }
     }
-    const html = (v.conversation_problem
-      ? `<div class="problem">${escape(v.conversation_problem)}</div>`
-      : v.entries.map(render).join("")) + pending.map(renderPending).join("");
+    const html = (v.conversation_problem ? `<div class="problem">${escape(v.conversation_problem)}</div>` : "")
+      + byDay([...(v.conversation_problem ? [] : v.entries.map(e => [e.at, render(e)])),
+               ...pending.map(p => [p.at, renderPending(p)])]);
     if (html !== shownLog) {
       const log = $("log"), atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
       log.innerHTML = shownLog = html;
