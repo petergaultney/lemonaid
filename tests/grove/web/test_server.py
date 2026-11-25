@@ -12,6 +12,7 @@ import urllib.request
 
 import pytest
 
+from lemonaid import web_config
 from lemonaid.config import Config
 from lemonaid.front_end import chat
 from lemonaid.grove.web import changes, server
@@ -117,7 +118,7 @@ def test_only_the_calls_named_for_browsers_are_served(served):
 
 
 def test_the_page_gets_the_shim_before_its_own_scripts():
-    page = server.html()
+    page = server.html(web_config.WebConfig())
 
     assert page.index("window.pywebview = {api") < page.index("window.groveData = async")
 
@@ -216,3 +217,8 @@ def test_a_pages_calls_share_one_connection_even_after_a_refusal(served):
         (200, b'["barn"]', False),
         (200, b'["barn"]', False),
     ]
+def test_both_pages_get_the_web_keys_before_their_own_scripts():
+    keys = web_config.WebConfig(prefix="C-a")
+    for page in (server.html(keys), server.lemon_page(keys)):
+        given = page.index('window.groveKeys = {"prefix": "C-a", "home": "Space", "literal": "h"}')
+        assert given < page.index("<script>", given)

@@ -7,6 +7,7 @@ itself, which can switch the terminal as the window does. Each page hears when t
 over its own open stream (`changes.py`), where the window has Python push it.
 """
 
+import dataclasses
 import functools
 import gzip
 import hashlib
@@ -19,6 +20,7 @@ import time
 import urllib.parse
 from importlib import resources
 
+from ... import web_config
 from ...config import Config
 from ...inbox import db
 from ...log import get_logger
@@ -52,16 +54,25 @@ class _WebApi(api.Api):
 _CALLS = frozenset(name for name in (*vars(api.Api), *vars(_WebApi)) if not name.startswith("_"))
 
 
-def html() -> str:
+def _first(scripts: str, into: str) -> str:
+    at = into.index("<script")
+    return f"{into[:at]}<script>\n{scripts}</script>\n{into[at:]}"
+
+
+def _keys(keys: web_config.WebConfig) -> str:
+    found = resources.files(__package__).joinpath("prefix.js").read_text()
+    return f"window.groveKeys = {json.dumps(dataclasses.asdict(keys))};\n{found}"
+
+
+def html(keys: web_config.WebConfig) -> str:
     """The window's page, with the shim that turns its Python calls into requests first."""
     shim = resources.files(__package__).joinpath("shim.js").read_text()
-    window_page = page.html()
-    at = window_page.index("<script")
-    return f"{window_page[:at]}<script>\n{shim}</script>\n{window_page[at:]}"
+    return _first(f"{shim}\n{_keys(keys)}", page.html())
 
 
-def _lemon_page() -> str:
-    return resources.files(__package__).joinpath("lemon.html").read_text()
+def lemon_page(keys: web_config.WebConfig) -> str:
+    lemon_html = resources.files(__package__).joinpath("lemon.html").read_text()
+    return _first(_keys(keys), lemon_html)
 
 
 def _handler(
@@ -218,7 +229,8 @@ def serve(config: Config, host: str, port: int) -> None:
     )
     threading.Thread(target=functools.partial(_refresher, shared, seen), daemon=True).start()
     with http.server.ThreadingHTTPServer(
-        (host, port), _handler(calls, html().encode(), _lemon_page().encode(), seen)
+        (host, port),
+        _handler(calls, html(config.web).encode(), lemon_page(config.web).encode(), seen),
     ) as server:
         print(
             f"serving the grove at http://{host}:{port}/ with no login: anyone who reaches"

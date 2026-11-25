@@ -929,6 +929,19 @@ Read by `lemonaid-claude-statusline` on each render.
 |-----|---------|-------------|
 | `label_color` | `248` | Color of the session name: a 256-color index from 0 to 255, `"default"` for the terminal's foreground, or `"dim"` for the faint attribute. |
 
+## `[web]`
+
+Keys in the grove's pages in a browser (`lemonaid grove serve`), and nowhere else.
+
+```toml
+[web]
+prefix = "`"      # pressed first
+home = "Space"    # after the prefix: back to the grove
+literal = "h"     # after the prefix: type the prefix itself
+```
+
+A key is named as the browser names it (`` ` ``, `h`, `Enter`), or `C-` and a letter with Control, or `Space`. Any other key after the prefix is dropped.
+
 ## `[usage]`
 
 Thresholds for [`lemonaid usage --watch`](usage.md).

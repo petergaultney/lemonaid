@@ -25,6 +25,7 @@ from . import (
     status_registry,
     tasks_config,
     watch_config,
+    web_config,
 )
 from .inbox import context_use, snooze_time
 from .usage import settings
@@ -449,6 +450,7 @@ class Config:
     tasks: tasks_config.TasksConfig = field(default_factory=tasks_config.TasksConfig)
     restore: restore_config.RestoreConfig = field(default_factory=restore_config.RestoreConfig)
     slack: slack_config.SlackConfig = field(default_factory=slack_config.SlackConfig)
+    web: web_config.WebConfig = field(default_factory=web_config.WebConfig)
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -931,6 +933,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         restore=restore_config.parse(data.get("restore", {})),
         codex=codex_config.parse(data.get("codex", {})),
         slack=slack_config.parse(data.get("slack", {})),
+        web=web_config.parse(data.get("web", {})),
     )
 
 
