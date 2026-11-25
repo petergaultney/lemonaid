@@ -75,9 +75,9 @@ def _act(data: dict, harness: str, config: Config, base: dict) -> compose.Outcom
         lemon = _lemon(harness, base["session"], state["lemon"], Path(data.get("cwd") or "."))
         if pre:
             state["calls"] += 1
+        base = {**base, "window": state["window"], "mode": state["mode"] or base["mode"]}
         chosen = offers.packages(docs, lemon, base["mode"]) if pre else offers.Packages((), ())
         window.joined(state, chosen.given + chosen.shadow)
-        base = {**base, "window": state["window"]}
         given = compose.compose(
             state,
             base,

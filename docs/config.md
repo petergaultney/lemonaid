@@ -93,6 +93,8 @@ in `classic`, with a warning.
 one lemon, and so does `docs-mode: MODE` in the frontmatter of the brief it is started
 with; `--docs` wins over the brief, and the brief over `mode`. Its harness gets the mode in `LEMONAID_DOCS`, and the SessionStart hook records
 it for the session, so a resume started without the variable keeps it.
+`lemonaid docs mode` changes a running lemon's recorded mode; see
+[doc-delivery.md](doc-delivery.md#changing-a-lemons-mode).
 
 With `roots` set, a `classic` lemon is also given the packages and triggers that name its
 group or its lead, and every other delivery is logged, as a comparison, without giving it:

@@ -5,11 +5,13 @@ from pathlib import Path
 
 import pytest
 
+from lemonaid.docs import mode
 from lemonaid.hooks import session_start
 
 
-def _start(monkeypatch, capsys, source: str, harness: str = "codex") -> str:
-    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"source": source})))
+def _start(monkeypatch, capsys, source: str, harness: str = "codex", session: str = "") -> str:
+    given = {"source": source, **({"session_id": session} if session else {})}
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(given)))
     session_start.handle(harness)
     out = capsys.readouterr().out
     return json.loads(out)["hookSpecificOutput"]["additionalContext"] if out else ""
@@ -84,3 +86,33 @@ def test_a_broken_config_keeps_stdout_one_json_value(monkeypatch, capsys):
 
     out = json.loads(capsys.readouterr().out)
     assert out["hookSpecificOutput"]["additionalContext"] == "BRIEF"
+
+
+def test_a_thread_resumed_into_classic_gets_the_doc_once_even_without_roots(
+    monkeypatch, capsys, tmp_path
+):
+    (tmp_path / "root.md").write_text("ROOT")
+    config = Path(os.environ["LEMONAID_CONFIG"])
+    config.write_text(f'[docs]\nclassic = "{tmp_path / "root.md"}"\nroots = ["{tmp_path}"]\n')
+    monkeypatch.setenv("LEMONAID_DOCS", "packages")
+    assert _start(monkeypatch, capsys, "startup", session="t1") == ""
+
+    mode.record("codex", "t1", "classic")
+    config.write_text(f'[docs]\nclassic = "{tmp_path / "root.md"}"\n')
+
+    assert "ROOT" in _start(monkeypatch, capsys, "resume", session="t1")
+    assert _start(monkeypatch, capsys, "resume", session="t1") == ""
+
+
+def test_a_thread_started_before_starts_were_noted_gets_the_doc_after_a_change(
+    monkeypatch, capsys, tmp_path
+):
+    (tmp_path / "root.md").write_text("ROOT")
+    Path(os.environ["LEMONAID_CONFIG"]).write_text(
+        f'[docs]\nclassic = "{tmp_path / "root.md"}"\nroots = ["{tmp_path}"]\n'
+    )
+    mode.record("codex", "t2", "packages")  # what an older build left: no note of its start
+
+    mode.record("codex", "t2", "classic")
+
+    assert "ROOT" in _start(monkeypatch, capsys, "resume", session="t2")

@@ -8,6 +8,10 @@ lemons holding a doc, and every doc's package and triggers.
                              or a file name (--all includes lemons that ended)
   lemonaid docs table        every package and every doc with a package or triggers,
                              as Markdown tables, from the docs under [docs] roots
+  lemonaid docs mode SESSION [classic|packages]
+                             a session's docs mode, or change it; --self for the
+                             calling lemon. A change takes effect at the session's
+                             next start, as it says.
 """
 
 import argparse
@@ -20,7 +24,7 @@ from .. import brief
 from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import channel_id, full_channel_id
-from . import deliveries, index, lemons, paths, views
+from . import deliveries, index, lemons, mode_cli, paths, views
 
 
 def _sessions(log: abc.Iterable[dict]) -> dict[tuple[str, str], list[dict]]:
@@ -104,8 +108,12 @@ def _who(wanted: str, everyone: bool) -> None:
 
 
 def _run(args: argparse.Namespace) -> None:
-    words = args.words
-    if words[:1] == ["table"]:
+    words = [w for w in args.words if w not in ("--self", "--all")]
+    args.self = args.self or "--self" in args.words
+    args.all = args.all or "--all" in args.words
+    if words[:1] == ["mode"]:
+        mode_cli.run(words[1:], args.self)
+    elif words[:1] == ["table"]:
         print("\n".join(views.table(index.build(load_config().docs.roots, paths.index()))))
     elif words[:1] == ["who"] and len(words) == 2:
         _who(words[1], args.all)
@@ -114,7 +122,7 @@ def _run(args: argparse.Namespace) -> None:
         if not session:
             sys.exit("--self needs CLAUDE_CODE_SESSION_ID or CODEX_THREAD_ID")
         _show(session)
-    elif len(words) == 1 and words[0] not in ("who", "table"):
+    elif len(words) == 1 and words[0] not in ("who", "table", "mode"):
         _show(words[0])
     else:
         sys.exit(__doc__)
@@ -123,11 +131,15 @@ def _run(args: argparse.Namespace) -> None:
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "docs",
-        help="The docs a lemon was given, who holds a doc, and every doc's triggers",
+        help="The docs a lemon was given, who holds a doc, every doc's triggers, and its mode",
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("words", nargs="*", metavar="SESSION | who DOC | table")
+    parser.add_argument(
+        "words",
+        nargs=argparse.REMAINDER,  # so a flag may follow them: `docs mode --self classic`
+        metavar="SESSION | who DOC | table | mode [SESSION] [MODE]",
+    )
     parser.add_argument("--self", action="store_true", help="the calling lemon's session")
     parser.add_argument("--all", action="store_true", help="with who: lemons that ended too")
     parser.set_defaults(func=_run)

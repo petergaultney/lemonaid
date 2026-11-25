@@ -17,6 +17,8 @@ from . import compose, frontmatter, index, lemons, mode, offers, paths, start, w
 
 _log = get_logger("docs.begin")
 
+_NEW_PROCESS = ("startup", "resume")  # a Claude start whose system prompt is only its launch's
+
 
 def _launched(manifest: abc.Mapping) -> dict[str, dict]:
     """The docs a Claude lemon's start manifest says are in its system prompt."""
@@ -75,14 +77,16 @@ def session(data: dict, harness: str, config: Config, base: dict) -> compose.Out
     lemon = lemons.Lemon(
         cwd, brief_text, facts["on_default_branch"], *lemons.kin(lemons.lemon_id(brief_text))
     )
-    chosen = offers.packages(docs, lemon, base["mode"])
     source = str(data.get("source") or "startup")
     manifest = start.claim(base["session"], source) if harness == "claude" else {}
     launched = _launched(manifest)
     with window.opened(harness, base["session"]) as state:
-        if launched:
+        if harness == "claude" and source not in _NEW_PROCESS and state["mode"]:
+            base = {**base, "mode": state["mode"]}  # its process keeps the docs it loaded
+        chosen = offers.packages(docs, lemon, base["mode"])
+        if launched or (harness == "claude" and source in _NEW_PROCESS):
             state["prompt"] = {key: entry["mtime"] for key, entry in launched.items()}
-        began = window.begin(state, source, chosen.given + chosen.shadow)
+        began = window.begin(state, source, base["mode"], chosen.given + chosen.shadow)
         if began:
             state["lemon"] = facts
         base = {**base, "window": state["window"]}

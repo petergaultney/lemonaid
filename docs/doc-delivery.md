@@ -98,8 +98,9 @@ at launch:
   writes the packages' docs to a file under `<state>/docs/starts/` and passes it as
   `--append-system-prompt-file`. A `--settings` file with `claudeMdExcludes` on
   [`[docs] classic`](config.md#docs) turns off the always-loaded docs. No compaction
-  removes a system prompt, so these docs stay through the session, and
-  `lemonaid claude resume` passes the same flags again.
+  removes a system prompt, so these docs stay through the session. A resume through
+  lemonaid (`lemonaid claude resume`, `lemonaid claude --resume`) builds the flags again
+  for the session's mode and docs as they are then.
 - **Codex** gets them from the docs hook at SessionStart, again after `/clear` and after
   each compaction.
 
@@ -114,6 +115,25 @@ arrive over the next tool calls.
 A session started without `LEMONAID_DOCS`, such as a fork, gets `[docs] mode`, whatever
 its source's mode. For Claude Code that matches what the fork loads: its own launch flags,
 not its source's, decide its system prompt.
+
+## Changing a lemon's mode
+
+`lemonaid docs mode --self packages`, or `lemonaid docs mode SESSION classic` from its
+parent, records a new mode for a running lemon. SESSION is a session ID, a prefix of one,
+or a channel. Without a mode, the command prints the session's current one. The recorded
+mode wins over `LEMONAID_DOCS` from then on. A session keeps the mode its context window
+began in until its next start, since what a harness has loaded stays loaded:
+
+- **Claude Code** takes it when resumed through lemonaid, which passes the flags for the
+  new mode, or none for `classic`. It can't drop a loaded system prompt or `CLAUDE.md`
+  mid-session, so a `/clear` or compaction keeps the mode it was launched or resumed with.
+- **Codex** takes it at its next compaction or resume. A resume into `classic` from
+  another mode is given the always-loaded docs, with or without `roots`, since its
+  history doesn't hold them. A `/clear` starts a new
+  thread, which takes the mode the lemon was launched with.
+
+A recorded `packages` stays recorded when `roots` are removed: the lemon gets `classic`
+meanwhile, and `packages` again once they are back.
 
 ## Rules for a group or a lead's lemons
 
@@ -131,7 +151,7 @@ most once a minute for this.
 ## Once per context window
 
 A context window begins when a session starts, is cleared or is compacted, and a resume
-continues it. Within a window, a doc or section is given in full once, and again at its next trigger
+continues it, unless the session's mode changed since. Within a window, a doc or section is given in full once, and again at its next trigger
 if the file changes. A package doc changed since it was given is given again when the
 next window begins. The state is in `<state>/docs/windows/`.
 
