@@ -1,8 +1,8 @@
 """Every recent OpenClaw conversation as a lemon, added from outside the session.
 
 A row a session registered itself (`lemons.register`, binding its Codex thread) is never
-written or archived here, and each write checks that under the database's write lock, since
-a session can register at any moment.
+written here, and each write checks that under the database's write lock, since a session
+can register at any moment. Archiving follows OpenClaw for every row, though (`archived`).
 """
 
 import json
@@ -14,7 +14,7 @@ from collections import abc
 
 from ..inbox import db, ended
 from ..log import get_logger
-from . import lemons, sessions
+from . import archived, lemons, sessions
 
 _log = get_logger("openclaw.sync")
 
@@ -152,25 +152,35 @@ def sync(
     keep: abc.Iterable[sessions.Session],
     by_id: abc.Mapping[str, Agent],
     front_end: str,
+    shelved: abc.Mapping[str, str],
+    listed: abc.Set[str],
 ) -> tuple[list[str], list[str]]:
-    """Add a row for each session in *keep* that has none, and archive the rows this added
+    """Follow OpenClaw's archive state (*shelved*, key to reason, among the *listed* keys),
+    add a row for each session in *keep* that has none, and archive the rows this added
     whose session is no longer kept. Returns (added, archived) channels."""
-    keep = list(keep)
+    gone, restored = archived.follow(conn, shelved, listed)
+    keep = [each for each in keep if each.key not in shelved]
     added = [
         sessions.channel(each.key)
         for each in keep
         if each.agent_id in by_id and _add(conn, each, by_id[each.agent_id], front_end)
     ]
-    archived = _archive_quiet(conn, {each.key for each in keep})
-    _log.info("synced OpenClaw sessions: %d added, %d archived", len(added), len(archived))
-    return added, archived
+    quiet = _archive_quiet(conn, {each.key for each in keep})
+    _log.info(
+        "synced OpenClaw sessions: %d added, %d restored, %d archived in OpenClaw, %d quiet",
+        len(added),
+        len(restored),
+        len(gone),
+        len(quiet),
+    )
+    return added + restored, gone + quiet
 
 
 def refresh(
     cli: str, max_age_days: float, chats: abc.Set[str], front_end: str
 ) -> tuple[list[str], list[str]]:
     """`sync` against what the gateway lists now. Raises `sessions.Unavailable`."""
-    found, by_id = sessions.listed(cli), agents(cli)
+    found, by_id, shelved = sessions.listed(cli), agents(cli), sessions.archived(cli)
     keep = conversations(found, int(time.time() * 1000), int(max_age_days * 86_400_000), chats)
     with db.connect() as conn:
-        return sync(conn, keep, by_id, front_end)
+        return sync(conn, keep, by_id, front_end, shelved, found.keys())
