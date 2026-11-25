@@ -7,10 +7,10 @@ DESCRIPTION = "Add session emoji"
 
 
 def migrate(conn: sqlite3.Connection) -> None:
-    conn.executescript("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS session_emoji (
             channel TEXT PRIMARY KEY,
             emoji TEXT NOT NULL,
             set_at REAL NOT NULL
-        );
+        )
     """)

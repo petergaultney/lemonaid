@@ -7,7 +7,7 @@ DESCRIPTION = "Add brief handoffs"
 
 
 def migrate(conn: sqlite3.Connection) -> None:
-    conn.executescript("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS brief_handoffs (
             token TEXT PRIMARY KEY,
             path TEXT NOT NULL,
@@ -28,12 +28,16 @@ def migrate(conn: sqlite3.Connection) -> None:
             error TEXT NOT NULL DEFAULT '',
             created_at REAL NOT NULL,
             deadline REAL NOT NULL
-        );
+        )
+    """)
+    conn.execute("""
         CREATE UNIQUE INDEX IF NOT EXISTS brief_handoffs_active_path
-            ON brief_handoffs(path) WHERE phase NOT IN ('complete', 'failed');
+            ON brief_handoffs(path) WHERE phase NOT IN ('complete', 'failed')
+    """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS brief_handoff_sessions (
             path TEXT NOT NULL,
             channel TEXT PRIMARY KEY,
             generation INTEGER NOT NULL
-        );
+        )
     """)
