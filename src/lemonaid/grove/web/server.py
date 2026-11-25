@@ -18,9 +18,11 @@ import socket
 import threading
 import time
 import urllib.parse
+from collections import abc
 from importlib import resources
 
 from ... import web_config
+from ...brief import pr
 from ...config import Config
 from ...inbox import db
 from ...log import get_logger
@@ -35,6 +37,13 @@ _LOOPBACK = frozenset({"127.0.0.1", "::1"})
 
 
 class _WebApi(api.Api):
+    def __init__(
+        self, shared: api.Shared, prs: pr.Lookup, **window: abc.Callable[[], None]
+    ) -> None:
+        """*prs* answers a PR's state without waiting; *window* is the window `Api`'s callbacks."""
+        super().__init__(shared, **window)
+        self._prs = prs
+
     def jump(self, channel: str) -> str | dict[str, str]:  # type: ignore[override]
         with db.connect() as conn:
             found = db.get_by_channel(conn, channel, unread_only=False)
@@ -45,7 +54,7 @@ class _WebApi(api.Api):
         return super().jump(channel)
 
     def lemon(self, channel: str) -> dict:
-        return lemon.view(channel)
+        return lemon.view(channel, self._shared.config, self._prs)
 
     def say(self, channel: str, text: str) -> str:
         return lemon.say(channel, text, self._shared.config)
@@ -221,6 +230,7 @@ def serve(config: Config, host: str, port: int) -> None:
     nothing = lambda: None  # noqa: E731
     calls = _WebApi(
         shared,
+        pr.Cache(pr.configured(config.brief.pr_state)).get,
         hide=nothing,
         refresh=lambda: threading.Thread(target=_reload, args=(shared, seen), daemon=True).start(),
         leave=nothing,
