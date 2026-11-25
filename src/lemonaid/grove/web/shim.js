@@ -1,7 +1,7 @@
 // The grove window's page calls Python as `window.pywebview.api.<name>(...)`. In a browser each call is
 // a POST to the server that served the page. Placing the window has no meaning here, and links open in
 // this browser. Jumping to a lemon opens its page, except in a browser on the server, which switches the
-// server's terminal as the window does.
+// server's terminal as the window does; leaving the grove goes back to the lemon page last shown.
 (() => {
   // The window has Python push the grove. Here the server says when it changed, over a stream that
   // the browser reopens by itself; while it's closed, the page asks every few seconds. Both start
@@ -39,7 +39,10 @@
       if (r && r.lemon) { location.href = `lemon?channel=${encodeURIComponent(r.lemon)}`; return ""; }
       return r;
     },
-    dismiss: async () => {}, to_terminal: async () => {}, drag: async () => {}, stick: async () => {},
+    // Leaving the grove (Backspace or Escape at the whole grove, Space, q) goes back to the last lemon.
+    dismiss: async () => window.groveBack && window.groveBack(),
+    to_terminal: async () => window.groveBack && window.groveBack(),
+    drag: async () => {}, stick: async () => {},
   };
   window.pywebview = {api: new Proxy({}, {get: (_, name) => here[name] || ((...args) => call(name, args))})};
   document.addEventListener("DOMContentLoaded", () => window.dispatchEvent(new Event("pywebviewready")));

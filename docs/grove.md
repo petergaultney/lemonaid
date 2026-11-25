@@ -138,7 +138,7 @@ With the `openclaw` extra installed (`uv tool install 'lemonaid-inbox[openclaw]'
 
 A browser on the server itself (`localhost`) switches the terminal instead, as the grove window does.
 
-The pages have a prefix key of their own, backtick by default. Pressing it twice goes back to the grove from anywhere, a text box included; the prefix and then `b` focus a lemon's brief (on a phone, its tab), so the arrow keys scroll it; the prefix and then `h` type a backtick. `[web]` in the config sets all four keys; see [config.md](config.md#web).
+The pages have a prefix key of their own, backtick by default. Pressing it twice goes back to the grove from anywhere, a text box included, and from the grove back to the lemon you last had open, as Backspace or Escape closing the grove does; the prefix and then `b` focus a lemon's brief (on a phone, its tab), so the arrow keys scroll it; the prefix and then `h` type a backtick. `[web]` in the config sets all four keys; see [config.md](config.md#web).
 
 Keep it running as a systemd user service, or for a try, `systemd-run --user lemonaid grove serve`.
 
