@@ -23,3 +23,8 @@ def session_mode(harness: str, session: str) -> Path:
 
 def window(harness: str, session: str) -> Path:
     return state_dir() / "docs" / "windows" / f"{harness}-{session}.json"
+
+
+def session_start(session: str) -> Path:
+    """The start manifest of the Claude session *session*, when it was launched with one."""
+    return state_dir() / "docs" / "sessions" / f"claude-{session}.start"

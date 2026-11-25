@@ -20,7 +20,7 @@ def _docs(*argv: str) -> None:
 
 def _line(window: int, **fields) -> dict:
     base = {"at": "2026-01-05T09:30:00-05:00", "harness": "claude", "session": _SESSION}
-    return {**base, "window": window, "mode": "classic", "shadow": True, **fields}
+    return {**base, "window": window, "mode": "classic", "shadow": False, **fields}
 
 
 @pytest.fixture
@@ -36,6 +36,7 @@ def log(tmp_path):
                 package="core",
                 delivery="full",
                 chars=14,
+                shadow=True,
             ),
             _line(2, kind="window", source="compact", cwd=str(tmp_path), packages=["core"]),
             _line(
@@ -58,7 +59,7 @@ def test_a_session_by_prefix_or_channel(capsys):
     _docs(f"claude:{_SESSION[:8]}")
 
     assert capsys.readouterr().out == by_prefix
-    assert "(shadow: nothing was delivered)" in by_prefix
+    assert "voice.md  (package core, 14 chars, shadow: not delivered)" in by_prefix
     assert "window 2: compact" in by_prefix
     assert "refuse    /docs/prs.md#Drafts  (command ^gh pr create, 27 chars)" in by_prefix
 

@@ -4,6 +4,7 @@ import os
 import sys
 from pathlib import Path
 
+from ..docs import start
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id
 from ..resume_directory import surviving_directory
@@ -56,24 +57,41 @@ def _resume_context(session_id: str) -> tuple[str, str]:
     return directory, str(transcripts[0])
 
 
+def _start_flags(session_id: str, claude_args: list[str]) -> list[str]:
+    """The flags that gave the session its docs at launch, unless *claude_args* has them."""
+    flags = start.resume_flags(session_id)
+    named = set(flags[::2])
+    return [] if named & set(claude_args) else flags
+
+
 def resume_session(session_id: str, prompt: str = "") -> None:
     """cd to the correct project directory and exec claude --resume, starting on *prompt* if given."""
     project, target = _resume_context(session_id)
     os.chdir(project)
-    os.execvp("claude", ["claude", "--resume", target, *([prompt] if prompt else [])])
+    os.execvp(
+        "claude",
+        [
+            "claude",
+            *_start_flags(session_id, []),
+            "--resume",
+            target,
+            *([prompt] if prompt else []),
+        ],
+    )
 
 
 def forward_to_claude(claude_args: list[str]) -> None:
     """Forward args to claude, resolving --resume to the correct project dir.
 
     If --resume is among the args, looks up the project directory and cd's
-    there before exec'ing. Other args are passed through verbatim.
+    there before exec'ing, and adds the flags that gave the session its docs at
+    launch. Other args are passed through verbatim.
     """
     for i, arg in enumerate(claude_args):
         if arg == "--resume" and i + 1 < len(claude_args):
             project, target = _resume_context(claude_args[i + 1])
-            claude_args = [*claude_args]
-            claude_args[i + 1] = target
+            claude_args = [*_start_flags(claude_args[i + 1], claude_args), *claude_args]
+            claude_args[claude_args.index("--resume") + 1] = target
             os.chdir(project)
             break
 

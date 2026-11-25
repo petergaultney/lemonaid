@@ -1,12 +1,14 @@
-"""The docs hook end to end: what it logs for each event, from docs under `[docs] roots`."""
+"""The docs hook end to end for a classic lemon: what it logs, and doesn't deliver, for
+each event, from docs under `[docs] roots`."""
 
 import io
 import json
+from pathlib import Path
 
 import pytest
 
 from lemonaid.config import load_config
-from lemonaid.docs import deliveries, hook, index, lemons, paths, window
+from lemonaid.docs import deliveries, hook, index, lemons, paths, start, window
 
 from ..shared import configure, doc
 
@@ -44,7 +46,7 @@ def root(tmp_path):
 
 def _run(event: str, harness: str = "claude", **fields) -> list[dict]:
     data = {"session_id": _SESSION, "hook_event_name": event, "cwd": "/tmp", **fields}
-    return hook.entries(data, harness, load_config())
+    return hook.outcome(data, harness, load_config()).entries
 
 
 def _bash(command: str) -> dict:
@@ -62,7 +64,12 @@ def test_a_session_start_logs_its_window_and_its_packages_docs(tmp_path):
     assert started["packages"] == ["core", "python"]
     assert started["shadow"] is True and started["mode"] == "classic"
     assert delivered["doc"].endswith("voice.md")
-    assert (delivered["package"], delivered["delivery"], delivered["chars"]) == ("core", "full", 14)
+    assert (delivered["package"], delivered["delivery"], delivered["shadow"]) == (
+        "core",
+        "full",
+        True,
+    )
+    assert delivered["chars"] == len(start.block(Path(delivered["doc"]), "Write plainly."))
 
 
 @pytest.mark.usefixtures("root")
@@ -73,7 +80,7 @@ def test_a_before_trigger_would_refuse_once_then_its_reminder_follows_much_later
     assert (first["delivery"], first["section"], first["chars"]) == (
         "refuse",
         "Drafts",
-        len("## Drafts\n\nOpen as a draft."),
+        len(start.block(Path(first["doc"]), "## Drafts\n\nOpen as a draft.", "Drafts")),
     )
     assert first["trigger"] == r"command ^gh pr create\b"
     assert _run("PreToolUse", **_bash("gh pr create --draft")) == []
@@ -81,7 +88,8 @@ def test_a_before_trigger_would_refuse_once_then_its_reminder_follows_much_later
     for _ in range(window.REMIND_AFTER):
         _run("PreToolUse", **_bash("ls"))
     (again,) = _run("PreToolUse", **_bash("gh pr create --draft"))
-    assert (again["delivery"], again["chars"]) == ("reminder", len("Open PRs as drafts."))
+    assert again["delivery"] == "reminder"
+    assert again["chars"] == len(f"Reminder from {again['doc']}: Open PRs as drafts.")
 
 
 @pytest.mark.usefixtures("root")
@@ -90,7 +98,8 @@ def test_a_package_s_doc_gives_its_reminder_at_its_trigger():
 
     (entry,) = _run("PreToolUse", **_bash("git commit -m x"))
 
-    assert (entry["delivery"], entry["chars"]) == ("reminder", len("Plainly."))
+    assert entry["delivery"] == "reminder"
+    assert entry["chars"] == len(f"Reminder from {entry['doc']}: Plainly.")
     assert _run("PreToolUse", **_bash("git commit -m y")) == []
 
 
@@ -121,6 +130,8 @@ def test_compaction_starts_a_window_that_needs_the_doc_again():
 
 @pytest.mark.usefixtures("root")
 def test_creates_in_each_harness(tmp_path):
+    _run("SessionStart", source="startup")
+    _run("SessionStart", harness="codex", source="startup")
     patch = "*** Begin Patch\n*** Add File: notes/today.md\n+hi\n*** End Patch\n"
     codex = {"tool_name": "apply_patch", "tool_input": {"command": patch}, "cwd": str(tmp_path)}
     write = {"tool_name": "Write", "tool_input": {"file_path": str(tmp_path / "notes/a.md")}}
@@ -134,6 +145,7 @@ def test_creates_in_each_harness(tmp_path):
 
 @pytest.mark.usefixtures("root")
 def test_a_prompt_trigger():
+    _run("SessionStart", source="startup")
     (entry,) = _run("UserPromptSubmit", prompt="Add this to my daily note")
 
     assert entry["doc"].endswith("notes.md")
@@ -160,5 +172,5 @@ def test_the_hook_appends_to_the_log(monkeypatch):
 
     hook.handle("codex")
 
-    (entry,) = deliveries.read()
+    entry, *_ = deliveries.read()
     assert (entry["harness"], entry["session"], entry["doc"][-6:]) == ("codex", _SESSION, "prs.md")

@@ -134,3 +134,14 @@ def test_quoted_harness_executable_paths_get_the_same_startup_flags():
         "'/opt/my tools/claude' --model small", Path("/work"), title="Task"
     )
     assert shlex.split(line) == ["/opt/my tools/claude", "--name", "Task", "--model", "small"]
+
+
+def test_a_claude_line_gets_its_docs_flags_and_others_do_not():
+    flags = ["--append-system-prompt-file", "/s/a.md", "--settings", "/s/a.settings.json"]
+
+    claude, _ = command.harness_line("claude --model opus", Path("/w"), claude_flags=flags)
+    codex, _ = command.harness_line("codex --no-daemon", Path("/w"), claude_flags=flags)
+
+    assert claude == f"claude {' '.join(flags)} --model opus"
+    assert "--append-system-prompt-file" not in codex
+    assert command.is_claude("claude -p") and not command.is_claude("codex")

@@ -2,7 +2,10 @@ from pathlib import Path
 
 import pytest
 
+from lemonaid import groups
 from lemonaid.docs import frontmatter, lemons
+from lemonaid.inbox import db
+from lemonaid.lineage import links
 
 
 def _package(name: str, *items: dict) -> frontmatter.Doc:
@@ -65,3 +68,34 @@ def test_the_default_branch_check_runs_in_the_session_s_folder(tmp_path):
     assert lemons.on_default_branch("test -e ON_MAIN", tmp_path) is True
     assert lemons.on_default_branch("test -e ON_MAIN", tmp_path.parent) is False
     assert lemons.on_default_branch("", tmp_path) is None
+
+
+def test_group_and_under_match_a_lemon_s_groups_and_ancestors(repo):
+    docs = [
+        _package("oria", {"group": "oria"}),
+        _package("lead", {"under": "MilkyWay"}),
+        _package("hq", {"under": "HqDesk.control-center"}),
+    ]
+    lemon = lemons.Lemon(repo, groups=("oria",), ancestors=("MilkyWay.oria-lead",))
+
+    assert lemons.packages(docs, lemon) == ["oria", "lead"]
+    assert lemons.packages(docs, lemons.Lemon(repo)) == []
+
+
+def test_scoped_only_takes_the_packages_for_a_group_or_a_lead(repo):
+    docs = [_package("core", {}), _package("oria", {"group": "oria"})]
+
+    assert lemons.packages(docs, lemons.Lemon(repo, groups=("oria",)), scoped_only=True) == ["oria"]
+
+
+def test_kin_reads_groups_and_ancestors_from_the_database():
+    with db.connect() as conn:
+        groups.store.add(conn, groups.store.create(conn, "oria"), ["SweetShy.upload"])
+        links.set_parent(conn, "SweetShy.upload", "MilkyWay.oria-lead")
+        links.set_parent(conn, "MilkyWay.oria-lead", "HqDesk.control-center")
+
+    assert lemons.kin("SweetShy.upload") == (
+        ("oria",),
+        ("MilkyWay.oria-lead", "HqDesk.control-center"),
+    )
+    assert lemons.kin("") == ((), ())

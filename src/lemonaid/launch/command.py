@@ -53,6 +53,24 @@ def _is_codex(words: list[str]) -> bool:
     return bool(words) and Path(words[0]).name == "codex"
 
 
+def is_claude(line: str) -> bool:
+    """Whether *line* starts Claude Code."""
+    try:
+        return _is_claude(shlex.split(line)[:1])
+    except ValueError:
+        return False
+
+
+def passes(line: str, flag: str) -> bool:
+    """Whether *line* passes *flag*, alone or as `flag=value`."""
+    try:
+        words = shlex.split(line)
+    except ValueError:
+        return False
+
+    return any(w == flag or w.startswith(f"{flag}=") for w in words)
+
+
 def _is_claude(words: list[str]) -> bool:
     return bool(words) and Path(words[0]).name == "claude"
 
@@ -86,6 +104,7 @@ def harness_line(
     prompt: str = "",
     writable: abc.Iterable[Path] = (),
     title: str = "",
+    claude_flags: abc.Sequence[str] = (),
 ) -> tuple[str, dict[str, str]]:
     """*line* with the flags its harness needs to start in *directory*, and the
     environment the line's shell must be started with.
@@ -99,6 +118,7 @@ def harness_line(
 
     A Claude line gets *title* as `--name`, unless the line already names the
     session. Codex has no flag for it; its SessionStart hook names the thread.
+    A Claude line also gets *claude_flags*, right after the program.
     """
     lexer = shlex.shlex(line.strip(), posix=True)
     lexer.whitespace_split = True
@@ -106,6 +126,9 @@ def harness_line(
     program = lexer.get_token() or ""
     spelling = line.strip()[: lexer.instream.tell()].rstrip()
     rest = lexer.instream.read()
+    if _is_claude([program]) and claude_flags:
+        rest = f"{shlex.join(claude_flags)} {rest}".strip()
+        line = f"{spelling} {rest}"
     if title and _is_claude([program]) and not _names_session(shlex.split(rest)):
         line = f"{spelling} --name {shlex.quote(title)} {rest}".strip()
 

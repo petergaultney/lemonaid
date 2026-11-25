@@ -36,22 +36,29 @@ def plan(args: argparse.Namespace, config: Config, directory: Path) -> tuple[Pla
     if given.brief and (error := command.unclaimable(resolved.line)):
         return None, error
 
+    started = docs.launch.prepare(
+        getattr(args, "docs", ""),
+        directory,
+        handoff.docs_kin(given),
+        config,
+        resolved.line,
+    )
+    if started.warning:
+        print(f"Warning: {started.warning}", file=sys.stderr)
     typed, environment = command.harness_line(
         resolved.line,
         directory,
         handoff.first_prompt(given, args.prompt),
         command.codex_writable_roots(config.tmux_session),
         handoff.session_title(given),
+        started.claude_flags,
     )
-    docs_environment, warning = docs.mode.launch_environment(getattr(args, "docs", ""))
-    if warning:
-        print(f"Warning: {warning}", file=sys.stderr)
     token = launch_token.new() if given.brief else ""
     return Plan(
         resolved.lemon,
         given,
         typed,
-        {**environment, **docs_environment, **({launch_token.ENV: token} if token else {})},
+        {**environment, **started.environment, **({launch_token.ENV: token} if token else {})},
         token,
     ), ""
 

@@ -4,46 +4,38 @@
 `LEMONAID_DOCS`, which the harness's hooks inherit. The `SessionStart` hook records
 each session's mode, so a resume started without the variable keeps it.
 
-Lemonaid can't build packages yet, so a lemon given `packages` gets `classic`, and
-the fallback is logged.
+A session that has neither, such as a fork of another, gets `[docs] mode`. That matches
+what a Claude fork loads: its launch, not its source's, decides its system prompt.
+
+`packages` needs `[docs] roots`; without them a lemon gets `classic`, and the fallback
+is logged.
 """
 
 from pathlib import Path
 
 from .. import docs_config
 from ..config import Config
+from ..docs_config import DocsConfig
 from ..log import get_logger
 from . import paths
 
 ENV = "LEMONAID_DOCS"
-_BUILT = frozenset({"classic"})
 
 _log = get_logger("docs.mode")
 
 
-def built(mode: str) -> str:
-    """*mode*, or `classic` when lemonaid can't build *mode*."""
-    if mode in _BUILT:
+def usable(mode: str, config: DocsConfig) -> str:
+    """*mode*, or `classic` when *config* can't give a lemon *mode*."""
+    if mode != "packages" or config.roots:
         return mode
 
-    _log.warning("docs mode %s isn't built yet; using classic", mode)
+    _log.warning("docs mode packages needs [docs] roots; using classic")
     return "classic"
 
 
 def classic_root(config: Config) -> Path | None:
     """`[docs] classic`, or the older `[codex] context_doc` when that is unset."""
     return config.docs.classic or config.codex.context_doc
-
-
-def launch_environment(wanted: str) -> tuple[dict[str, str], str]:
-    """The environment that gives a lemon started with `--docs` *wanted* its mode, and a
-    warning when it gets another; ({}, "") without `--docs`."""
-    if not wanted:
-        return {}, ""
-
-    mode = built(wanted)
-    warning = f"--docs {wanted} isn't available yet; starting in {mode}" if mode != wanted else ""
-    return {ENV: mode}, warning
 
 
 def _recorded(path: Path) -> str:
@@ -56,19 +48,21 @@ def _recorded(path: Path) -> str:
         return ""
 
 
-def current(harness: str, session: str, launched: str, default: str) -> str:
+def current(harness: str, session: str, launched: str, config: DocsConfig) -> str:
     """*session*'s mode: *launched* (its `LEMONAID_DOCS`), else the one recorded when it
-    last started, else *default*."""
+    last started, else `[docs] mode`."""
     mode = launched or (_recorded(paths.session_mode(harness, session)) if session else "")
     if mode and mode not in docs_config.MODES:
-        _log.warning("unknown docs mode %r for %s-%s; using %s", mode, harness, session, default)
+        _log.warning(
+            "unknown docs mode %r for %s-%s; using %s", mode, harness, session, config.mode
+        )
         mode = ""
-    return built(mode or default)
+    return usable(mode or config.mode, config)
 
 
-def session_mode(harness: str, session: str, launched: str, default: str) -> str:
+def session_mode(harness: str, session: str, launched: str, config: DocsConfig) -> str:
     """*session*'s `current` mode, recorded for its next start."""
-    mode = current(harness, session, launched, default)
+    mode = current(harness, session, launched, config)
     if session:
         path = paths.session_mode(harness, session)
         try:
