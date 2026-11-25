@@ -130,5 +130,9 @@ def serve(config: Config, host: str, port: int) -> None:
     )
     threading.Thread(target=functools.partial(_refresher, shared), daemon=True).start()
     with http.server.ThreadingHTTPServer((host, port), _handler(calls, html().encode())) as server:
-        print(f"serving the grove at http://{host}:{port}/", flush=True)
+        print(
+            f"serving the grove at http://{host}:{port}/ with no login: anyone who reaches"
+            " this address controls the grove",
+            flush=True,
+        )
         server.serve_forever()
