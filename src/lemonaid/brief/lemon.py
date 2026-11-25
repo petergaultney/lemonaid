@@ -10,6 +10,7 @@ from .. import groups
 from ..inbox import self_session
 from ..inbox.channel import channel_id
 from ..log import get_logger
+from ..openclaw import lemons, sessions
 from . import attached, identity, store
 
 _log = get_logger("brief.lemon")
@@ -26,6 +27,15 @@ def self_channel(conn: sqlite3.Connection, explicit: str = "", fallback: str = "
 
     if session_id := os.environ.get("CLAUDE_CODE_SESSION_ID"):
         return channel_id("claude", session_id)
+
+    if sessions.hosted_codex_home():  # its CODEX_THREAD_ID is OpenClaw's, not a Codex lemon's
+        try:
+            return lemons.self_channel(conn)
+        except lemons.NotRegistered:
+            if fallback:
+                return fallback
+
+            raise
 
     if session_id := os.environ.get("CODEX_THREAD_ID"):
         from ..codex import channels

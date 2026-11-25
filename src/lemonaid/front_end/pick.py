@@ -6,7 +6,7 @@ from .. import wezterm
 from ..config import Config
 from ..launch import where, window
 from ..messages import autoresume_cmux, autoresume_tmux, autoresume_wezterm
-from . import interface, terminals, tmux
+from . import chat, interface, terminals, tmux
 
 
 def _beside_tmux(args: argparse.Namespace, config: Config) -> tuple[dict, str]:
@@ -15,6 +15,10 @@ def _beside_tmux(args: argparse.Namespace, config: Config) -> tuple[dict, str]:
 
 def _beside_wezterm(args: argparse.Namespace, config: Config) -> tuple[dict, str]:
     return where.in_new_tab(args, config, *wezterm.spawn.own_pane())
+
+
+def _beside_chat(args: argparse.Namespace, config: Config) -> tuple[dict, str]:
+    return {}, "a chat room has nothing to start a lemon beside"
 
 
 def _front_end(terminal: interface.Terminal) -> interface.FrontEnd | None:
@@ -38,6 +42,8 @@ def _front_end(terminal: interface.Terminal) -> interface.FrontEnd | None:
             return interface.FrontEnd(
                 terminal, where.in_new_cmux_workspace, autoresume_cmux.start, None
             )
+        case chat.NAME:  # the gateway runs its turns, so lemonaid neither starts nor prompts one
+            return interface.FrontEnd(terminal, _beside_chat, None, None)
         case _:
             return None
 

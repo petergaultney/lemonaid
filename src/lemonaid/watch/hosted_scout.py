@@ -14,6 +14,7 @@ from ..inbox import db
 from ..launch.restart import gates
 from ..log import get_logger
 from ..messages import store, waiter
+from ..openclaw import sessions
 from . import (
     attachment,
     batch_wait,
@@ -21,6 +22,7 @@ from . import (
     cursors,
     delivery,
     notes,
+    openclaw_scout,
     own_edits,
     pr_poller,
     push_scout,
@@ -62,6 +64,10 @@ def _harness(registration: scout_roster.Registration) -> _Harness | str:
         alive, pids = codex_scout.liveness(thread)
         return _Harness(codex_scout.to_thread(thread), alive, f"codex-{thread}", None, ((), pids))
 
+    if registration.channel.startswith(sessions.PREFIX):
+        output, alive, writer = openclaw_scout.harness(registration.channel)
+        return _Harness(output, alive, writer, None)
+
     session = push_scout.session(registration.channel.removeprefix("claude:"), wait=30)
     if problem := push_scout.problem(session):
         return problem
@@ -74,6 +80,13 @@ def _harness(registration: scout_roster.Registration) -> _Harness | str:
         session,
         ((session_socket.claude_dir() / "sessions" / f"{session.pid}.json",), (session.pid,)),
     )
+
+
+def _notes_harness(registration: scout_roster.Registration) -> str:
+    if registration.thread:
+        return "codex"
+
+    return "openclaw" if registration.channel.startswith(sessions.PREFIX) else "claude"
 
 
 def run(
@@ -154,9 +167,7 @@ def run(
                     gates.deliver(channel, output),
                     still,
                     cwd=Path(registration.cwd),
-                    notes=notes.reader(
-                        notes.default_dir(), "codex" if registration.thread else "claude"
-                    ),
+                    notes=notes.reader(notes.default_dir(), _notes_harness(registration)),
                     restart_requested=stopping,
                     beat=functools.partial(wait_state.beat, lemon_id),
                     pacing=pacing,

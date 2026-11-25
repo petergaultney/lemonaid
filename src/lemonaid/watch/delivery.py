@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import tempfile
 import typing as ty
+from collections import abc
 
 from ..codex import channels, processes
 from ..launch.restart import gates
@@ -164,26 +165,23 @@ def _last_json(stdout: str) -> dict[str, ty.Any] | None:
     return None
 
 
-def to_openclaw(session_key: str, me: str, hq_session: str, cli: str, timeout_ms: int) -> Deliver:
-    """Runs one agent turn in `session_key` and waits for it to finish.
+def openclaw_turn(
+    session_key: str,
+    cli: str,
+    timeout_ms: int,
+    text: abc.Callable[[str], str],
+    until_final: bool = True,
+) -> Deliver:
+    """Runs one agent turn in `session_key` with `text(message)`, waiting for it to finish, or
+    with *until_final* False only until the gateway accepts it.
 
     The idempotency key is derived from the message, so re-sending an event after a timeout
-    that did reach the gateway does not start a second turn.
+    that did reach the gateway does not start a second turn: the gateway reports it in flight.
     """
 
     def deliver(message: str) -> None:
-        text = "\n".join(
-            [
-                f"watch-doc event: {message}",
-                "",
-                "Use the watch-doc skill: re-read the document and reply inline to every unanswered Relay Comment thread,",
-                f'signing each reply block author="{me}" authorId="{session_key}".',
-                "This turn only answers comments: do not refile or move anything, and do not message the user directly.",
-                f"If something needs the user outside the document, hand it to the user's session with sessions_send to {hq_session}.",
-            ]
-        )
         params = {
-            "message": text,
+            "message": text(message),
             "sessionKey": session_key,
             "idempotencyKey": hashlib.sha1(f"{session_key}\0{message}".encode()).hexdigest(),
         }
@@ -194,7 +192,7 @@ def to_openclaw(session_key: str, me: str, hq_session: str, cli: str, timeout_ms
                 "call",
                 "agent",
                 "--json",
-                "--expect-final",
+                *(["--expect-final"] if until_final else []),
                 "--params",
                 json.dumps(params),
                 "--timeout",
@@ -216,3 +214,21 @@ def to_openclaw(session_key: str, me: str, hq_session: str, cli: str, timeout_ms
             raise Failed(f"openclaw agent turn failed: {json.dumps(result)[-500:]}")
 
     return deliver
+
+
+def to_openclaw(session_key: str, me: str, hq_session: str, cli: str, timeout_ms: int) -> Deliver:
+    """A watch-doc event as one agent turn in `session_key` (see `openclaw_turn`)."""
+
+    def text(message: str) -> str:
+        return "\n".join(
+            [
+                f"watch-doc event: {message}",
+                "",
+                "Use the watch-doc skill: re-read the document and reply inline to every unanswered Relay Comment thread,",
+                f'signing each reply block author="{me}" authorId="{session_key}".',
+                "This turn only answers comments: do not refile or move anything, and do not message the user directly.",
+                f"If something needs the user outside the document, hand it to the user's session with sessions_send to {hq_session}.",
+            ]
+        )
+
+    return openclaw_turn(session_key, cli, timeout_ms, text)

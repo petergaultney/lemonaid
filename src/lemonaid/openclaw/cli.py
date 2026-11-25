@@ -1,7 +1,11 @@
 """CLI commands for OpenClaw integration."""
 
 import argparse
+import os
 
+from ..front_end import chat
+from ..inbox import db
+from . import lemons, sessions
 from .notify import dismiss_session, handle_dismiss, handle_notification, handle_register
 
 
@@ -27,8 +31,46 @@ def cmd_dismiss(args: argparse.Namespace) -> None:
         handle_dismiss()
 
 
+def _register_key(key: str, claim: bool) -> int:
+    try:
+        found = sessions.listed(sessions.cli()).get(key)
+    except sessions.Unavailable as error:
+        print(f"not registered: {error}")
+        return 1
+
+    if found is None:
+        print(f"not registered: OpenClaw stores no session {key!r}")
+        return 1
+
+    channel = sessions.channel(key)
+    thread = os.environ.get("CODEX_THREAD_ID", "") if sessions.hosted_codex_home() else ""
+    with db.connect() as conn:
+        holder = lemons.by_thread(conn, thread) if thread else ""
+        lent = holder not in ("", channel) and not claim  # the caller registers it for it
+        if lent:
+            kept = db.get_by_channel(conn, channel, unread_only=False)
+            bound = str(kept.metadata.get("codex_thread") or "") if kept else ""
+        else:
+            bound = thread
+        lemons.register(conn, found, bound, sessions.hosted_codex_home(), os.getcwd(), chat.NAME)
+
+    if lent:
+        print(
+            f"registered {channel}; your Codex thread stays {holder}'s"
+            " (pass --claim if it is this session's)"
+        )
+    elif thread:
+        print(f"registered {channel}")
+    else:
+        print(f"registered {channel}; run this inside that session so its own commands can find it")
+    return 0
+
+
 def cmd_register(args: argparse.Namespace) -> None:
-    """Register current OpenClaw session with lemonaid (captures TTY)."""
+    """Register an OpenClaw session with lemonaid: by session key, or the TUI's (captures TTY)."""
+    if args.session_key:
+        raise SystemExit(_register_key(args.session_key, args.claim))
+
     success = handle_register(session_id=args.session_id, cwd=args.cwd)
     if not success:
         raise SystemExit(1)
@@ -102,6 +144,17 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "--session-id",
         "-s",
         help="Session ID to register (default: most recently modified session)",
+    )
+    register_parser.add_argument(
+        "--session-key",
+        help="register this gateway session as a lemon (run it inside the session; its key"
+        " comes from the session_status tool)",
+    )
+    register_parser.add_argument(
+        "--claim",
+        action="store_true",
+        help="with --session-key: bind this Codex thread to the session even when another lemon"
+        " holds it, to repair a wrong registration",
     )
     register_parser.add_argument(
         "--cwd",

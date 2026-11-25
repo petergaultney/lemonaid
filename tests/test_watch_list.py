@@ -55,7 +55,7 @@ def test_the_list_waiter_delivers_touches_and_exits_once_its_list_is_empty(tmp_p
 
     thread = threading.Thread(
         target=doc_wait.wait_list,
-        args=(tmp_path / "state", list_path, waiter, "Meyer", [], False, 45.0, deliver, 0.0, 0.01),
+        args=(tmp_path / "state", list_path, waiter, "Ada", [], False, 45.0, deliver, 0.0, 0.01),
     )
     thread.start()
     thread.join(timeout=10)
