@@ -1,11 +1,13 @@
-"""The title lemonaid pushes to a Claude session: `<emoji> <name> (<WordyBin>)`.
+"""The title lemonaid pushes to a lemon's harness: `<emoji> <name> (<WordyBin>)`.
 
-One-way: lemonaid's emoji, name and brief ID win over whatever Claude holds. A
+Claude takes it as the session title and Codex as the thread name.
+
+One-way: lemonaid's emoji, name and brief ID win over whatever the harness holds. A
 session with neither an emoji nor a brief gets no title, so sessions that are not
-lemons keep the names Claude gave them.
+lemons keep the names their harness gave them.
 
-Claude's title for the session is imported back as its inbox name, so a name
-read from a lemon's transcript arrives decorated and is made bare by `canonical`.
+The harness's title for the session is imported back as its inbox name, so a lemon's
+name arrives decorated and is made bare by `canonical`.
 """
 
 import sqlite3

@@ -82,6 +82,21 @@ def test_a_starting_codex_lemon_gets_its_row_and_waiting_brief(codex):
     assert f"Your brief is {path}" in text
 
 
+def test_a_starting_codex_lemon_s_thread_is_named_before_its_first_turn(codex, monkeypatch):
+    names = codex_fakes.names_set(monkeypatch, {_THREAD: ""})
+    path = _waiting_brief()
+    with db.connect() as conn:
+        conn.execute(
+            "INSERT INTO lemon_identities (lemon_id, path) VALUES ('FilmyBoy.dots', ?)",
+            (str(path),),
+        )
+        conn.commit()
+
+    _start(codex(_THREAD))
+
+    assert names == [(_THREAD, "Dots (FilmyBoy)")]
+
+
 def test_the_first_turn_end_updates_the_same_row(codex):
     _waiting_brief()
     rollout = codex(_THREAD)

@@ -1,6 +1,6 @@
 """A Codex lemon's inbox name becomes the title Codex has for its thread."""
 
-from lemonaid.inbox import db
+from lemonaid.inbox import db, emoji
 from lemonaid.inbox.tui.watchers import session_names
 from tests import codex_fakes
 
@@ -26,6 +26,16 @@ def test_placeholder_name_becomes_codex_s_title(codex_records) -> None:
     codex_records["abc"] = codex_fakes.thread("abc", name="Review #418 grove")
 
     assert session_names.upgrade({}) is True
+    assert _name() == "Review #418 grove"
+
+
+def test_the_name_lemonaid_gave_the_thread_comes_back_bare(codex_records) -> None:
+    _add("spatial-lemon-jump")
+    with db.connect() as conn:
+        emoji.set_emoji(conn, "codex:abc", "🦊")
+    codex_records["abc"] = codex_fakes.thread("abc", name="🦊 Review #418 grove")
+
+    session_names.upgrade({})
     assert _name() == "Review #418 grove"
 
 

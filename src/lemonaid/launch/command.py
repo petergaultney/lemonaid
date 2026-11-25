@@ -98,7 +98,7 @@ def harness_line(
     have no effect under another sandbox mode.
 
     A Claude line gets *title* as `--name`, unless the line already names the
-    session. Codex has no flag for it, so it takes its title from the prompt.
+    session. Codex has no flag for it; its SessionStart hook names the thread.
     """
     lexer = shlex.shlex(line.strip(), posix=True)
     lexer.whitespace_split = True
