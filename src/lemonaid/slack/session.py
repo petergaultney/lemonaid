@@ -9,6 +9,7 @@ Nothing here logs or prints the token or the cookie; `Session`'s repr leaves the
 
 import dataclasses
 import json
+import re
 import subprocess
 
 from . import wakes
@@ -16,6 +17,9 @@ from . import wakes
 SERVICE = "lemonaid-slack"
 _ACCOUNT = "session"
 _NOT_FOUND = 44  # `security`'s exit status for a missing item
+_NO_INTERACTION = 36  # the login keychain is locked, or this process has no GUI security session
+_STATUS_TRAILER = re.compile(r"[\w-]+: returned -?\d+")
+_UNLOCK = "security unlock-keychain ~/Library/Keychains/login.keychain-db"
 _LINE_LIMIT = 4000  # `security -i` splits a longer command line, saving part of the value
 
 
@@ -41,13 +45,32 @@ def _run(args: list[str], stdin: str = "") -> subprocess.CompletedProcess:
     return subprocess.run(["security", *args], input=stdin, capture_output=True, text=True)
 
 
+def _failure(action: str, done: subprocess.CompletedProcess, secret: str = "") -> KeychainError:
+    if done.returncode == _NO_INTERACTION:
+        return KeychainError(
+            f"can't {action} the {SERVICE} Keychain item: the login keychain is locked, or this "
+            f"shell can't reach the macOS GUI session (as in tmux or SSH). Run `{_UNLOCK}`, "
+            "or run this from a shell outside tmux"
+        )
+
+    lines = [  # `security -i` ends its error with a "<command>: returned <status>" line
+        line
+        for line in (done.stderr.replace(secret, "") if secret else done.stderr).splitlines()
+        if line.strip() and not _STATUS_TRAILER.fullmatch(line.strip())
+    ]
+    detail = f": {lines[-1]}" if lines else ""
+    return KeychainError(
+        f"can't {action} the {SERVICE} Keychain item: security exited {done.returncode}{detail}"
+    )
+
+
 def load() -> Session | None:
     found = _run(["find-generic-password", "-s", SERVICE, "-a", _ACCOUNT, "-w"])
     if found.returncode == _NOT_FOUND:
         return None
 
     if found.returncode:
-        raise KeychainError(f"security exited {found.returncode} reading {SERVICE}")
+        raise _failure("read", found)
 
     raw = found.stdout.strip()
     try:
@@ -62,8 +85,11 @@ def save(session: Session) -> None:
     if len(command) > _LINE_LIMIT:
         raise KeychainError("the session is too long for the Keychain item")
 
-    _run(["-i"], command)
+    saved = _run(["-i"], command)
     wakes.session_changed()
+    if saved.returncode:
+        raise _failure("save", saved, value)
+
     if load() != session:
         raise KeychainError(f"the {SERVICE} Keychain item did not keep the session")
 
