@@ -1,7 +1,8 @@
 """An OpenClaw lemon's conversation, from the gateway's `chat.history`.
 
-The gateway marks input from someone other than the session's owner, such as the scout's
-mail, with `senderIsOwner: false`.
+The gateway marks input from someone other than the session's owner with `senderIsOwner:
+false`: a person writing in the chat itself, whom it names, or the scout's mail, which it doesn't.
+OpenClaw's own clients, such as the web grove's `chat.send`, are the owner.
 """
 
 import datetime
@@ -31,6 +32,12 @@ def _tool(block: dict) -> str:
     )
 
 
+def _sender(mark: dict) -> str:
+    name = str(mark.get("senderName") or "")
+    chat = str((mark.get("transport") or {}).get("channel") or "")
+    return f"{name} \u00b7 {chat.capitalize()}" if name and chat else name or "mail"
+
+
 def _entries(message: dict) -> abc.Iterator[entry.Entry]:
     at = _at(message.get("timestamp"))
     content = message.get("content")
@@ -39,8 +46,10 @@ def _entries(message: dict) -> abc.Iterator[entry.Entry]:
             text = content if isinstance(content, str) else ""
             mark = message.get("__openclaw") or {}
             if text.strip():
-                yield entry.Entry(
-                    entry.OTHER if mark.get("senderIsOwner") is False else entry.USER, text, at
+                yield (
+                    entry.Entry(entry.OTHER, text, at, _sender(mark))
+                    if mark.get("senderIsOwner") is False
+                    else entry.Entry(entry.USER, text, at)
                 )
         case "assistant" if isinstance(content, list):
             for block in content:

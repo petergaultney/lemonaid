@@ -23,7 +23,7 @@ main { flex:1; display:flex; min-height:0; }
 .entry.user .body { background:#1f2a3a; border-left:3px solid #f2d94e; padding:4px 8px; }
 .entry.pending { opacity:0.55; }
 .entry.other .body { border-left:3px solid #3a4250; padding:4px 8px; color:#aab3c2; }
-.entry.tool { color:#7c8696; margin:0 0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.entry.tool { color:#7c8696; font-size:11px; margin:0 0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .problem { color:#f2c14e; }
 pre { background:#161b24; padding:6px 8px; overflow:auto; white-space:pre-wrap; }
 code { background:#161b24; padding:0 3px; }
@@ -111,7 +111,7 @@ const rich = text => window.marked && window.DOMPurify
 const time = at => at ? new Date(at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "";
 const who = e => ({user: "you", lemon: $("name").textContent, other: e.sender || "message"})[e.role] || e.role;
 const render = e => e.role === "tool"
-  ? `<div class="entry tool">${escape(e.text)}</div>`
+  ? `<div class="entry tool">ran ${escape(e.text)}</div>`
   : `<div class="entry ${e.role}"><div class="who">${escape(who(e))} ${time(e.at)}</div><div class="body">${rich(e.text)}</div></div>`;
 
 // What you sent stays shown, dimmed, until the conversation records it. Kept in this browser,
