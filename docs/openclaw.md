@@ -24,6 +24,22 @@ The session's inbox row is `openclaw:<session key>`. A shell command OpenClaw ru
 
 A lemon that registers another session, such as one it spawned, keeps its own thread: the other session keeps whatever thread it had. If a thread was given to the wrong session, run the command inside the right one with `--claim` to take it back.
 
+### Every conversation in the grove
+
+```sh
+lemonaid openclaw sync [--days 90]
+```
+
+makes each conversation session active in the last 90 days a lemon: Matrix rooms, Signal, WhatsApp and Telegram chats, and each agent's main session. Cron runs and worker sessions are left out. A lemon is placed in its agent's workspace, so each agent is its own tree, and named for its agent and chat (`Ada - Signal`, `Ada - room r00mA1`); an agent made for one room takes the agent's name. Renaming one in lemonaid keeps your name. When a conversation goes quiet, the sync archives its lemon, unless it has a brief; it comes back when the conversation does. A lemon you archive yourself stays archived. A session that registered itself is never touched.
+
+To keep it current, run
+
+```sh
+lemonaid openclaw observe [--days 90] [--every 60]
+```
+
+on the machine running the gateway, as a systemd user service beside the gateway's. It syncs once a minute until stopped, and logs a sync that fails rather than exiting. Nothing else runs the sync: the web grove (`lemonaid grove serve`) shows what it finds, but serving the grove doesn't start it, and observing doesn't need the grove.
+
 ### Briefs, mail and watchers
 
 Once registered, the session uses briefs like any lemon: `lemonaid brief attach --self <brief>`, `lemonaid brief id --self`, and the rest. `lemonaid watch --self --push` starts its scout in the scout host, which turns each batch (mail, doc comments, PR events, children) into one gateway turn in the session. `lemonaid tell` to the lemon starts the scout if none runs.
