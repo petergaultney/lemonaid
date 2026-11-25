@@ -29,6 +29,16 @@ def test_read_marks_input_from_someone_other_than_the_owner(tmp_path):
         },
         {"role": "user", "content": "how warm is it?", "timestamp": "1795622032553"},
         {
+            "role": "user",
+            "content": "from my phone",
+            "timestamp": "1795622032553",
+            "__openclaw": {
+                "senderIsOwner": False,
+                "senderName": "Sam",
+                "transport": {"channel": "signal"},
+            },
+        },
+        {
             "role": "assistant",
             "content": [
                 {"type": "toolCall", "name": "bash", "arguments": {"command": "ha state"}},
@@ -41,9 +51,12 @@ def test_read_marks_input_from_someone_other_than_the_owner(tmp_path):
 
     found = openclaw.read(KEY, _cli(tmp_path, {"messages": messages}), 10)
 
-    assert [(each.role, each.text) for each in found] == [
-        (entry.OTHER, "mail from HQ"),
-        (entry.USER, "how warm is it?"),
+    assert [(each.role, each.text, each.sender) for each in found][:3] == [
+        (entry.OTHER, "mail from HQ", "mail"),
+        (entry.USER, "how warm is it?", ""),
+        (entry.OTHER, "from my phone", "Sam \u00b7 Signal"),
+    ]
+    assert [(each.role, each.text) for each in found][3:] == [
         (entry.TOOL, "bash: ha state"),
         (entry.LEMON, "68F inside."),
     ]
