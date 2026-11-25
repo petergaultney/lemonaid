@@ -17,6 +17,7 @@ from ...front_end import chat, interface, pick
 from ...inbox import db
 from ...messages import tell_delivery
 from ...openclaw import sessions
+from . import brief_page
 
 LIMIT = 200  # messages a page shows, with the tool calls among them
 MAIL = "mail"
@@ -48,14 +49,14 @@ def _conversation(row: db.Notification) -> list[conversation.entry.Entry]:
     raise OSError(f"lemonaid can't read a conversation on {row.channel}")
 
 
-def _brief(row: db.Notification, config: Config, prs: pr.Lookup) -> tuple[str, str]:
-    """(path, Markdown) of *row*'s brief as `lemonaid brief show` summarizes it for the tmux
-    sidebar, or ("", "") without one."""
+def _brief(row: db.Notification, config: Config, prs: pr.Lookup, width: int) -> tuple[str, dict]:
+    """(path, parts) of *row*'s brief as the inbox's brief pane draws it (`brief_page`), or
+    ("", {}) without one."""
     with db.connect() as conn:
         found = attached.by_channel(conn, [row.channel])
     path = found.get(row.channel)
     if path is None:
-        return "", ""
+        return "", {}
 
     now = time.time()
     shown = family.added(
@@ -68,12 +69,12 @@ def _brief(row: db.Notification, config: Config, prs: pr.Lookup) -> tuple[str, s
             render.SummaryPolicy(config.brief.summary_open, config.brief.summary_long),
         )
     )
-    return str(path), render.to_markdown(shown, now)
+    return str(path), brief_page.drawn(shown, now, config.brief.vaults, width)
 
 
-def view(channel: str, config: Config, prs: pr.Lookup) -> dict:
-    """Everything but the conversation, which is slower to read (`talk`). *prs* answers a PR's
-    state, as a `pr.Cache` does without waiting."""
+def view(channel: str, config: Config, prs: pr.Lookup, width: int = brief_page.WIDTH) -> dict:
+    """Everything but the conversation, which is slower to read (`talk`), with the brief drawn
+    *width* characters wide. *prs* answers a PR's state, as a `pr.Cache` does without waiting."""
     with db.connect() as conn:
         row = db.get_by_channel(conn, channel, unread_only=False)
     if row is None:
@@ -81,12 +82,12 @@ def view(channel: str, config: Config, prs: pr.Lookup) -> dict:
 
     name, found = _front_end(row)
     how = name if found and found.prompt else MAIL
-    path, text = _brief(row, config, prs)
+    path, brief = _brief(row, config, prs, max(30, min(200, width)))
     return {
         "channel": channel,
         "name": row.name or channel,
         "brief_path": path,
-        "brief": text,
+        "brief": brief,
         "how": how,
         "how_text": _HOW.get(how, f"Types into its {how} terminal as you."),
         "room": chat.room_url(str(row.metadata.get("session_key") or "")),

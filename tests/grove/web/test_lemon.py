@@ -42,7 +42,8 @@ def test_view_shows_the_brief_and_how_text_goes_in(worker):
     shown = lemon.view(CHANNEL, Config(), pr.no_state)
 
     assert (shown["name"], shown["how"]) == ("worker", "tmux")
-    assert "**Worker**" in shown["brief"]  # the summary `brief show` gives the tmux sidebar
+    assert "Worker" in shown["brief"]["sections"][0]["card"]  # drawn as the inbox's brief pane
+    assert "<span style=" in shown["brief"]["sections"][0]["card"]
 
 
 def test_talk_reads_the_conversation(worker):
