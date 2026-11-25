@@ -13,6 +13,7 @@ import typing as ty
 from pathlib import Path
 
 from ..log import get_logger
+from . import gateway
 
 _log = get_logger("openclaw.sessions")
 
@@ -107,6 +108,25 @@ def listed(executable: str) -> dict[str, Session]:
         return _parse(cp.stdout)
     except (ValueError, AttributeError) as error:
         raise Unavailable(f"openclaw sessions printed no session list: {error}") from error
+
+
+def archived(executable: str) -> dict[str, str]:
+    """Every archived session's key and the reason OpenClaw gives. Raises `Unavailable`.
+
+    `openclaw sessions` lists archived sessions without saying they are, so this asks the
+    gateway's `sessions.list`, which filters on it.
+    """
+    params = {"archived": True, "limit": 1_000_000}
+    try:
+        entries = gateway.call(executable, "sessions.list", params, _LIST_TIMEOUT).get("sessions")
+    except OSError as error:
+        raise Unavailable(f"openclaw sessions.list: {error}") from error
+
+    return {
+        str(each["key"]): str(each.get("archiveReason") or "")
+        for each in entries or []
+        if isinstance(each, dict) and each.get("key")
+    }
 
 
 def exists_checker(executable: str, max_age: float) -> ty.Callable[[str], bool | None]:

@@ -47,7 +47,12 @@ def test_conversations_are_recent_chats_and_leave_out_cron_runs():
 def test_sync_adds_each_conversation_named_for_its_agent_in_its_workspace():
     with db.connect() as conn:
         added, archived = sync.sync(
-            conn, [_session(ROOM), _session(SIGNAL), _session(BARN_ROOM)], AGENTS, chat.NAME
+            conn,
+            [_session(ROOM), _session(SIGNAL), _session(BARN_ROOM)],
+            AGENTS,
+            chat.NAME,
+            {},
+            set(),
         )
 
     assert (sorted(added), archived) == (
@@ -65,8 +70,8 @@ def test_sync_adds_each_conversation_named_for_its_agent_in_its_workspace():
 def test_sync_leaves_a_session_that_registered_itself_alone():
     with db.connect() as conn:
         lemons.register(conn, _session(SIGNAL), "thread-1", None, "/home/me", chat.NAME)
-        added, _ = sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME)
-        added_later, archived = sync.sync(conn, [], AGENTS, chat.NAME)
+        added, _ = sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME, {}, set())
+        added_later, archived = sync.sync(conn, [], AGENTS, chat.NAME, {}, set())
 
     assert (added, added_later, archived) == ([], [], [])
     assert _rows()[sessions.channel(SIGNAL)].metadata["codex_thread"] == "thread-1"
@@ -74,13 +79,13 @@ def test_sync_leaves_a_session_that_registered_itself_alone():
 
 def test_a_quiet_conversation_is_archived_unless_it_has_a_brief(tmp_path):
     with db.connect() as conn:
-        sync.sync(conn, [_session(ROOM), _session(SIGNAL)], AGENTS, chat.NAME)
+        sync.sync(conn, [_session(ROOM), _session(SIGNAL)], AGENTS, chat.NAME, {}, set())
         path = brief_store.briefs_dir() / "room.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("# Room\n")
         attached.attach(conn, sessions.channel(ROOM), path)
 
-        _, archived = sync.sync(conn, [], AGENTS, chat.NAME)
+        _, archived = sync.sync(conn, [], AGENTS, chat.NAME, {}, set())
 
     assert archived == [sessions.channel(SIGNAL)]
     assert _rows()[sessions.channel(SIGNAL)].is_archived
@@ -88,9 +93,9 @@ def test_a_quiet_conversation_is_archived_unless_it_has_a_brief(tmp_path):
 
 def test_a_conversation_that_wakes_again_comes_back():
     with db.connect() as conn:
-        sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME)
-        sync.sync(conn, [], AGENTS, chat.NAME)
-        added, _ = sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME)
+        sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME, {}, set())
+        sync.sync(conn, [], AGENTS, chat.NAME, {}, set())
+        added, _ = sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME, {}, set())
 
     assert added == [sessions.channel(SIGNAL)]
     assert not _rows()[sessions.channel(SIGNAL)].is_archived
@@ -110,9 +115,9 @@ def test_agents_reads_the_cli(tmp_path):
 
 def test_a_conversation_someone_archived_stays_archived():
     with db.connect() as conn:
-        sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME)
+        sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME, {}, set())
         db.archive_channel(conn, sessions.channel(SIGNAL), "stale", cause="archived", by="grove")
-        added, _ = sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME)
+        added, _ = sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME, {}, set())
 
     assert added == []
     assert _rows()[sessions.channel(SIGNAL)].is_archived
@@ -120,11 +125,11 @@ def test_a_conversation_someone_archived_stays_archived():
 
 def test_a_session_that_registers_itself_after_the_sync_added_it_is_not_archived():
     with db.connect() as conn:
-        sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME)
+        sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME, {}, set())
     with db.connect() as other:
         lemons.register(other, _session(SIGNAL), "thread-1", None, "/home/me", chat.NAME)
     with db.connect() as conn:
-        _, archived = sync.sync(conn, [], AGENTS, chat.NAME)
+        _, archived = sync.sync(conn, [], AGENTS, chat.NAME, {}, set())
 
     assert archived == []
     assert _rows()[sessions.channel(SIGNAL)].metadata["codex_thread"] == "thread-1"
@@ -144,6 +149,6 @@ def test_the_sync_holds_the_write_lock_from_its_check_to_its_write(monkeypatch):
 
     monkeypatch.setattr(lemons, "register", register_while_locked)
     with db.connect() as conn:
-        sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME)
+        sync.sync(conn, [_session(SIGNAL)], AGENTS, chat.NAME, {}, set())
 
     assert seen == ["database is locked"]

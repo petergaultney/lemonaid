@@ -91,6 +91,21 @@ def test_listed_raises_unavailable_on_failure(monkeypatch):
         raise AssertionError("expected Unavailable")
 
 
+def test_archived_asks_the_gateway_for_archived_sessions_and_their_reasons(monkeypatch):
+    calls = []
+    listing = {"sessions": [{"key": ROOM_KEY, "archiveReason": "manual"}, {"key": "old"}]}
+
+    def run(argv, **_):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, json.dumps(listing), "")
+
+    monkeypatch.setattr(sessions.subprocess, "run", run)
+
+    assert sessions.archived("openclaw") == {ROOM_KEY: "manual", "old": ""}
+    assert calls[0][1:4] == ["gateway", "call", "sessions.list"]
+    assert json.loads(calls[0][-1])["archived"] is True
+
+
 def test_exists_checker_lists_at_most_once_per_interval(monkeypatch):
     listings = [{ROOM_KEY: None}, {}]
     monkeypatch.setattr(sessions, "listed", lambda executable: listings.pop(0))
