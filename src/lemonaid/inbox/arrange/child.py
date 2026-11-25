@@ -88,8 +88,10 @@ class Arranger:
         timeout: float = 2.0,
         resend: float = 60.0,
         clock: abc.Callable[[], float] = time.monotonic,
+        answered: abc.Callable[[], None] = lambda: None,
     ) -> None:
         self._command = list(command)
+        self._answered = answered
         self._budget = budget
         self._timeout = timeout
         self._resend = resend
@@ -137,15 +139,17 @@ class Arranger:
         self._stderr = ""
         self._sent_body = ""
         self._pending = 0
-        threading.Thread(
-            target=_pump,
-            args=(proc.stdout, lambda line: self._lines.put((proc, line))),
-            daemon=True,
-        ).start()
+        threading.Thread(target=self._read, args=(proc, proc.stdout), daemon=True).start()
         self._stderr_pump = threading.Thread(
             target=_pump, args=(proc.stderr, self._log_stderr), daemon=True
         )
         self._stderr_pump.start()
+
+    def _read(self, proc: subprocess.Popen[str], stdout: abc.Iterable[str]) -> None:
+        for line in stdout:
+            self._lines.put((proc, line))
+            self._answered()
+        self._answered()  # its exit is news too
 
     def _log_stderr(self, line: str) -> None:
         _log.info("stderr: %s", line.rstrip())

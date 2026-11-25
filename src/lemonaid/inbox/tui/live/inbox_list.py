@@ -78,7 +78,7 @@ class InboxList(Vertical):
         self.stalls = stalls_inbox.Tracker()
         self.revival = scout_revival.Revival()
         self.shared_names = shared_names.Cache()
-        self.arrangement = inbox_arrange.Arrangement(lists.config)
+        self.arrangement = inbox_arrange.Arrangement(lists.config, answered=lambda: self.fetched())
         self.dismissed_key: str | None = None
         self.last_frame: inbox_frame.Frame | None = (
             None  # what the last refresh read, for the grove
