@@ -146,6 +146,8 @@ To find out afterward why a page misbehaved, read `~/.local/state/lemonaid/logs/
 
 Keep it running as a systemd user service, or for a try, `systemd-run --user lemonaid grove serve`.
 
+To see every recent OpenClaw conversation in it, not only the sessions that registered, run `lemonaid openclaw observe` as well; see [openclaw.md](openclaw.md#every-conversation-in-the-grove).
+
 ## The grove window (beta, macOS)
 
 The grove can also open in a native window that covers your terminal's window, drawn in pixels rather than terminal cells: finer trees, smaller text, smooth zoom, and the grove's layout from the same `grove.json`. It is a second view of the grove, and the inbox and the terminal grove keep working as before.

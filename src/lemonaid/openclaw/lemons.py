@@ -9,6 +9,7 @@ again.
 
 import os
 import sqlite3
+import typing as ty
 from pathlib import Path
 
 from ..inbox import db
@@ -33,9 +34,12 @@ def register(
     codex_home: Path | None,
     cwd: str,
     front_end: str,
+    name: str = "",
+    extra: dict[str, ty.Any] | None = None,
 ) -> db.Notification:
     """Record *found* as a lemon shown through *front_end*, bound to the Codex *thread*
-    now running it, which no other OpenClaw lemon then holds."""
+    now running it, which no other OpenClaw lemon then holds; *name* defaults to its agent's
+    id."""
     channel = sessions.channel(found.key)
     if thread:
         conn.execute(
@@ -47,7 +51,7 @@ def register(
         conn,
         channel,
         f"OpenClaw session {found.key}",
-        name=found.agent_id or None,
+        name=name or found.agent_id or None,
         metadata={
             "session_key": found.key,
             "session_id": found.session_id,
@@ -55,6 +59,7 @@ def register(
             "codex_thread": thread,
             "codex_home": str(codex_home or ""),
             "cwd": cwd,
+            **(extra or {}),
         },
         switch_source=front_end,
     )

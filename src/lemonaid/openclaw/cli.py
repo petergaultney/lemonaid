@@ -2,10 +2,11 @@
 
 import argparse
 import os
+from pathlib import Path
 
 from ..front_end import chat
 from ..inbox import db
-from . import lemons, sessions
+from . import lemons, observe, sessions, sync
 from .notify import dismiss_session, handle_dismiss, handle_notification, handle_register
 
 
@@ -74,6 +75,23 @@ def cmd_register(args: argparse.Namespace) -> None:
     success = handle_register(session_id=args.session_id, cwd=args.cwd)
     if not success:
         raise SystemExit(1)
+
+
+def cmd_sync(args: argparse.Namespace) -> None:
+    try:
+        added, archived = sync.refresh(sessions.cli(), args.days, sync.CHATS, chat.NAME)
+    except sessions.Unavailable as error:
+        raise SystemExit(f"not synced: {error}") from error
+
+    print(f"{len(added)} added, {len(archived)} archived")
+
+
+def cmd_observe(args: argparse.Namespace) -> None:
+    cli = sessions.cli()
+    if not Path(cli).exists():
+        raise SystemExit(f"not observing: no openclaw executable at {cli}")
+
+    observe.run(cli, args.days, args.every)
 
 
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -161,5 +179,36 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Override cwd (default: use session's cwd from header)",
     )
     register_parser.set_defaults(func=cmd_register)
+
+    sync_parser = openclaw_subparsers.add_parser(
+        "sync",
+        help="make each OpenClaw conversation active lately a lemon, and archive the ones that"
+        " went quiet",
+    )
+    sync_parser.add_argument(
+        "--days",
+        type=float,
+        default=sync.DAYS,
+        help=f"how recent counts as active (default {sync.DAYS:g})",
+    )
+    sync_parser.set_defaults(func=cmd_sync)
+
+    observe_parser = openclaw_subparsers.add_parser(
+        "observe",
+        help="keep running `sync` until stopped, for a service on the machine running the gateway",
+    )
+    observe_parser.add_argument(
+        "--days",
+        type=float,
+        default=sync.DAYS,
+        help=f"how recent counts as active (default {sync.DAYS:g})",
+    )
+    observe_parser.add_argument(
+        "--every",
+        type=float,
+        default=observe.EVERY_SECONDS,
+        help=f"seconds between syncs (default {observe.EVERY_SECONDS:g})",
+    )
+    observe_parser.set_defaults(func=cmd_observe)
 
     openclaw_parser.set_defaults(func=lambda a: openclaw_parser.print_help())
