@@ -56,6 +56,9 @@ class _WebApi(api.Api):
     def lemon(self, channel: str) -> dict:
         return lemon.view(channel, self._shared.config, self._prs)
 
+    def talk(self, channel: str) -> dict:
+        return lemon.talk(channel)
+
     def say(self, channel: str, text: str) -> str:
         return lemon.say(channel, text, self._shared.config)
 
