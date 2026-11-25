@@ -121,6 +121,14 @@ The first time lemonaid sees a group it gives it a plot of ground near the middl
 
 The layout is saved in `grove.json` in lemonaid's state directory (`~/.local/state/lemonaid`, or `LEMONAID_STATE_DIR`), per machine.
 
+## The grove in a browser
+
+`lemonaid grove serve` serves the grove window's page over HTTP, for a machine you reach over a network rather than sit at, such as one running an OpenClaw gateway. By default it listens on the machine's Tailscale address (`tailscale ip -4`), port 8770, so only your tailnet reaches it; `--host` and `--port` choose another. Open `http://<machine>:8770/` in any browser.
+
+The page draws, searches and gardens as the grove window does, and refreshes every few seconds. Clicking an OpenClaw lemon opens its Matrix room in your browser. A lemon in a terminal on that machine can't be switched to from another one, so the page says so instead. There is no login: anyone who can reach the address can rearrange the grove and edit lemons there.
+
+Keep it running as a systemd user service, or for a try, `systemd-run --user lemonaid grove serve`.
+
 ## The grove window (beta, macOS)
 
 The grove can also open in a native window that covers your terminal's window, drawn in pixels rather than terminal cells: finer trees, smaller text, smooth zoom, and the grove's layout from the same `grove.json`. It is a second view of the grove, and the inbox and the terminal grove keep working as before.
