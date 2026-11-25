@@ -1,9 +1,8 @@
-"""Tests for lemonaid.claude.session_title."""
+"""Tests for lemonaid.inbox.session_title."""
 
 import pytest
 
-from lemonaid.claude import session_title
-from lemonaid.inbox import db, emoji
+from lemonaid.inbox import db, emoji, session_title
 
 
 @pytest.fixture

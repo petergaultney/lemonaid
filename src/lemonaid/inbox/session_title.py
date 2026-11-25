@@ -11,7 +11,7 @@ read from a lemon's transcript arrives decorated and is made bare by `canonical`
 import sqlite3
 
 from .. import brief
-from ..inbox import db, emoji
+from . import db, emoji
 
 
 def _is_emoji_token(token: str) -> bool:
