@@ -125,6 +125,9 @@ The layout is saved in `grove.json` in lemonaid's state directory (`~/.local/sta
 
 `lemonaid grove serve` serves the grove window's page over HTTP, for a machine you reach over a network rather than sit at, such as one running an OpenClaw gateway. By default it listens on the machine's Tailscale address (`tailscale ip -4`), port 8770, so only your tailnet reaches it; `--host` and `--port` choose another. Open `http://<machine>:8770/` in any browser.
 
+> [!WARNING]
+> **The web grove has no security of its own.** There is no login, no encryption (plain HTTP) and no per-user access: anyone who can reach its address can do everything the page can, on every lemon. Its only protection is the network it listens on. To use it from anywhere but the machine itself, put both ends on a private network you control, such as a [Tailscale](https://tailscale.com) tailnet, and never bind it to a public, shared or LAN-wide address. On the machine itself, `--host 127.0.0.1` keeps it to local browsers.
+
 The page draws, searches and gardens as the grove window does, and refreshes every few seconds. Clicking an OpenClaw lemon opens its Matrix room in your browser. A lemon in a terminal on that machine can't be switched to from another one, so the page says so instead. There is no login: anyone who can reach the address can rearrange the grove and edit lemons there.
 
 Keep it running as a systemd user service, or for a try, `systemd-run --user lemonaid grove serve`.

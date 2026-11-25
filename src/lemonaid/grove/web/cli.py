@@ -34,7 +34,11 @@ def _cmd_serve(args: argparse.Namespace) -> None:
 
 def add_parsers(grove_subparsers: argparse._SubParsersAction) -> None:
     serve = grove_subparsers.add_parser(
-        "serve", help="Serve the grove to a browser, on this machine's tailnet address"
+        "serve",
+        help="Serve the grove to a browser, on this machine's tailnet address",
+        description="Serve the grove to a browser. There is no login or encryption: anyone who"
+        " can reach the address controls the grove, so listen only on a private network you"
+        " control, such as a tailnet, or on 127.0.0.1.",
     )
     serve.add_argument(
         "--host", default="", help="address to listen on (default: `tailscale ip -4`)"
