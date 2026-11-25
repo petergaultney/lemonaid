@@ -19,6 +19,7 @@ def _listing(*keys: str) -> str:
                     "kind": "group",
                     "status": "done",
                     "updatedAt": 1795617507337,
+                    "lastInteractionAt": 1795617500000,
                     "totalTokens": 102356,
                     "contextTokens": 258400,
                 }
@@ -33,7 +34,7 @@ def test_parse_keys_sessions_by_session_key():
 
     assert set(found) == {ROOM_KEY, "agent:main:cron:abc"}
     assert found[ROOM_KEY] == sessions.Session(
-        ROOM_KEY, "id-0", "garden", "group", "done", 1795617507337, 102356, 258400
+        ROOM_KEY, "id-0", "garden", "group", "done", 1795617507337, 102356, 258400, 1795617500000
     )
 
 

@@ -30,6 +30,7 @@ class Session(ty.NamedTuple):
     updated_ms: int
     total_tokens: int
     context_tokens: int
+    interacted_ms: int = 0  # its last message; an archive or other patch moves updated_ms only
 
 
 class Unavailable(Exception):
@@ -79,6 +80,7 @@ def _session(entry: dict[str, ty.Any]) -> Session | None:
         updated_ms=int(entry.get("updatedAt") or 0),
         total_tokens=int(entry.get("totalTokens") or 0),
         context_tokens=int(entry.get("contextTokens") or 0),
+        interacted_ms=int(entry.get("lastInteractionAt") or entry.get("updatedAt") or 0),
     )
 
 
