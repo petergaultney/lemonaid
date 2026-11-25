@@ -12,12 +12,14 @@ DESCRIPTION = "Add session briefs"
 
 
 def migrate(conn: sqlite3.Connection) -> None:
-    conn.executescript("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS session_briefs (
             channel TEXT PRIMARY KEY,
             path TEXT NOT NULL,
             attached_at REAL NOT NULL
-        );
+        )
+    """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS pending_briefs (
             tmux_session TEXT NOT NULL,
             tmux_window TEXT NOT NULL,
@@ -25,5 +27,5 @@ def migrate(conn: sqlite3.Connection) -> None:
             after_id INTEGER NOT NULL,
             requested_at REAL NOT NULL,
             PRIMARY KEY (tmux_session, tmux_window)
-        );
+        )
     """)

@@ -91,6 +91,12 @@ def run_migrations(conn: sqlite3.Connection) -> list[str]:
         for version, description, migrate_fn in discover_migrations():
             if version > current_version:
                 migrate_fn(conn)
+                if not conn.in_transaction:
+                    raise RuntimeError(
+                        f"migration v{version} ended the exclusive transaction"
+                        " (`executescript` and `commit` both do), so another"
+                        " process could have run migrations alongside it"
+                    )
                 set_version(conn, version)
                 applied.append(f"v{version}: {description}")
 
