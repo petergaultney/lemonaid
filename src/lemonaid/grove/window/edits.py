@@ -34,7 +34,7 @@ def _target(grove: Grove, action: str, digit: str, key: str, channel: str) -> pi
                 None,
             )
             if block.name
-            else "the packhouse has no color"
+            else "lemons in no group have no color"
         )
 
     tree = next((t for t in block.trees if t.key == key), None)

@@ -393,7 +393,7 @@ function paintWild(g) {
 // stream change, not when trees or lemons do.
 let terrain = {key: ""};
 function terrainFor() {
-  const blocks = DATA.blocks.filter(b => b.group), key = JSON.stringify([YS, blocks.map(b => [b.plot, b.color]), DATA.stream, DATA.roads]);
+  const blocks = DATA.blocks.filter(b => !isHouse(b)), key = JSON.stringify([YS, blocks.map(b => [b.plot, b.color]), DATA.stream, DATA.roads]);
   if (terrain.key === key) return terrain;
 
   const ps = blocks.map(b => b.plot), x0 = Math.min(0, ...ps.map(p => p.x)), y0 = Math.min(0, ...ps.map(p => p.y));
@@ -421,7 +421,7 @@ function drawLayer({g, c}) {
 function txtAt(s, x, y, color, bg, weight, k) { ctx.save(); ctx.translate(x, y); ctx.scale(k, k); txt(s, 0, 0, color, bg, weight); ctx.restore(); }
 function drawSign(b, k) {
   const p = b.plot, x0 = sx(p.x), x1 = sx(p.x + p.w);
-  txtAt(` ${b.digit} ${b.group.toUpperCase()} `, x0 + Math.min(4 * CW, (x1 - x0) / 8), sy(p.y) - RH * 0.6 * k, "#0b0e13", b.color || "#8b949e", 800, k);
+  txtAt(` ${b.digit} ${(b.group || "no group").toUpperCase()} `, x0 + Math.min(4 * CW, (x1 - x0) / 8), sy(p.y) - RH * 0.6 * k, "#0b0e13", b.color || "#8b949e", 800, k);
 }
 
 // A shadow on the ground, *rx* by *ry* pixels around (cx, cy), in rows of whole *px* cells.
@@ -585,7 +585,7 @@ function drawTree(b, t, cx, cy, scale) {
     if (working) pulsers.dots.push(f);
     drawPixels(f.x, f.y, f.px, working ? mix(f.base, BG, PULSE_DEPTH * phase()) : f.base, f.flip, f.shape, f.rims);
   });
-  if (t.lead && b.group) {  // a pennant in the block's color, on a pole standing in the crown
+  if (t.lead && !isHouse(b)) {  // a pennant in the block's color, on a pole standing in the crown
     const fx = x0 + Math.round((cx - x0) / px) * px, fy = y0 + 2 * px, tall = Math.round(1.6 * rh / px) * px, o = Math.max(1, Math.round(px / 2));
     ctx.fillStyle = OUTLINE; ctx.fillRect(fx - o, fy - tall - o, px + 2 * o, tall + o);
     ctx.fillStyle = TRUNK; ctx.fillRect(fx, fy - tall, px, tall);
@@ -723,6 +723,9 @@ function drawList(b, t, x, y, w, parts) {
   return h;
 }
 
+// The packhouse, when it's on, holds the lemons in no group; when it's off they are an ordinary block 0.
+const isHouse = b => b.plot.texture === "house";
+
 function drawHouse(b, P, k) {
   const p = b.plot, inside_ = zoomed === b.digit, cw = CW * k, rh = RH * k;
   const x = inside_ ? 3 * CW : sx(p.x), y = inside_ ? RH : sy(p.y), w = inside_ ? W() - 6 * CW : (p.w) * view.k, h = inside_ ? H() - 2 * RH : p.h * view.k * YS;
@@ -848,13 +851,13 @@ function draw() {
   drawBackground();
   ctx.clearRect(0, 0, W(), H());
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(bg, 0, 0); ctx.restore();
-  DATA.blocks.filter(b => b.group).forEach(b => hits.push({x: sx(b.plot.x), y: sy(b.plot.y), w: b.plot.w * view.k, h: b.plot.h * view.k * YS, block: b, ground: true}));
+  DATA.blocks.filter(b => !isHouse(b)).forEach(b => hits.push({x: sx(b.plot.x), y: sy(b.plot.y), w: b.plot.w * view.k, h: b.plot.h * view.k * YS, block: b, ground: true}));
   const trees = [];
-  DATA.blocks.filter(b => b.group).forEach(b => b.trees.forEach(t => trees.push({b, t, cx: sx(b.plot.x + shift(b)[0] + t.spot[0]), cy: sy(b.plot.y + shift(b)[1] + t.spot[1])})));
+  DATA.blocks.filter(b => !isHouse(b)).forEach(b => b.trees.forEach(t => trees.push({b, t, cx: sx(b.plot.x + shift(b)[0] + t.spot[0]), cy: sy(b.plot.y + shift(b)[1] + t.spot[1])})));
   // Drawn where the drag has it, below; a refresh brings new objects, so it's found by block and key.
   const dragged = T => drag && drag.t && T.b.digit === drag.b.digit && T.t.key === drag.t.key;
   const k = Math.min(Math.max(view.k / placed.k0 * placed.ls, MIN_TEXT), MAX_TEXT);  // the labels' text size, as drawLabel works it out
-  DATA.blocks.filter(b => b.group).forEach(b => (b.stumps || []).forEach(st => {
+  DATA.blocks.filter(b => !isHouse(b)).forEach(b => (b.stumps || []).forEach(st => {
     if (drag && drag.st && drag.b.digit === b.digit && drag.st.key === st.key) return;
 
     const box = drawStump(st, sx(b.plot.x + shift(b)[0] + st.spot[0]), sy(b.plot.y + shift(b)[1] + st.spot[1]), k);
@@ -864,8 +867,8 @@ function draw() {
     if (dragged(T)) return;
     const box = drawTree(T.b, T.t, T.cx, T.cy, treeScale(T.t, zoomed)); hits.push({...box, block: T.b, tree: T.t});
   });
-  DATA.blocks.filter(b => !b.group).forEach(b => drawHouse(moving && moving.b.digit === b.digit ? {...b, plot: moving.aim} : b, placer(), k));
-  DATA.blocks.filter(b => b.group).forEach(b => { const [dx] = shift(b); drawSign({...b, plot: {...b.plot, x: b.plot.x + dx, y: b.plot.y + shift(b)[1]}}, k); });
+  DATA.blocks.filter(isHouse).forEach(b => drawHouse(moving && moving.b.digit === b.digit ? {...b, plot: moving.aim} : b, placer(), k));
+  DATA.blocks.filter(b => !isHouse(b)).forEach(b => { const [dx] = shift(b); drawSign({...b, plot: {...b.plot, x: b.plot.x + dx, y: b.plot.y + shift(b)[1]}}, k); });
   trees.forEach(T => { if (!dragged(T)) drawLabel(T.b, T.t, ...shift(T.b)); });
   if (moving && !moving.landing) {
     const a = moving.aim;
@@ -919,7 +922,7 @@ function status() {
     : selecting.mode === "." ? `select > ${zoomed} .${selecting.letter || ""}${selecting.num || ""} · ${selecting.letter ? "the lemon's place: 1 for the second" : "a tree's letter"}`
     : `select > ${zoomed} · a letter for its first lemon · .s1 another · $ and a letter the whole tree · # the block · tab leaves`;
   else if (dot) where.textContent = `> ${zoomed} .${dot.letter}${dot.num}   ${dot.letter ? "the lemon's place: 1 for the second, 0a for the eleventh" : "a tree's letter for its other lemons, or . again to refit"}`;
-  else where.textContent = b ? `> ${b.digit} · ${b.group || "packhouse"}` : "> type a block number";
+  else where.textContent = b ? `> ${b.digit} · ${b.group || (isHouse(b) ? "packhouse" : "no group")}` : "> type a block number";
   document.getElementById("legend").innerHTML = ["alert", "blocked", "running", "merge", "review"].map(s => `<span style="color:${STATUS[s]}">●</span> ${s}`).join("  ") + `  <span style="color:#9aa3ad">●</span> idle`;
 }
 
@@ -1130,7 +1133,7 @@ cv.addEventListener("pointerdown", e => {
   if (e.button !== 0) return;  // a right-click opens the edit menu (menu.js), and moves nothing
   if (drag?.landing || moving?.landing) { drag = moving = null; draw(); }
   const r = cv.getBoundingClientRect(), h = hitAt(e.clientX - r.left, e.clientY - r.top);
-  const movable = zoomed && h && (h.tree || h.stump) && h.block.group && !h.label, at = worldAt(e);
+  const movable = zoomed && h && (h.tree || h.stump) && !isHouse(h.block) && !h.label, at = worldAt(e);
   press = {x: e.clientX, y: e.clientY, v: {...view}, moved: false, tree: movable ? h : null, block: blockAt(...at), at};
   cv.setPointerCapture(e.pointerId);
 });
@@ -1146,7 +1149,7 @@ cv.addEventListener("pointermove", e => {
     return;
   }
   const r = cv.getBoundingClientRect(), h = hitAt(e.clientX - r.left, e.clientY - r.top), on = blockAt(...worldAt(e));
-  cv.style.cursor = on && on.sides.length ? RESIZE[on.sides.join("")] : h && (h.tree || h.stump) ? (zoomed && h.block.group ? "grab" : h.tree ? "pointer" : "default") : on ? "move" : "default";
+  cv.style.cursor = on && on.sides.length ? RESIZE[on.sides.join("")] : h && (h.tree || h.stump) ? (zoomed && !isHouse(h.block) ? "grab" : h.tree ? "pointer" : "default") : on ? "move" : "default";
   // The card stays put while the pointer is on one tree or its label; a refresh brings new objects for
   // the same tree, so it's known by block and key, and only its lines are brought up to date.
   if (h && h.tree) {

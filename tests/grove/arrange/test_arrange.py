@@ -1,6 +1,6 @@
 import dataclasses
 
-from lemonaid.grove.layout import new_spots
+from lemonaid.grove.layout import landmarks, new_spots
 from lemonaid.grove.layout.arrange import arrange
 
 from ..shared import DAY, NOW, block, lemon, tree
@@ -347,3 +347,22 @@ def test_a_lead_saved_off_its_block_stands_on_it_again():
         found.trees[("g", "head")].cx,
         found.trees[("g", "head")].cy,
     )
+
+
+def test_with_the_packhouse_off_block_0_is_an_ordinary_block():
+    blocks = (block("", "0", tree("hq", lead=True), tree("misc")), block("a", "1", tree("s")))
+    found, _ = arrange(blocks, landmarks.with_packhouse(EMPTY, False), NOW)
+    assert found.plots[""].texture != "house"
+    assert all(found.trees[("", key)].bay == -1 for key in ("hq", "misc"))
+
+
+def test_turning_the_packhouse_off_and_on_again_restores_both_layouts():
+    blocks = (block("", "0", tree("hq", lead=True), tree("misc")), block("a", "1", tree("s")))
+    _, housed = arrange(blocks, landmarks.with_packhouse(EMPTY, True), NOW)
+    _, plain = arrange(blocks, landmarks.with_packhouse(housed, False), NOW + 60)
+    _, again = arrange(blocks, landmarks.with_packhouse(plain, True), NOW + 120)
+    _, plain_again = arrange(blocks, landmarks.with_packhouse(again, False), NOW + 180)
+    assert again["plots"][""] == housed["plots"][""]
+    assert again["trees"][""] == housed["trees"][""]
+    assert plain_again["plots"][""] == plain["plots"][""]
+    assert plain_again["plots"]["a"] == housed["plots"]["a"]

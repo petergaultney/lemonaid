@@ -5,7 +5,7 @@ from collections import abc
 from typing import Any
 
 from ..draw import ground
-from ..layout import arrange, edit, lead_spot, room
+from ..layout import arrange, edit, landmarks, lead_spot, room
 from .frame import Grove
 from .garden import Drag
 
@@ -82,6 +82,7 @@ def drop(
     name = drag.block.name
 
     def apply(saved: dict[str, Any]) -> dict[str, Any]:
+        saved = landmarks.as_drawn(saved, grove.saved)
         if aim is None:
             return edit.clear_stump(saved, name, drag.tree)
 

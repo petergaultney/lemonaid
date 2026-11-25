@@ -5,7 +5,7 @@ from collections import abc
 from typing import Any
 
 from ..draw import ground, plots, refusal
-from ..layout import arrange, edit, lead_spot, placement, tangles, terrain
+from ..layout import arrange, edit, landmarks, lead_spot, placement, tangles, terrain
 from ..model import Block, Plot
 from . import garden, stump_drag
 from .frame import Grove
@@ -147,7 +147,7 @@ def _refused(grove: Grove, drag: Drag, aim: Aim) -> str:
     others = [p for other, p in after.plots.items() if other != name]  # open ground is built over
     if any(ground.shared(plot, other) for other in others):
         return "another block's ground is there"
-    if crossed := _on_terrain(after, plot, drag):
+    if name != landmarks.PACKHOUSE and (crossed := _on_terrain(after, plot, drag)):
         return crossed
     try:
         if drag.sides and _crowded(grove, drag.block, plot):
@@ -252,6 +252,7 @@ def drop(
 
     def apply(saved: dict[str, Any]) -> dict[str, Any]:
         nonlocal drag
+        saved = landmarks.as_drawn(saved, grove.saved)
         if drag.open >= 0:
             _still_open(drag, saved)
         known = {t.key for t in drag.block.trees} | {lead_spot.KEY}

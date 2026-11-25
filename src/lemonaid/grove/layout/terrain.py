@@ -175,9 +175,9 @@ def _clear_box(ground: Covered, rect: placement.Rect) -> placement.Rect:
 
 
 def move_off(saved: dict[str, Any], ground: Covered) -> None:
-    """Take every block saved over a road or the stream off it, once: trimmed to the part
-    clear of *ground* when that keeps half its ground, else moved whole to the nearest free
-    ground. Its trees keep their place on the ground, and any the trim cuts off stand afresh
+    """Take every block saved over a road or the stream off it, once, but for block 0, where the
+    roads meet: trimmed to the part clear of *ground* when that keeps half its ground, else moved
+    whole to the nearest free ground. Its trees keep their place on the ground, and any the trim cuts off stand afresh
     inside. Open ground over them is forgotten. A block checked is marked `clear` with the gap
     it was checked for and never checked again, so one moved or resized close to them stays
     where it was put.
@@ -185,7 +185,7 @@ def move_off(saved: dict[str, Any], ground: Covered) -> None:
     plots = saved["plots"]
     for name in sorted(plots):
         data = plots[name]
-        if data.get("clear") == list(GAP):
+        if data.get("clear") == list(GAP) or name == landmarks.PACKHOUSE:
             continue
 
         if not _near(ground, data):

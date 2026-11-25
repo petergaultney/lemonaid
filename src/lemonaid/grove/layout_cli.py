@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from ..config import load_config
-from .layout import arrange, edit, proposal, state
+from .layout import arrange, edit, landmarks, proposal, state
 from .source import live
 
 
@@ -48,13 +48,15 @@ def _cmd_apply(args: argparse.Namespace) -> None:
     if not isinstance(wanted, dict) or not isinstance(wanted.get("plots"), dict):
         _fail(args, f"{args.file} isn't a grove layout: it has no plots")
 
-    found = live.current_blocks(load_config(), None)
+    config = load_config()
+    found = live.current_blocks(config, None)
     done: list[proposal.Applied] = []
 
     def change(saved: dict) -> dict:
         # Laid out first, so a group the proposal placed but the saved layout hasn't seen yet
         # isn't taken for one that ended.
-        done.append(proposal.apply(arrange.arrange(found, saved)[1], wanted, found))
+        switched = landmarks.with_packhouse(saved, config.tui.grove_packhouse)
+        done.append(proposal.apply(arrange.arrange(found, switched)[1], wanted, found))
         return done[-1].layout
 
     try:

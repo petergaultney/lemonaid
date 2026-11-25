@@ -86,7 +86,7 @@ def _edit(
     action = VERBS[verb]
     if action == "color":
         if not block.name:
-            return _noted(where, "the packhouse has no color")
+            return _noted(where, "lemons in no group have no color")
         editing = dataclasses.replace(where, editing=action)
         return editing, "", picking.target(editing, blocks, arrangement, block, None)
 

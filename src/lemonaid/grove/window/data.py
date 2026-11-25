@@ -14,7 +14,7 @@ from ...inbox import db, ended
 from ...lemon_watchers.common import detect_terminal_switch_source
 from .. import as_json
 from ..draw import bars, tree_stats
-from ..layout import arrange, edit, state, tangles
+from ..layout import arrange, edit, landmarks, state, tangles
 from ..model import Block
 from ..source import live
 from ..tui import drop, frame, garden, keys
@@ -130,7 +130,7 @@ def plant(grove: Grove, digit: str, key: str, x: int, y: int) -> str:
     def stand(saved: dict) -> dict:
         # The window reads without saving, so a tree no grove has saved yet has a spot only once
         # the saved layout is arranged with today's blocks, here, under the layout's lock.
-        laid_out = arrange.arrange(grove.blocks, saved)[1]
+        laid_out = arrange.arrange(grove.blocks, landmarks.as_drawn(saved, grove.saved))[1]
         return tangles.plant(grove.blocks, laid_out, block, {key: (x, y)})
 
     try:
@@ -184,7 +184,11 @@ def reframe(grove: Grove, digit: str, sides: abc.Iterable[str], dx: int, dy: int
     dropped = drop.drop(grove, _block_drag(grove, digit, sides, dx, dy))
     try:
         # As in `plant`: a block no grove has saved yet gets its plot from arranging, under the lock.
-        state.update(lambda saved: dropped(arrange.arrange(grove.blocks, saved)[1]))
+        state.update(
+            lambda saved: dropped(
+                arrange.arrange(grove.blocks, landmarks.as_drawn(saved, grove.saved))[1]
+            )
+        )
     except edit.EditError as error:
         return str(error)
     return ""

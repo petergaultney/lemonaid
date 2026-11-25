@@ -1,5 +1,7 @@
 import json
+import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -99,6 +101,7 @@ def test_a_tree_off_a_rounded_corner_is_refused_by_plant_and_apply(monkeypatch, 
 
 
 def test_apply_leaves_an_untouched_packhouse_alone(monkeypatch, tmp_path, capsys):
+    Path(os.environ["LEMONAID_CONFIG"]).write_text("[tui]\ngrove_packhouse = true\n")
     grove_blocks = (
         block("", "0", tree("hq"), tree("misc")),
         block("a", "1", tree("s"), tree("t"), tree("u")),
@@ -167,3 +170,20 @@ def test_plant_moves_a_lead_away_from_the_packhouse(monkeypatch, tmp_path):
 
     moved = state.load(proposed)["trees"]["a"][":lead"]
     assert (moved["x"], moved["y"]) == (lead["x"] + away, lead["y"])
+
+
+def test_apply_saves_the_live_layout_in_the_configured_mode(monkeypatch, tmp_path, capsys):
+    grove_blocks = (block("", "0", tree("hq"), tree("misc")), block("a", "1", tree("s")))
+    monkeypatch.setattr(blocks, "blocks", lambda *_args: grove_blocks)
+    Path(os.environ["LEMONAID_CONFIG"]).write_text("[tui]\ngrove_packhouse = true\n")
+    _run(monkeypatch, "show", "--json")  # lays out the packhouse, and saves it
+    house = state.load()["plots"][""]
+    Path(os.environ["LEMONAID_CONFIG"]).write_text("[tui]\ngrove_packhouse = false\n")
+    proposed = tmp_path / "proposed.json"
+    _run(monkeypatch, "propose", str(proposed))
+
+    _run(monkeypatch, "apply", str(proposed), "--json")
+
+    saved = state.load()
+    assert saved["packhouse"] is False and saved["plots"][""]["texture"] != "house"
+    assert saved["aside"]["plot"] == house
