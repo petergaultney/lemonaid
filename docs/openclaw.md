@@ -30,7 +30,7 @@ A lemon that registers another session, such as one it spawned, keeps its own th
 lemonaid openclaw sync [--days 90]
 ```
 
-makes each conversation session active in the last 90 days a lemon: Matrix rooms, Signal, WhatsApp and Telegram chats, and each agent's main session. Cron runs and worker sessions are left out. A lemon is placed in its agent's workspace, so each agent is its own tree, and named for its agent and chat (`Ada - Signal`, `Ada - room r00mA1`); an agent made for one room takes the agent's name. Renaming one in lemonaid keeps your name. When a conversation goes quiet, the sync archives its lemon, unless it has a brief; it comes back when the conversation does. A lemon you archive yourself stays archived. A session that registered itself is never touched.
+makes each conversation session active in the last 90 days a lemon: Matrix rooms, Signal, WhatsApp and Telegram chats, and each agent's main session. Cron runs and worker sessions are left out. A lemon runs in its agent's workspace and is named for its agent and chat (`Ada - Signal`, `Ada - room r00mA1`); an agent made for one room takes the agent's name. In the grove each conversation is its own tree, though many share a workspace. Renaming one in lemonaid keeps your name. When a conversation goes quiet, the sync archives its lemon, unless it has a brief; it comes back when the conversation does. A lemon you archive yourself stays archived. A session that registered itself is never touched.
 
 To keep it current, run
 

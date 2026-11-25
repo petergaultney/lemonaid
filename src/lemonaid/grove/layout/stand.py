@@ -120,10 +120,11 @@ def stand_trees(
     derived = labels.labels(block.name, [tree.key for tree in block.trees])
     # A tree takes the name given to its main lemon, as the inbox shows it; else its session's.
     # A packhouse bay holding one lemon takes that lemon's name either way: tmux's own `22` says
-    # nothing, and the session only groups lemons when there are several.
+    # nothing, and the session only groups lemons when there are several. So does a chat lemon's
+    # tree, keyed by its channel: the words of a session id say nothing either.
     short = {
         t.key: labels.without_group(block.name, t.lemons[0].name)
-        if t.lemons[0].named or (bays and len(t.lemons) == 1)
+        if t.lemons[0].named or (bays and len(t.lemons) == 1) or t.key == t.lemons[0].channel
         else derived[t.key]
         for t in block.trees
     }

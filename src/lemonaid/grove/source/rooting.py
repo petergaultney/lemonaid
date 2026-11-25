@@ -1,6 +1,6 @@
 """Which tree each lemon is rooted in: its terminal workspace's (a tmux session or a WezTerm
-workspace), else its directory's; or, grafted onto another lemon, that lemon's, for as long as it
-is live. A graft onto a lemon that isn't live waits, and its lemon stands on its own tree until
+workspace), its own for a chat lemon, else its directory's; or, grafted onto another lemon, that
+lemon's, for as long as it is live. A graft onto a lemon that isn't live waits, and its lemon stands on its own tree until
 the host comes back.
 """
 
@@ -22,6 +22,11 @@ def _workspace(n: db.Notification) -> tuple[str, str]:
     renames; another front end's key holds its instance too, so equal names never merge.
     """
     where = front_end.location.of(n.metadata, n.switch_source)
+    if (
+        where.front_end == front_end.chat.NAME
+    ):  # each conversation is its own; many share an agent's directory
+        return n.channel, n.name or n.channel
+
     if where.front_end == "tmux" and where.workspace:
         return where.workspace, where.workspace
 

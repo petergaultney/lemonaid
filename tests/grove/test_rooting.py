@@ -1,3 +1,4 @@
+from lemonaid.front_end import chat
 from lemonaid.grove.source import rooting
 from lemonaid.inbox import db
 
@@ -45,3 +46,24 @@ def test_a_lemon_follows_its_host_onto_the_hosts_own_host_and_a_loop_stays_home(
         "codex:guest": "window",
         "claude:other": "x",
     }
+
+
+def test_each_chat_conversation_is_its_own_tree_though_they_share_a_directory():
+    rooms = [
+        db.Notification(
+            id=n,
+            channel=f"openclaw:agent:main:matrix:channel:!{n}:grove.example",
+            message="",
+            name=name,
+            metadata={"cwd": "/srv/agent-home"},
+            switch_source=chat.NAME,
+        )
+        for n, name in ((1, "Dam valves"), (2, "Tree map"))
+    ]
+
+    roots = rooting.rooted(rooms, {}, {})
+
+    assert [roots[room.channel] for room in rooms] == [
+        (rooms[0].channel, "Dam valves", ""),
+        (rooms[1].channel, "Tree map", ""),
+    ]
