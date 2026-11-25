@@ -12,10 +12,17 @@ _log = get_logger("tui")
 
 
 class Arrangement:
-    def __init__(self, config: Config, budget: float = 0.05) -> None:
+    def __init__(
+        self,
+        config: Config,
+        budget: float = 0.05,
+        answered: abc.Callable[[], None] = lambda: None,
+    ) -> None:
         self._config = config
         self._arranger = (
-            child.Arranger(child.parse_command(config.inbox.arrange), budget=budget)
+            child.Arranger(
+                child.parse_command(config.inbox.arrange), budget=budget, answered=answered
+            )
             if config.inbox.arrange
             else None
         )

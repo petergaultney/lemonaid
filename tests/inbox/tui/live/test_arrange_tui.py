@@ -12,6 +12,7 @@ from textual.widgets import Static
 
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.app import LemonaidApp
+from lemonaid.inbox.tui.live import changes
 from lemonaid.inbox.tui.live.inbox_list import InboxList
 from lemonaid.inbox.tui.watchers import watcher_hooks
 
@@ -91,6 +92,27 @@ def test_the_arranger_orders_and_folds_the_list(tmp_path):
 
     assert drawn == [b, c]  # the inbox's own order is c, b, a
     assert fold_line.startswith("▸ quiet (1)")
+
+
+class _Quiet:
+    """A change hub that never fires, so a tick loads only when something marks it due."""
+
+    def watch(self, *args, **kwargs):
+        return lambda: None
+
+
+def test_a_late_answer_is_drawn_when_it_arrives(tmp_path, monkeypatch):
+    """Nothing else changes, so the arranger's answer is all that can bring the next load."""
+    monkeypatch.setattr(changes, "hub", _Quiet)  # where there is no kqueue every tick loads
+    monkeypatch.setattr(changes, "FULL_SECONDS", 3600.0)
+    monkeypatch.setattr(LemonaidApp, "_check_claude_patch", lambda self: None)  # it redraws
+    _, b, c = _sessions("a", "b", "c")
+    # Past the tick's 50ms wait for an answer, within the arranger's 2s timeout.
+    _configure(_serve(tmp_path, f"import time\ntime.sleep(1.0)\n{_REVERSE}"))
+
+    drawn, _, _ = _drawn(fold_name="quiet")
+
+    assert drawn == [b, c]
 
 
 def test_a_failing_arranger_falls_back_and_says_why(tmp_path):
