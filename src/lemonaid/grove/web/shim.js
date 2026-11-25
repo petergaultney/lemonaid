@@ -1,6 +1,7 @@
 // The grove window's page calls Python as `window.pywebview.api.<name>(...)`. In a browser each call is
 // a POST to the server that served the page. Placing the window has no meaning here, and links open in
-// this browser, including a chat room that `jump` answers with.
+// this browser. Jumping to a lemon opens its page, except in a browser on the server, which switches the
+// server's terminal as the window does.
 (() => {
   // The window has Python push the grove. Here the server says when it changed, over a stream that
   // the browser reopens by itself; while it's closed, the page asks every few seconds. Both start
@@ -33,8 +34,9 @@
   const here = {
     open_link: async url => open(url),
     jump: async channel => {
+      if (["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) return call("switch", [channel]);
       const r = await call("jump", [channel]);
-      if (r && r.open) { open(r.open); return ""; }
+      if (r && r.lemon) { location.href = `lemon?channel=${encodeURIComponent(r.lemon)}`; return ""; }
       return r;
     },
     dismiss: async () => {}, to_terminal: async () => {}, drag: async () => {}, stick: async () => {},
