@@ -60,6 +60,18 @@ Codex also shows while a slow hook runs. Codex
 trusts each hook by a hash of it (`[hooks.state]` in `config.toml`), so after installing, or
 after an upgrade changes a hook, trust them again in Codex's `/hooks`.
 
+The SessionStart hook, and the `lemonaid codex turn` hook on UserPromptSubmit, name the
+thread `<emoji> <name> (<WordyBin>)` from the session's `inbox emoji`, its name and its
+brief's WordyBin, so the Codex app's thread list shows the name lemonaid does, as Claude's
+does (see [claude.md](claude.md)). Lemonaid reads the thread's name from Codex and sets
+its own with the app-server's `thread/name/set` when they differ: when the thread starts or
+resumes, at each prompt, and each time the Codex service re-reads the thread. Codex titles a new thread from its first prompt, a few seconds after
+SessionStart, and saves that title only if the thread's name hasn't changed since it
+started, so lemonaid's name usually stays. If Codex's title wins anyway, someone renames the
+thread in Codex, or a lemon is renamed while idle, the Codex service (below) sets
+lemonaid's name within a minute, or the next prompt does sooner. A thread with neither an
+emoji nor a brief keeps the name Codex gave it.
+
 Codex treats a blocking Stop response as a request to continue the turn.
 
 A Codex lemon with a brief gets a push scout: `lemonaid watch --self --push` registers it

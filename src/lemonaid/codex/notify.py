@@ -20,7 +20,7 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
-from . import channels, location, permissions, threads, turns
+from . import channels, location, permissions, thread_name, threads, turns
 from .utils import extract_session_id_from_filename
 
 _log = get_logger("codex.notify")
@@ -273,7 +273,7 @@ def handle_dismiss(debug: bool = False) -> None:
 
 def handle_turn_hook(stdin_data: str | None = None) -> None:
     """Record a turn's start, tool use or interrupt, and clear a permission notice whose
-    requested tool has started or returned."""
+    requested tool has started or returned. A turn's start also names its thread."""
     if stdin_data is None:
         stdin_data = sys.stdin.read()
 
@@ -284,6 +284,8 @@ def handle_turn_hook(stdin_data: str | None = None) -> None:
 
     turns.record(data)
     _clear_permission_notice(data)
+    if data.get("hook_event_name") == "UserPromptSubmit" and (thread := _extract_session_id(data)):
+        thread_name.push(thread)
 
 
 def _clear_permission_notice(data: dict) -> None:

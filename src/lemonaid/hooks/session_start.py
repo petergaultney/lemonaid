@@ -9,7 +9,7 @@ import lemonaid.tasks.briefs.session
 
 from .. import brief
 from ..brief.handoff import clear as handoff_clear
-from ..codex import startup
+from ..codex import startup, thread_name
 from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import channel_id
@@ -121,6 +121,8 @@ def context(data: dict, harness: str) -> str:
     if harness == "codex":
         startup.register(data)  # so the brief waiting on its window can claim it now
     path = session_brief.attached(data, harness)
+    if harness == "codex" and session:
+        thread_name.push(session)  # once the brief and the name waiting with it are claimed
     if session:
         session_gate.mark(own_edits.root(), f"{harness}-{session}", path)
     if path is None:

@@ -14,7 +14,7 @@ import time
 
 from ..log import get_logger
 from ..watch import host_services
-from . import app_server, snapshot, stored
+from . import app_server, snapshot, stored, thread_name
 
 _log = get_logger("codex.service")
 
@@ -71,6 +71,10 @@ def _refresh(state: _State, threads: set[str]) -> None:
 
     snapshot.write(answers)
     state.refreshed, state.unavailable = started, False
+    try:
+        thread_name.catch_up(server, answers)
+    except (app_server.NoAnswer, OSError, ValueError, KeyError, TypeError) as error:
+        _log.warning("codex app-server did not take a thread name: %s", error)
 
 
 def tick(state: _State, quitting: threading.Event) -> int:

@@ -81,23 +81,23 @@ def _upgrade_codex() -> bool:
     with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         rows = [
             # a reconciled row can sit on a transient channel; session_id is the thread
-            (n.id, n.metadata.get("session_id") or n.channel.removeprefix("codex:"))
+            (n.id, n.channel, n.metadata.get("session_id") or n.channel.removeprefix("codex:"))
             for n in db.get_active(conn, switch_source=None)
             if n.channel.startswith("codex:") and n.metadata.get("name_source") != "codex_title"
         ]
-    records = threads.get(thread for _, thread in rows)
+    records = threads.get(thread for _, _, thread in rows)
 
     upgraded = False
     with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
-        for notification_id, thread in rows:
+        for notification_id, channel, thread in rows:
             record = records.get(thread)
-            if (
-                record is not None
-                and record.name
-                and db.refresh_auto_name(conn, notification_id, record.name, "codex_index")
-            ):
+            if record is None or not record.name:
+                continue
+
+            name = session_title.canonical(conn, channel, record.name)
+            if db.refresh_auto_name(conn, notification_id, name, "codex_index"):
                 upgraded = True
-                _log.info("name upgraded: %d -> %r (codex_index)", notification_id, record.name)
+                _log.info("name upgraded: %d -> %r (codex_index)", notification_id, name)
 
     return upgraded
 
