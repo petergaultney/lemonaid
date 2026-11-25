@@ -1,4 +1,4 @@
-"""`lemonaid docs`: the docs a lemon was given (in shadow mode, would have been), the
+"""`lemonaid docs`: the docs a lemon was given (or, for those its mode only logs, would be), the
 lemons holding a doc, and every doc's package and triggers.
 
   lemonaid docs SESSION      a session's context windows and what each was given;
@@ -43,10 +43,12 @@ def _missing(entries: abc.Sequence[dict]) -> list[str]:
         return []
 
     config, cwd = load_config(), Path(started[-1].get("cwd") or ".")
+    text = lemons.attached_brief(started[-1]["harness"], started[-1]["session"])
     lemon = lemons.Lemon(
         cwd,
-        lemons.attached_brief(started[-1]["harness"], started[-1]["session"]),
+        text,
         lemons.on_default_branch(config.docs.default_branch_check, cwd),
+        *lemons.kin(lemons.lemon_id(text)),
     )
     given = started[-1].get("packages") or []
     return [p for p in lemons.packages(index.read(paths.index()), lemon) if p not in given]
@@ -86,7 +88,14 @@ def _who(wanted: str, everyone: bool) -> None:
     rows = []
     for (harness, session), entries in _sessions(deliveries.read()).items():
         window = _current(entries)
-        held = [e for e in window if e.get("kind") == "doc" and same(str(e.get("doc")))]
+        held = [
+            e
+            for e in window
+            if e.get("kind") == "doc"
+            and not e.get("shadow")
+            and e.get("delivery") != "pointer"
+            and same(str(e.get("doc")))
+        ]
         if held and (everyone or _channel(harness, session) in live):
             rows.append(
                 (next((e for e in window if e.get("kind") == "window"), held[-1]), held[-1])
@@ -114,7 +123,7 @@ def _run(args: argparse.Namespace) -> None:
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "docs",
-        help="The docs a lemon was given or would be, who holds a doc, and every doc's triggers",
+        help="The docs a lemon was given, who holds a doc, and every doc's triggers",
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

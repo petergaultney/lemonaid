@@ -133,3 +133,19 @@ def test_resumes_where_the_inbox_last_recorded_the_session(monkeypatch, tmp_path
     _run("0123abcd-another-session")
 
     assert directories == [str(moved), str(tmp_path)]
+
+
+def test_a_session_launched_with_its_docs_resumes_with_them(execs, monkeypatch, tmp_path):
+    flags = ["--append-system-prompt-file", str(tmp_path / "start.md")]
+    (tmp_path / "start.md").write_text("Docs.\n")
+    monkeypatch.setattr(resume.start, "resume_flags", lambda session: flags)
+
+    _run("abc123")
+    resume.forward_to_claude(["--model", "opus", "--resume", "abc123"])
+    resume.forward_to_claude([*flags, "--resume", "abc123"])
+
+    assert execs == [
+        ["claude", *flags, "--resume", "abc123"],
+        ["claude", *flags, "--model", "opus", "--resume", "abc123"],
+        ["claude", *flags, "--resume", "abc123"],
+    ]

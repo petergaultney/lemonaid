@@ -2,7 +2,8 @@
 began, and how many tool calls it has made.
 
 A window begins when a session starts, is cleared or is compacted; a resume continues
-it. Its state is kept in `paths.window()` and locked while a hook changes it, since a
+it. Docs a Claude lemon was launched with are in its system prompt, which no compaction
+removes, so every window counts them as given. Its state is kept in `paths.window()` and locked while a hook changes it, since a
 lemon's parallel tool calls run their hooks at the same time.
 """
 
@@ -30,7 +31,16 @@ def _read(path: Path) -> dict:
         state = {}
     if not isinstance(state, dict):
         state = {}
-    return {"window": 0, "calls": 0, "delivered": {}, "packages": [], **state}
+    return {
+        "window": 0,
+        "calls": 0,
+        "delivered": {},
+        "shadowed": {},  # the same, for what the lemon's mode only logged
+        "packages": [],
+        "prompt": {},  # doc key -> mtime, for the docs in a Claude lemon's system prompt
+        "lemon": {},  # what the session start learned about the lemon (`facts`)
+        **state,
+    }
 
 
 @contextlib.contextmanager
@@ -52,12 +62,34 @@ def begin(state: dict, source: str, packages: abc.Sequence[str]) -> bool:
         return False
 
     state["window"] += 1
-    state["delivered"] = {}
+    state["delivered"] = {
+        key: {"mtime": mtime, "call": None} for key, mtime in state["prompt"].items()
+    }
+    state["shadowed"] = {}
     state["packages"] = list(packages)
     return True
 
 
-def delivery(state: dict, key: str, mtime: float, reminder: bool, whole: str, before: bool) -> str:
+def joined(state: dict, packages: abc.Iterable[str]) -> None:
+    """Count *packages* among the window's, once each."""
+    state["packages"] = list(dict.fromkeys([*state["packages"], *packages]))
+
+
+def ledger(shadow: bool) -> str:
+    """Where a window records what it gave: what was only logged is kept apart, so it
+    never stands in for a real delivery."""
+    return "shadowed" if shadow else "delivered"
+
+
+def delivery(
+    state: dict,
+    key: str,
+    mtime: float,
+    reminder: bool,
+    whole: str,
+    before: bool,
+    shadow: bool = False,
+) -> str:
     """How a match gives the section *key* (in the doc whose own key is *whole*) now.
 
     - `full` when this window hasn't had it, or the doc changed since; `refuse` instead
@@ -67,7 +99,8 @@ def delivery(state: dict, key: str, mtime: float, reminder: bool, whole: str, be
       and once REMIND_AFTER calls have passed since a match last gave it.
     - "" otherwise.
     """
-    given = state["delivered"].get(key) or ({} if before else state["delivered"].get(whole))
+    book = state[ledger(shadow)]
+    given = book.get(key) or ({} if before else book.get(whole))
     if before and isinstance(given, dict) and given.get("call") is None:
         given = {}
     if not isinstance(given, dict) or given.get("mtime") != mtime:
@@ -78,7 +111,7 @@ def delivery(state: dict, key: str, mtime: float, reminder: bool, whole: str, be
     return ""
 
 
-def given(state: dict, key: str, mtime: float, package: bool) -> None:
+def given(state: dict, key: str, mtime: float, package: bool, shadow: bool = False) -> None:
     """Record *key* as given now; a package's doc has no call, so its triggers still
     give their reminder at the action."""
-    state["delivered"][key] = {"mtime": mtime, "call": None if package else state["calls"]}
+    state[ledger(shadow)][key] = {"mtime": mtime, "call": None if package else state["calls"]}

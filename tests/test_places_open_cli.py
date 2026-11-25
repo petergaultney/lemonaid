@@ -67,7 +67,7 @@ def _records(monkeypatch, config: Config, cwd, *, allow_outside: bool = False) -
     )
 
     def open_key(
-        key, cfg, root, attach=True, harness="default", prompt="", title="", environment=None
+        key, cfg, root, attach=True, harness="default", prompt="", title="", launch_for=None
     ):
         target = sessions if synthetic_root else keyed
         target.append((key, cwd if synthetic_root else root.path, attach, harness, prompt))
@@ -512,7 +512,7 @@ def _dialog_checks(monkeypatch, created: bool) -> list[str]:
         harness="default",
         prompt="",
         title="",
-        environment=None: (
+        launch_for=None: (
             root.path,
             lifecycle.Opened(key, created=created),
         ),

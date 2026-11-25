@@ -164,15 +164,9 @@ def test_codex_hooks_are_named_and_claude_hooks_are_not(tmp_path):
     assert "statusMessage" not in claude.read_text()
 
 
-def test_the_harness_waits_only_for_the_docs_session_start_hook(tmp_path):
+def test_the_harness_waits_for_every_docs_hook_and_codex_takes_all_its_context(tmp_path):
     for harness in install.HARNESSES:
         install.install(harness, tmp_path / harness)
-        hooks = json.loads((tmp_path / harness).read_text())["hooks"]
-        starts = [
-            h for e in hooks["SessionStart"] for h in e["hooks"] if "hooks docs" in h["command"]
-        ]
-        assert [h.get("async") for h in starts] == [None]
-
         docs = [
             hook
             for entries in json.loads((tmp_path / harness).read_text())["hooks"].values()
@@ -181,7 +175,9 @@ def test_the_harness_waits_only_for_the_docs_session_start_hook(tmp_path):
             if "hooks docs" in hook["command"]
         ]
         assert len(docs) == (4 if harness == "claude" else 3)
-        assert all(hook.get("async") is True for hook in docs if hook not in starts)
+        assert all("async" not in hook for hook in docs)
+        if harness == "codex":
+            assert all(hook["additionalContextLimit"] == 0 for hook in docs)
 
 
 def test_reinstalling_makes_the_harness_wait_for_a_docs_session_start_hook_again(tmp_path):

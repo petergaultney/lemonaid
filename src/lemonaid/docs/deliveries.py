@@ -1,11 +1,12 @@
 """`doc-deliveries.jsonl`: a line for each context window a session begins, and one for
-each doc or section it is given, or in shadow mode would be.
+each doc or section it is given, or, when its mode only logs it (`shadow`), would be.
 
 Every line has `at`, `harness`, `session`, `window`, `mode`, `event` and `shadow`. A
 `window` line adds the `source` of its `SessionStart`, the `cwd` and the `packages` the
 lemon gets. A `doc` line adds `doc`, `section`, the `package` or `trigger` that brought
-it, `delivery` (`full`, `reminder`, or `refuse` for a `before` trigger's first match)
-and `chars`, the length of the text delivered.
+it, `delivery` (`full`, `reminder`, `refuse` for a `before` trigger's first match,
+`pointer` for a doc too long to give, or `launch` for one in a Claude lemon's system
+prompt) and `chars`, the length of the text delivered.
 """
 
 import json

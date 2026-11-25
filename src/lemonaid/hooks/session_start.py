@@ -139,7 +139,7 @@ def _docs(data: dict, harness: str) -> str:
     """The classic docs for a Codex history that doesn't hold them; Claude loads its own."""
     config = load_config()
     mode = docs.mode.session_mode(
-        harness, data.get("session_id") or "", os.environ.get(docs.mode.ENV, ""), config.docs.mode
+        harness, data.get("session_id") or "", os.environ.get(docs.mode.ENV, ""), config.docs
     )
     if harness != "codex" or data.get("source", "startup") not in _DOCS_SOURCES:
         return ""

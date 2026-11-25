@@ -57,10 +57,6 @@ def cmd_open(args: argparse.Namespace) -> None:
 
     prompt = launch.handoff.first_prompt(given, args.prompt)
     title = launch.handoff.session_title(given)
-    environment, warning = docs.mode.launch_environment(getattr(args, "docs", ""))
-    if warning:
-        print(f"Warning: {warning}", file=sys.stderr)
-
     # Naming a root asks for its vocabulary explicitly, so an unusable one is an
     # error rather than something to read another way.
     root = (
@@ -78,6 +74,18 @@ def cmd_open(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
 
+    def launch_for(directory: Path) -> tuple[dict[str, str], tuple[str, ...]]:
+        started = docs.launch.prepare(
+            getattr(args, "docs", ""),
+            directory,
+            launch.handoff.docs_kin(given),
+            config,
+            line,
+        )
+        if started.warning:
+            print(f"Warning: {started.warning}", file=sys.stderr)
+        return started.environment, started.claude_flags
+
     directory, opened = lifecycle.open_key(
         args.key,
         config,
@@ -86,7 +94,7 @@ def cmd_open(args: argparse.Namespace) -> None:
         harness=args.harness,
         prompt=prompt,
         title=title,
-        environment=environment,
+        launch_for=launch_for,
     )
 
     session, error = opened.session, opened.error

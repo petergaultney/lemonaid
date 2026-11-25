@@ -244,7 +244,7 @@ def test_docs_hands_the_lemon_its_mode_in_its_environment(capsys, tmux, monkeypa
     args.func(args)
 
     assert f"\n{got}" in _screen(tmux, "work:4", f"\n{got}")
-    assert ("isn't available yet" in capsys.readouterr().err) == (asked != got)
+    assert ("roots is not set; starting in classic" in capsys.readouterr().err) == (asked != got)
 
 
 def test_no_target_in_tmux_opens_the_next_window_of_your_session_and_says_where(

@@ -342,9 +342,11 @@ Put all lemonaid options before `--`; every token after it passes to the harness
 
 `presets show` prints `lemon`, `shape`, `lemon_window` (zero-based), resolved `windows`, `command`, `environment` and `directory`. The command includes Codex's trust, update and writable-root overrides. `place open --dry-run` and `lemon start --dry-run` print the same fields plus a note that the current directory is used, without directory hooks, tmux queries or brief attachment. Use `presets show --directory PATH` to resolve for the eventual working directory.
 
-`--docs classic|packages` sets which docs this one lemon loads at start, in place of [`[docs] mode`](config.md#docs); it reaches the harness as `LEMONAID_DOCS`, and the session keeps it through resumes. `packages` is not built yet and starts the lemon in `classic`, with a warning.
+`--docs classic|packages` sets which docs this one lemon loads at start, in place of [`[docs] mode`](config.md#docs); it reaches the harness as `LEMONAID_DOCS`, and the session keeps it through resumes. `packages` starts the lemon with its packages instead of the always-loaded docs; a Claude lemon gets them in its system prompt, through `--append-system-prompt-file`. A lemon whose packages can't be built starts in `classic`, with a warning.
 
-`lemonaid docs --self` lists the docs your session would have been given so far, and by which package or trigger; nothing is given yet. `lemonaid docs who DOC` lists the live lemons holding a doc, and `lemonaid docs table` every package and trigger ([doc-delivery.md](doc-delivery.md)).
+When the docs hook refuses a tool call with a rule as the reason, read the rule and make the call again, changed if the rule says so; it runs the second time.
+
+`lemonaid docs --self` lists the docs your session has been given so far, and by which package or trigger, with `shadow` on those its mode only logged. `lemonaid docs who DOC` lists the live lemons holding a doc, and `lemonaid docs table` every package and trigger ([doc-delivery.md](doc-delivery.md)).
 
 `--prompt TEXT` reaches the lemon command as one positional argument through its window environment. All startup options affect only creation. If a session already exists, `open` switches to it without starting another harness or sending the prompt.
 
