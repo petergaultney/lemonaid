@@ -30,6 +30,7 @@ from pathlib import Path
 
 import pytest
 
+from lemonaid import log
 from lemonaid.claude import session_socket
 from lemonaid.inbox import db
 
@@ -269,6 +270,13 @@ def resumed(
             f"{name} to be resumed",
             lambda name=name: (found := world.running(name)) and found["pid"] != before[name],
         )
+
+
+def scout_log(lines: int = 40) -> str:
+    """The end of what push scouts logged, which says why restore prompted a lemon it meant to
+    subscribe: no session listed yet, or a scout that did not start in time."""
+    logged = log.LOG_PATH.read_text(errors="replace").splitlines()
+    return "\n".join([line for line in logged if "scout" in line][-lines:])
 
 
 def restore_all(world: World, seconds: int = 0) -> dict:
