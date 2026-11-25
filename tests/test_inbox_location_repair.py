@@ -6,6 +6,7 @@ from lemonaid import handlers
 from lemonaid.config import Config
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.watchers import watcher_hooks
+from tests import module_time
 
 _AUTHOR = {
     "tty": "/dev/author",
@@ -85,7 +86,7 @@ def test_watcher_repairs_on_startup_and_periodically(monkeypatch):
     monkeypatch.setattr(handlers, "codex_tmux_locations", lambda: {"author": [_AUTHOR]})
     monkeypatch.setattr(watcher_hooks.loss, "mark", lambda conn, by: [])  # its server is gone
     clock = iter([100.0, 101.0, 111.0])
-    monkeypatch.setattr(watcher_hooks.time, "monotonic", lambda: next(clock))
+    module_time.patch(monkeypatch, watcher_hooks, monotonic=lambda: next(clock))
     with db.connect() as conn:
         row = _add(conn, "codex:author", _REVIEWER)
     watcher_hooks.start(Config(), None, lambda channels: None)

@@ -21,15 +21,30 @@ def _ps(monkeypatch, out: str, returncode: int = 0) -> list[list[str]]:
     return asked
 
 
+def _ps_terminals() -> dict[tuple[str, str], str]:
+    out = subprocess.run(["ps", "-A", "-o", "pid=,tty=,lstart="], capture_output=True, text=True)
+    return {
+        (pid, " ".join(start.split())): tty
+        for pid, tty, start in (
+            line.split(None, 2) for line in out.stdout.splitlines() if line.strip()
+        )
+    }
+
+
 @pytest.mark.skipif(sys.platform != "darwin", reason="ps -o tdev is macOS's")
 def test_terminals_are_named_as_ps_names_them():
-    named = {pid: tty for pid, tty, _ in process_table.listing("pid", "tty", "comm", timeout=5)}
-    out = subprocess.run(["ps", "-A", "-o", "pid=,tty="], capture_output=True, text=True)
-    ttys = dict(line.split() for line in out.stdout.splitlines() if line.strip())
-    both = named.keys() & ttys.keys()
+    """Compared only for processes whose terminal stayed put: a test's pty can close meanwhile."""
+    before = _ps_terminals()
+    named = {
+        (pid, start): tty
+        for pid, tty, start in process_table.listing("pid", "tty", "lstart", timeout=5)
+    }
+    after = _ps_terminals()
+    steady = {process: tty for process, tty in before.items() if after.get(process) == tty}
+    both = named.keys() & steady.keys()
 
     assert both
-    assert {pid: named[pid] for pid in both} == {pid: ttys[pid] for pid in both}
+    assert {p: named[p] for p in both} == {p: steady[p] for p in both}
 
 
 def test_a_column_of_several_words_stays_one_column(monkeypatch):
