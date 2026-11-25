@@ -14,6 +14,7 @@ import pathlib
 import re
 import typing as ty
 
+from ..docs import frontmatter, sections
 from ..home import layout
 
 PACKAGED_DIR = pathlib.Path(__file__).parent / "packaged"
@@ -35,6 +36,7 @@ _SECTION = re.compile(
 
 
 HARNESSES = ("claude", "codex")
+_SKILL_KEYS = ("name", "description")  # what a harness reads from a skill's frontmatter
 
 
 def for_harness(text: str, harness: str) -> str:
@@ -77,11 +79,13 @@ def render(packaged_dir: pathlib.Path, user_dir: pathlib.Path, name: str, harnes
         return Rendered(name, for_harness(packaged.read_text(), harness), "packaged")
 
     added = overlay.read_text()
-    if added.startswith("---\n"):
+    if any(key in frontmatter.fields(overlay) for key in _SKILL_KEYS):
         raise Problem(
-            f"{overlay} starts with frontmatter; an overlay only adds sections, so replace "
-            "the whole skill with SKILL.md to change the frontmatter"
+            f"{overlay} sets the skill's {' or '.join(_SKILL_KEYS)}; an overlay only adds "
+            "sections, so replace the whole skill with SKILL.md to change them"
         )
+
+    added = sections.without_frontmatter(added)
 
     return Rendered(
         name,
