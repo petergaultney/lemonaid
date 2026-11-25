@@ -6,13 +6,15 @@
 - A `classic` lemon loads the always-loaded docs, plus any package for its group or its
   lead, which a Claude lemon also gets in its system prompt.
 
-A lemon whose packages can't be built starts in `classic`, with a warning.
+The mode is `--docs`, else the brief's `docs-mode`, else `[docs] mode`. A lemon whose
+packages can't be built starts in `classic`, with a warning.
 """
 
 from collections import abc
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .. import brief, docs_config
 from ..config import Config
 from ..launch import command
 from ..log import get_logger
@@ -55,9 +57,23 @@ def _lemon(kin: Kin, directory: Path, config: Config) -> lemons.Lemon:
     )
 
 
+def brief_mode(path: Path | None) -> str:
+    """The `docs-mode` *path*'s frontmatter asks for; "" without one."""
+    try:
+        wanted = brief.frontmatter.fields(path.read_text()).get("docs-mode") if path else None
+    except (OSError, ValueError) as e:
+        _log.warning("could not read docs-mode from %s: %s", path, e)
+        return ""
+    if wanted is None or wanted in docs_config.MODES:
+        return wanted or ""
+
+    _log.warning("%s: docs-mode must be one of %s, not %r", path, docs_config.MODES, wanted)
+    return ""
+
+
 def _fallback(wanted: str, why: str) -> tuple[str, str]:
     _log.warning("starting a lemon in classic, not packages: %s", why)
-    return "classic", f"--docs {wanted}: {why}; starting in classic" if wanted else ""
+    return "classic", f"docs mode {wanted}: {why}; starting in classic" if wanted else ""
 
 
 def _claude(
@@ -71,12 +87,13 @@ def _claude(
 
 def prepare(wanted: str, directory: Path, kin: Kin, config: Config, line: str) -> Launch:
     """The docs side of launching the lemon *line* starts in *directory*, with `--docs`
-    *wanted* ("" for `[docs] mode`). Without `[docs] roots` and `--docs`, it changes
-    nothing.
+    *wanted* ("" for the brief's or `[docs] mode`). Without `[docs] roots` and a mode
+    asked for, it changes nothing.
 
     Claude takes only the last of several `--settings`, so a Claude line that passes its
     own can't also turn off the always-loaded docs, and starts in `classic`.
     """
+    wanted = wanted or brief_mode(kin.brief)
     chosen, warning = wanted or config.docs.mode, ""
     claude = command.is_claude(line)
     if not config.docs.roots:
