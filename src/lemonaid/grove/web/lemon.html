@@ -165,37 +165,41 @@ $("log").addEventListener("toggle", ev => {
   if (key) ev.target.open ? opened.add(key) : opened.delete(key);
 }, true);
 let shownBrief = null, shownLog = null, busy = false;
+const showView = v => {
+  if (v.error) { $("log").innerHTML = `<div class="problem">${escape(v.error)}</div>`; return; }
+  document.title = v.name; $("name").textContent = v.name;
+  if (v.room) { $("room").href = v.room; $("room").textContent = "room"; }
+  $("how").textContent = v.how_text;
+  if (v.brief !== shownBrief) {
+    shownBrief = v.brief;
+    $("brief").innerHTML = v.brief ? rich(v.brief) : '<div class="problem">No brief attached.</div>';
+  }
+};
+const showTalk = c => {
+  if (c.error) return;
+  if (!c.conversation_problem) {
+    lastEntries = c.entries;
+    const left = pending.filter(p => !recorded(p, c.entries));
+    if (left.length !== pending.length) { pending = left; savePending(pending); }
+  }
+  const html = (c.conversation_problem ? `<div class="problem">${escape(c.conversation_problem)}</div>` : "")
+    + byDay([...(c.conversation_problem ? [] : grouped(c.entries)),
+             ...pending.map(p => [p.at, renderPending(p)])]);
+  if (html !== shownLog) {
+    const log = $("log"), atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+    log.innerHTML = shownLog = html;
+    if (atEnd) log.scrollTop = log.scrollHeight;
+  }
+};
+// The brief is local and quick; the conversation may come from another process, so each
+// shows as soon as it arrives.
 const refresh = async () => {
   if (busy) return;
   busy = true;
-  try {
-    const v = await call("lemon", [channel]);
-    if (v.error) { $("log").innerHTML = `<div class="problem">${escape(v.error)}</div>`; return; }
-    document.title = v.name; $("name").textContent = v.name;
-    if (v.room) { $("room").href = v.room; $("room").textContent = "room"; }
-    $("how").textContent = v.how_text;
-    if (v.brief !== shownBrief) {
-      shownBrief = v.brief;
-      $("brief").innerHTML = v.brief ? rich(v.brief) : '<div class="problem">No brief attached.</div>';
-    }
-    if (!v.conversation_problem) {
-      lastEntries = v.entries;
-      const left = pending.filter(p => !recorded(p, v.entries));
-      if (left.length !== pending.length) { pending = left; savePending(pending); }
-    }
-    const html = (v.conversation_problem ? `<div class="problem">${escape(v.conversation_problem)}</div>` : "")
-      + byDay([...(v.conversation_problem ? [] : grouped(v.entries)),
-               ...pending.map(p => [p.at, renderPending(p)])]);
-    if (html !== shownLog) {
-      const log = $("log"), atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-      log.innerHTML = shownLog = html;
-      if (atEnd) log.scrollTop = log.scrollHeight;
-    }
-  } catch (error) {
-    $("said").textContent = String(error);
-  } finally {
-    busy = false;
-  }
+  const shown = [call("lemon", [channel]).then(showView), call("talk", [channel]).then(showTalk)];
+  for (const result of await Promise.allSettled(shown))
+    if (result.status === "rejected") $("said").textContent = String(result.reason);
+  busy = false;
 };
 
 const send = async () => {

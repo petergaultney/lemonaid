@@ -38,13 +38,19 @@ def worker(tmp_path):
     return path
 
 
-def test_view_shows_the_brief_the_conversation_and_how_text_goes_in(worker):
+def test_view_shows_the_brief_and_how_text_goes_in(worker):
     shown = lemon.view(CHANNEL, Config(), pr.no_state)
 
     assert (shown["name"], shown["how"]) == ("worker", "tmux")
     assert "**Worker**" in shown["brief"]  # the summary `brief show` gives the tmux sidebar
-    assert [each["text"] for each in shown["entries"]] == ["hi"]
-    assert shown["conversation_problem"] == ""
+
+
+def test_talk_reads_the_conversation(worker):
+    said = lemon.talk(CHANNEL)
+
+    assert [each["text"] for each in said["entries"]] == ["hi"]
+    assert said["conversation_problem"] == ""
+    assert lemon.talk("claude:gone") == {"error": "No live lemon on claude:gone"}
 
 
 def test_view_of_a_lemon_that_isnt_there():

@@ -72,7 +72,8 @@ def _brief(row: db.Notification, config: Config, prs: pr.Lookup) -> tuple[str, s
 
 
 def view(channel: str, config: Config, prs: pr.Lookup) -> dict:
-    """*prs* answers a PR's state, as a `pr.Cache` does without waiting."""
+    """Everything but the conversation, which is slower to read (`talk`). *prs* answers a PR's
+    state, as a `pr.Cache` does without waiting."""
     with db.connect() as conn:
         row = db.get_by_channel(conn, channel, unread_only=False)
     if row is None:
@@ -81,22 +82,29 @@ def view(channel: str, config: Config, prs: pr.Lookup) -> dict:
     name, found = _front_end(row)
     how = name if found and found.prompt else MAIL
     path, text = _brief(row, config, prs)
-    try:
-        entries, problem = _conversation(row), ""
-    except OSError as error:
-        entries, problem = [], str(error)
-
     return {
         "channel": channel,
         "name": row.name or channel,
         "brief_path": path,
         "brief": text,
-        "entries": [entry._asdict() for entry in entries],
-        "conversation_problem": problem,
         "how": how,
         "how_text": _HOW.get(how, f"Types into its {how} terminal as you."),
         "room": chat.room_url(str(row.metadata.get("session_key") or "")),
     }
+
+
+def talk(channel: str) -> dict:
+    """The lemon's conversation, or why it can't be read."""
+    with db.connect() as conn:
+        row = db.get_by_channel(conn, channel, unread_only=False)
+    if row is None:
+        return {"error": f"No live lemon on {channel}"}
+
+    try:
+        entries, problem = _conversation(row), ""
+    except OSError as error:
+        entries, problem = [], str(error)
+    return {"entries": [entry._asdict() for entry in entries], "conversation_problem": problem}
 
 
 def _mail(channel: str, text: str) -> str:
