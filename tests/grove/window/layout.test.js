@@ -13,7 +13,7 @@ function grove() {
       trees: [tree("a", "ant", [10, 6]), tree("b", "bee", [30, 6]), tree("c", "cat", [44, 4]), tree("d", "elk", [57, 10], "close to the edge")]},
     {digit: "2", group: "crowded", plot: {x: 66, y: 2, w: 30, h: 14},
       trees: [tree("a", "dog", [8, 6], "a much longer label than fits"), tree("b", "eel", [11, 6], "another long label here"), tree("c", "fox", [20, 6])]},
-    {digit: "3", group: "", plot: {x: 2, y: 20, w: 20, h: 6}, trees: [{...tree("a", "gnu", [0, 0]), bay: 0}]},
+    {digit: "3", group: "", plot: {x: 2, y: 20, w: 20, h: 6, texture: "house"}, trees: [{...tree("a", "gnu", [0, 0]), bay: 0}]},
   ];
 }
 

@@ -1075,8 +1075,8 @@ stands on its own tree. In `grove show --json`, a grafted lemon stands on its ho
 
 Gardening means laying out a block's trees so that, zoomed in, each tree stands on top of its
 lemon list, its tag clear of its neighbors in the grove view, and the block's lead nearest the
-packhouse. Blocks were placed with care; tidy what is off, moving as little as you can, rather
-than rearranging. Garden in a proposed layout of your own and apply it only once the person
+grove's middle (the packhouse, when it's on). Blocks were placed with care; tidy what is off,
+moving as little as you can, rather than rearranging. Garden in a proposed layout of your own and apply it only once the person
 agrees:
 
 1. `lemonaid grove propose FILE` copies the live layout to FILE, which you own; put it in your
@@ -1087,7 +1087,7 @@ agrees:
    JSON's `warnings` name each thing judged off, by block, tree and kind: a tag running into
    (`touching`) or sitting level beside (`level`) another tree in the grove view, a crown past
    its block's edge (`border`), a trunk off its block's ground (`off-ground`), a lead with
-   another tree nearer the packhouse (`lead-far`), and a lemon list drawn away from its tree
+   another tree nearer the grove's middle (`lead-far`), and a lemon list drawn away from its tree
    zoomed in (`list-away`). They inform you; they don't refuse anything. Read the drawing and
    the warnings together, and use your own judgment as well.
 3. Move trees with `plant N TREE X Y --layout FILE` (the tree's letter or key; X, Y is the

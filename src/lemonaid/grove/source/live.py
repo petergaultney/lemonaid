@@ -15,7 +15,7 @@ from ...config import Config
 from ...inbox import db
 from ...inbox.tui.live import inbox_frame
 from ..draw import card
-from ..layout import arrange, state
+from ..layout import arrange, landmarks, state
 from ..model import Block
 from ..tui.frame import Grove
 from . import blocks, inputs, lemon_cards
@@ -30,7 +30,9 @@ def _arranged(
     arranged: list[tuple[arrange.Arrangement, dict[str, Any]]] = []
 
     def lay_out(saved: dict[str, Any]) -> dict[str, Any]:
-        arranged.append(arrange.arrange(found, saved))
+        arranged.append(
+            arrange.arrange(found, landmarks.with_packhouse(saved, config.tui.grove_packhouse))
+        )
         return arranged[0][1]
 
     state.update(lay_out, where)
@@ -73,4 +75,5 @@ def current_blocks(config: Config, switch_source: str | None) -> tuple[Block, ..
 def preview(config: Config, switch_source: str | None, where: Path | None = None) -> Grove:
     """The grove as `fresh` would lay it out, without saving anything new."""
     found = current_blocks(config, switch_source)
-    return Grove(found, *arrange.arrange(found, state.load(where)))
+    saved = landmarks.with_packhouse(state.load(where), config.tui.grove_packhouse)
+    return Grove(found, *arrange.arrange(found, saved))

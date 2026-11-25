@@ -131,8 +131,8 @@ function layOut(blocks, zoomed, screen, ls) {
   const trees = [];
   blocks.forEach(b => {
     const p = b.plot, rect = {x: sx(p.x), y: sy(p.y), w: p.w * view.k, h: p.h * view.k * YS};
-    if (!b.group) { P.reserve({x: rect.x - CW, y: rect.y - RH, w: rect.w + 2 * CW, h: rect.h + RH}); return; }
-    P.reserve({x: rect.x + Math.min(4 * CW, rect.w / 8), y: rect.y - RH * 0.6, w: (b.group.length + 4) * CW, h: RH});
+    if (b.plot.texture === "house") { P.reserve({x: rect.x - CW, y: rect.y - RH, w: rect.w + 2 * CW, h: rect.h + RH}); return; }
+    P.reserve({x: rect.x + Math.min(4 * CW, rect.w / 8), y: rect.y - RH * 0.6, w: ((b.group || "no group").length + 4) * CW, h: RH});
     if (zoomed && zoomed !== b.digit) return;
     b.trees.forEach(t => {
       const cx = sx(p.x + t.spot[0]), box = treeBox(t, crownShape(t, treeScale(t, zoomed)), cx, sy(p.y + t.spot[1]), cw, rh);

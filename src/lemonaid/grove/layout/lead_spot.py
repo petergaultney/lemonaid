@@ -15,17 +15,15 @@ KEY = ":lead"
 
 
 def from_packhouse(saved: dict[str, Any], group: str, x: float, y: float) -> float | None:
-    """How far a tree at (*x*, *y*) in *group*'s saved plot stands from the packhouse's middle, a
-    row counting as two columns as `_free` weighs it; None without a packhouse.
+    """How far a tree at (*x*, *y*) in *group*'s saved plot stands from the grove's middle
+    (`landmarks.middle`), a row counting as two columns as `_free` weighs it; None in the packhouse.
     """
-    house, plot = saved["plots"].get(landmarks.PACKHOUSE), saved["plots"].get(group)
-    if not house or not plot or group == landmarks.PACKHOUSE:
+    plot, found = saved["plots"].get(group), landmarks.gathering(saved)
+    if not plot or not found or plot.get("texture") == "house":
         return None
 
-    return math.hypot(
-        plot["x"] + x - house["x"] - house["w"] / 2,
-        (plot["y"] + y - house["y"] - house["h"] / 2) * 2,
-    )
+    mx, my = found
+    return math.hypot(plot["x"] + x - mx, (plot["y"] + y - my) * 2)
 
 
 def standing_at(tree: Tree, spots: dict[str, Any]) -> dict[str, Any]:

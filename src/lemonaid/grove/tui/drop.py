@@ -5,7 +5,7 @@ from collections import abc
 from typing import Any
 
 from ..draw import ground, plots, refusal
-from ..layout import arrange, edit, lead_spot, placement, tangles, terrain
+from ..layout import arrange, edit, landmarks, lead_spot, placement, tangles, terrain
 from ..model import Block, Plot
 from . import garden, stump_drag
 from .frame import Grove
@@ -252,6 +252,7 @@ def drop(
 
     def apply(saved: dict[str, Any]) -> dict[str, Any]:
         nonlocal drag
+        saved = landmarks.as_drawn(saved, grove.saved)
         if drag.open >= 0:
             _still_open(drag, saved)
         known = {t.key for t in drag.block.trees} | {lead_spot.KEY}
