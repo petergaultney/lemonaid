@@ -46,3 +46,14 @@ def test_a_package_index_is_named_for_its_file(tmp_path):
 
     assert frontmatter.package_name(package) == "python"
     assert package.lemons == ({"file": "pyproject.toml"},)
+
+
+def test_a_root_may_be_a_single_doc(tmp_path):
+    folder = tmp_path / "docs"
+    doc(folder, "deploy.md", {"package": "work"})
+    single = doc(tmp_path / "vault", "for-lemons.md", {"package": "core"})
+    doc(tmp_path / "vault", "beside.md", {"package": "core"})
+
+    docs = index.build([single, folder], tmp_path / "index.json")
+
+    assert [d.path.name for d in docs] == ["for-lemons.md", "deploy.md"]

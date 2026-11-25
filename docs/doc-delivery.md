@@ -2,7 +2,7 @@
 
 A lemon needs a rule when it is about to do the thing the rule governs, not only when its
 session starts. Lemonaid lets each doc say, in its own frontmatter, which lemons get it at
-session start and which actions bring it back. The docs live under the folders
+session start and which actions bring it back. The docs live under the folders and files
 [`[docs] roots`](config.md#docs) lists.
 
 What a lemon is given depends on its [docs mode](config.md#docs):

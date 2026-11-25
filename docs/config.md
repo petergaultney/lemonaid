@@ -65,7 +65,7 @@ Which docs a lemon loads when its session starts, and which it is given as it wo
 |-----|---------|-------------|
 | `mode` | `"classic"` | The docs mode of a lemon started without `--docs`: `classic` or `packages`. |
 | `classic` | `""` | A Markdown file whose `@` imports name the always-loaded docs; unset gives Codex none. |
-| `roots` | `[]` | Folders whose docs declare packages and triggers in their frontmatter; see [doc-delivery.md](doc-delivery.md). |
+| `roots` | `[]` | Folders, or single Markdown files, whose docs declare packages and triggers in their frontmatter; see [doc-delivery.md](doc-delivery.md). |
 | `default-branch-check` | `""` | A shell command, run in a session's folder when it starts, that exits 0 when that folder is on its repo's default branch. A package for `branch: not-default` needs it. |
 
 ```toml
