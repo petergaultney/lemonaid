@@ -20,6 +20,10 @@ _log = get_logger("docs.index")
 
 def _markdown(roots: abc.Iterable[Path]) -> abc.Iterator[Path]:
     for root in roots:
+        if root.is_file():
+            yield root
+            continue
+
         for directory, folders, files in os.walk(root):
             folders[:] = sorted(f for f in folders if not f.startswith("."))
             for name in sorted(files):
