@@ -77,7 +77,35 @@ class _WebApi(api.Api):
         return pinned
 
 
-_CALLS = frozenset(name for name in (*vars(api.Api), *vars(_WebApi)) if not name.startswith("_"))
+# What a browser may call, named one by one so a method added to the native window isn't served
+# by accident. The window's own placing (dismiss, drag, stick, to_terminal) and open_link are the
+# browser's to do (shim.js) and aren't here.
+_CALLS = frozenset(
+    {
+        "block_refusal",
+        "data",
+        "edit",
+        "edit_info",
+        "jump",
+        "keep",
+        "lemon",
+        "log",
+        "look",
+        "pin",
+        "pins",
+        "plant",
+        "reframe",
+        "refusal",
+        "say",
+        "search",
+        "settings",
+        "stump_drop",
+        "stump_refusal",
+        "switch",
+        "talk",
+        "usage",
+    }
+)
 
 
 def _handler(
