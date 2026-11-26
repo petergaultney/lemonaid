@@ -278,7 +278,10 @@ const refresh = async () => {
   const at = {};
   const shown = [
     call("lemon", [channel, briefColumns()]).then(v => { at.view = performance.now(); showView(v); }),
-    call("talk", [channel]).then(c => { at.talk = performance.now(); showTalk(c); at.drawn = performance.now(); }),
+    call("talk", [channel]).then(c => {
+      at.talk = performance.now(); showTalk(c); at.drawn = performance.now();
+      window.groveTalks.keep(channel, c);
+    }),
   ];
   const failed = (await Promise.allSettled(shown)).find(result => result.status === "rejected");
   busy = false;
@@ -298,7 +301,7 @@ const refresh = async () => {
   const page = performance.getEntriesByType("navigation")[0] || {};
   window.groveNote("timing", Object.fromEntries(Object.entries({
     asked: page.requestStart, html: page.responseEnd, scripts: page.domContentLoadedEventEnd, ...at,
-  }).map(([k, v]) => [k, Math.round(v || 0)])));
+  }).map(([k, v]) => [k, Math.round(v || 0)]).concat([["kept", Boolean(kept)]])));
 };
 
 const send = async () => {
@@ -377,6 +380,9 @@ const listen = () => {
   told.onmessage = refresh;
   told.onopen = refresh;  // whatever changed while it was closed
 };
+// What this phone kept of the conversation, drawn while the page asks for what changed (talks.js).
+const kept = window.groveTalks.kept(channel);
+if (kept) showTalk(kept);
 refresh();
 listen();
 setInterval(() => { if (told.readyState !== EventSource.OPEN) refresh(); }, 4000);
