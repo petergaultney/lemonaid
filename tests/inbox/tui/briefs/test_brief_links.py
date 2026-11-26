@@ -75,6 +75,47 @@ def test_a_full_path_under_a_vault_root_links_like_its_tilde_form():
     )
 
 
+def test_a_link_by_path_under_a_vault_root_opens_by_vault_name():
+    note = f"{Path.home()}/trove/notes/a b.md"
+    by_vault = "obsidian://open?vault=trove&file=notes%2Fa%20b"
+
+    assert links.linkify(f"[a b](<file://{note.replace(' ', '%20')}>)", _VAULTS) == (
+        f"[a b](<{by_vault}>)"
+    )
+    assert links.linkify(f"see obsidian://open?path={note.replace(' ', '%20')}.", _VAULTS) == (
+        f"see [a b](<{by_vault}>)."
+    )
+    assert links.linkify(f"| [{note}](<file://{note.replace(' ', '%20')}>) | x |", _VAULTS) == (
+        f"| [a b.md](<{by_vault}>) | x |"
+    )
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("[n](file://{root}/a(b).md)", "[n](obsidian://open?vault=trove&file=a%28b%29)"),
+        (
+            "[n](obsidian://open?path={root}/a(b).md)",
+            "[n](obsidian://open?vault=trove&file=a%28b%29)",
+        ),
+        ("[n [x\\]] y](file://{root}/a.md)", "[n [x\\]] y](obsidian://open?vault=trove&file=a)"),
+        ("[n \\] y](file://{root}/a.md)", "[n \\] y](obsidian://open?vault=trove&file=a)"),
+        ('[n](<file://{root}/a b.md> "t")', '[n](<obsidian://open?vault=trove&file=a%20b> "t")'),
+        ("[n](file://{root}/a\\(b\\).md)", "[n](obsidian://open?vault=trove&file=a%28b%29)"),
+        (
+            "[n](obsidian://open?path={root}/a\\(b.md)",
+            "[n](obsidian://open?vault=trove&file=a%28b)",
+        ),
+        ("![n](file://{root}/a.md)", "![n](file://{root}/a.md)"),
+        ("[n](file://[bad/path.md)", "[n](file://[bad/path.md)"),
+    ],
+)
+def test_a_markdown_links_whole_destination_is_what_opens_by_vault(source, expected):
+    root = f"{Path.home()}/trove"
+
+    assert links.linkify(source.format(root=root), _VAULTS) == expected.format(root=root)
+
+
 def test_without_configured_vaults_paths_stay_as_written_and_urls_still_link():
     assert links.linkify("~/trove/a.md and https://example.com/a", ()) == (
         "~/trove/a.md and [example.com/a](<https://example.com/a>)"
