@@ -9,6 +9,9 @@ membranes and a heavier rind, and without the texture.
     python scripts/grove-icon.py tab > src/lemonaid/grove/web/icon.svg
     python scripts/grove-icon.py detail > docs/images/lemon-grove-icon.svg
     rsvg-convert -w 180 -h 180 docs/images/lemon-grove-icon.svg -o src/lemonaid/grove/web/apple-touch-icon.png
+    rsvg-convert -w 192 -h 192 docs/images/lemon-grove-icon.svg -o src/lemonaid/grove/web/icon-192.png
+    rsvg-convert -w 512 -h 512 docs/images/lemon-grove-icon.svg -o src/lemonaid/grove/web/icon-512.png
+    python scripts/grove-icon.py maskable | rsvg-convert -w 512 -h 512 -o src/lemonaid/grove/web/icon-maskable.png
     rsvg-convert -w 1024 -h 1024 docs/images/lemon-grove-icon.svg -o docs/images/lemon-grove-icon.png
 """
 
@@ -281,5 +284,18 @@ def icon(detail: bool) -> str:
 """
 
 
+def maskable(background: str = "#bfe3f5", room: float = 1.0) -> str:
+    """The detail icon as Android installs it, which crops a full square to its own shape: on
+    *background*, the detail framing taking the middle *room* of the square."""
+    drawn = icon(True)
+    framed = drawn.split('viewBox="')[1].split('"')[0]
+    x, y, side, _ = (float(each) for each in framed.split())
+    wider = side / room
+    left, top = x - (wider - side) / 2, y - (wider - side) / 2
+    head, body = drawn.split(">", 1)
+    head = head.replace(framed, f"{left:.2f} {top:.2f} {wider:.2f} {wider:.2f}")
+    return f'{head}>\n  <rect x="{left:.2f}" y="{top:.2f}" width="{wider:.2f}" height="{wider:.2f}" fill="{background}"/>{body}'
+
+
 if __name__ == "__main__":
-    sys.stdout.write(icon({"detail": True, "tab": False}[sys.argv[1]]))
+    sys.stdout.write(maskable() if sys.argv[1] == "maskable" else icon(sys.argv[1] == "detail"))

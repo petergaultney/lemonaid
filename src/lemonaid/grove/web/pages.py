@@ -11,12 +11,23 @@ from importlib import resources
 from ... import web_config
 from ..window import page
 
-_ICONS = {"icon.svg": "image/svg+xml", "apple-touch-icon.png": "image/png"}
-_LINKS = '<link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png">'
+_FILES = {
+    "icon.svg": "image/svg+xml",
+    "apple-touch-icon.png": "image/png",
+    "icon-192.png": "image/png",
+    "icon-512.png": "image/png",
+    "icon-maskable.png": "image/png",  # Android's: fills the shape it crops an icon to
+}
+_MANIFEST = "manifest.webmanifest"  # what a phone installs the grove as
+_LINKS = (
+    '<link rel="icon" href="icon.svg" type="image/svg+xml">'
+    '<link rel="apple-touch-icon" href="apple-touch-icon.png">'
+    '<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0b0e13">'
+)
 
 
 def _first(scripts: str, into: str) -> str:
-    """*into* with *scripts* run before its own, and the grove's icon."""
+    """*into* with *scripts* run before its own, and the grove's icons and manifest."""
     into = into.replace("</head>", f"{_LINKS}</head>", 1)
     at = into.index("<script")
     return f"{into[:at]}<script>\n{scripts}</script>\n{into[at:]}"
@@ -46,14 +57,21 @@ def groups(keys: web_config.WebConfig) -> str:
     return _first(_keys(keys), resources.files(__package__).joinpath("groups.html").read_text())
 
 
-def served(keys: web_config.WebConfig) -> dict[str, tuple[bytes, str]]:
-    """Each page and icon by its path, with its content type."""
+def _manifest(app: str) -> bytes:
+    shown = json.loads(resources.files(__package__).joinpath(_MANIFEST).read_text())
+    return json.dumps({**shown, "name": app, "short_name": app}, indent=2).encode()
+
+
+def served(keys: web_config.WebConfig, app: str) -> dict[str, tuple[bytes, str]]:
+    """Each page, icon and the manifest by its path, with its content type. *app* names the grove
+    installed as an app."""
     here, html = resources.files(__package__), "text/html; charset=utf-8"
     return {
         "grove": (grove(keys).encode(), html),
         "lemon": (lemon(keys).encode(), html),
         "groups": (groups(keys).encode(), html),
-        **{name: (here.joinpath(name).read_bytes(), kind) for name, kind in _ICONS.items()},
+        **{name: (here.joinpath(name).read_bytes(), kind) for name, kind in _FILES.items()},
+        _MANIFEST: (_manifest(app), "application/manifest+json"),
     }
 
 
