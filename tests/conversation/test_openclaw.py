@@ -49,7 +49,7 @@ def test_read_marks_input_from_someone_other_than_the_owner(tmp_path):
         {"role": "toolResult", "content": [{"type": "text", "text": "{}"}]},
     ]
 
-    found = openclaw.read(KEY, _cli(tmp_path, {"messages": messages}), 10)
+    found = openclaw.read(KEY, _cli(tmp_path, {"messages": messages}), 10, str)
 
     assert [(each.role, each.text, each.sender) for each in found][:3] == [
         (entry.OTHER, "mail from HQ", "mail"),
@@ -90,7 +90,7 @@ def test_read_goes_back_past_a_page_of_tool_calls_for_the_newest_messages(tmp_pa
     older = [_said("first"), _said("second"), *_ran("ls")]
     newest = [*_ran("make"), _said("third")]
 
-    found = openclaw.read(KEY, _paged_cli(tmp_path, [newest, older]), 2)
+    found = openclaw.read(KEY, _paged_cli(tmp_path, [newest, older]), 2, str)
 
     assert [(each.role, each.text) for each in found] == [
         (entry.LEMON, "second"),
@@ -100,6 +100,21 @@ def test_read_goes_back_past_a_page_of_tool_calls_for_the_newest_messages(tmp_pa
     ]
 
 
+def test_a_spawned_session_starts_with_its_spawners_task(tmp_path):
+    messages = [
+        {"role": "user", "content": "[Subagent Task] check the pump", "__openclaw": {"seq": 1}},
+        {"role": "user", "content": "how is it going?", "__openclaw": {"seq": 7}},
+    ]
+    answer = {"messages": messages, "sessionInfo": {"spawnedBy": "agent:main:matrix:room"}}
+
+    found = openclaw.read(KEY, _cli(tmp_path, answer), 10, {"agent:main:matrix:room": "Meyer"}.get)
+
+    assert [(each.role, each.sender) for each in found] == [
+        (entry.OTHER, "Meyer"),
+        (entry.USER, ""),
+    ]
+
+
 def test_read_raises_oserror_when_the_gateway_fails(tmp_path):
     with pytest.raises(OSError):
-        openclaw.read(KEY, _cli(tmp_path, {}, code=1), 10)
+        openclaw.read(KEY, _cli(tmp_path, {}, code=1), 10, str)

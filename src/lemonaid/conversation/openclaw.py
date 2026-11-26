@@ -2,7 +2,8 @@
 
 The gateway marks input from someone other than the session's owner with `senderIsOwner:
 false`: a person writing in the chat itself, whom it names, or the scout's mail, which it doesn't.
-OpenClaw's own clients, such as the web grove's `chat.send`, are the owner.
+OpenClaw's own clients, such as the web grove's `chat.send`, are the owner. A session another
+session spawned starts with that session's task for it, which the gateway doesn't mark at all.
 """
 
 import datetime
@@ -39,19 +40,23 @@ def _sender(mark: dict) -> str:
     return f"{name} \u00b7 {chat.capitalize()}" if name and chat else name or "mail"
 
 
-def _entries(message: dict) -> abc.Iterator[entry.Entry]:
+def _entries(message: dict, spawner: str) -> abc.Iterator[entry.Entry]:
+    """*spawner* names the session that spawned this one, if one did."""
     at = _at(message.get("timestamp"))
     content = message.get("content")
     match message.get("role"):
         case "user":
             text = content if isinstance(content, str) else ""
             mark = message.get("__openclaw") or {}
-            if text.strip():
-                yield (
-                    entry.Entry(entry.OTHER, text, at, _sender(mark))
-                    if mark.get("senderIsOwner") is False
-                    else entry.Entry(entry.USER, text, at)
-                )
+            if not text.strip():
+                return
+
+            if spawner and mark.get("seq") == 1:
+                yield entry.Entry(entry.OTHER, text, at, spawner)
+            elif mark.get("senderIsOwner") is False:
+                yield entry.Entry(entry.OTHER, text, at, _sender(mark))
+            else:
+                yield entry.Entry(entry.USER, text, at)
         case "assistant" if isinstance(content, list):
             for block in content:
                 if block.get("type") == "text" and str(block.get("text") or "").strip():
@@ -60,7 +65,9 @@ def _entries(message: dict) -> abc.Iterator[entry.Entry]:
                     yield entry.Entry(entry.TOOL, _tool(block), at)
 
 
-def _page(session_key: str, cli: str, offset: int) -> tuple[list[entry.Entry], bool]:
+def _page(
+    session_key: str, cli: str, offset: int, named: abc.Callable[[str], str]
+) -> tuple[list[entry.Entry], bool]:
     """The entries of the page *offset* messages back from the newest, and whether older ones
     remain."""
     found = gateway.call(
@@ -70,20 +77,27 @@ def _page(session_key: str, cli: str, offset: int) -> tuple[list[entry.Entry], b
         _TIMEOUT_SECONDS,
     )
     messages = found.get("messages") or []
+    parent = str((found.get("sessionInfo") or {}).get("spawnedBy") or "")
+    spawner = named(parent) if parent else ""
     return [
-        each for message in messages if isinstance(message, dict) for each in _entries(message)
+        each
+        for message in messages
+        if isinstance(message, dict)
+        for each in _entries(message, spawner)
     ], bool(found.get("hasMore"))
 
 
-def read(session_key: str, cli: str, limit: int) -> list[entry.Entry]:
-    """The session's newest *limit* messages and the tool calls among them, oldest first. Raises
-    OSError when the gateway can't answer.
+def read(
+    session_key: str, cli: str, limit: int, named: abc.Callable[[str], str]
+) -> list[entry.Entry]:
+    """The session's newest *limit* messages and the tool calls among them, oldest first, with
+    another session *named* by its key. Raises OSError when the gateway can't answer.
 
     `chat.history` counts each tool call and each tool result as a message, so a busy session's
     newest page may hold only a few lines of talk; pages are read back until there are *limit*."""
     found: list[entry.Entry] = []
     for offset in range(0, _MOST, _PAGE):
-        page, more = _page(session_key, cli, offset)
+        page, more = _page(session_key, cli, offset, named)
         found = page + found
         if not more or sum(each.role != entry.TOOL for each in found) >= limit:
             break
