@@ -402,3 +402,30 @@ def test_held_codex_messages_outrank_an_armed_waiter_and_none_do_not():
 
     assert (held.state, held.detail) == (recipient.PARKED, "Codex has held ...")
     assert listening.state == recipient.LISTENING
+
+
+def test_a_claude_whose_scout_host_is_restarting_is_listening(monkeypatch):
+    lemon_id = _attach("claude:restarting", {})
+    scout_roster.register(lemon_id, "claude:restarting", "", "")
+    monkeypatch.setattr(scout_roster, "host_pid", lambda: 0)
+    monkeypatch.setattr(scout_roster, "restarting", lambda: True)
+    row = db.Notification(id=1, channel="claude:restarting", message="", status="read")
+
+    state = recipient.classify(
+        "claude:restarting",
+        row,
+        True,
+        recipient._scout_listening(lemon_id),
+        time.time() + 3600,
+    )
+
+    assert state.state == recipient.LISTENING
+
+
+def test_a_registered_scout_with_no_host_is_not_listening(monkeypatch):
+    lemon_id = _attach("claude:orphaned", {})
+    scout_roster.register(lemon_id, "claude:orphaned", "", "")
+    monkeypatch.setattr(scout_roster, "host_pid", lambda: 0)
+    monkeypatch.setattr(scout_roster, "restarting", lambda: False)
+
+    assert not recipient._scout_listening(lemon_id)

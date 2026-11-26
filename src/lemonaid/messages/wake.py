@@ -7,8 +7,9 @@ from ..inbox import db
 from ..resume import build_resume_command
 
 PROMPT = (
-    "You were resumed to read a message: run `lemonaid mailbox next --self`. Then rearm "
-    "the waiters your brief lists under ## Waiters, and carry on."
+    "You were resumed to read a message: run `lemonaid mailbox next --self`. Then, unless "
+    "your push scout is running, rearm the `lemonaid watch` commands your brief lists under "
+    "## Watching, and carry on."
 )
 
 
