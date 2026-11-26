@@ -20,6 +20,8 @@
 [data-hold] { -webkit-touch-callout:none; user-select:none; }
 </style>`);
 
+  // The browser's TypeError is a request nothing answered, which may still have reached the grove.
+  const failure = e => e instanceof TypeError ? `Couldn't reach the grove (${e.message}); check before trying again` : String(e);
   const ask = async (name, args) => {
     const r = await fetch(`api/${name}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(args)});
     if (!r.ok) throw new Error(`${name}: HTTP ${r.status} ${await r.text()}`);
@@ -49,7 +51,7 @@
 
   async function make(action, lemon, answer, after) {
     let done;
-    try { done = await ask("lemon_edit", [action, lemon.channel, answer]); } catch (e) { return say(String(e), true); }
+    try { done = await ask("lemon_edit", [action, lemon.channel, answer]); } catch (e) { return say(failure(e), true); }
     say(done.said, false, () => after(done));
   }
 
@@ -57,7 +59,7 @@
     if (action === "pin" || action === "archive") return make(action, lemon, "", after);
 
     let info;
-    try { info = await ask("lemon_edit_info", [action, lemon.channel]); } catch (e) { return say(String(e), true); }
+    try { info = await ask("lemon_edit_info", [action, lemon.channel]); } catch (e) { return say(failure(e), true); }
     if (info.problem) return say(info.problem, true);
 
     const field = (value, hint) => `<input value="${esc(value)}" placeholder="${esc(hint)}" spellcheck="false" autocapitalize="off" enterkeyhint="done">`;
