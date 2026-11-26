@@ -35,6 +35,9 @@ class _Calls:
     def keep(self, settings):
         return None
 
+    def block_refusal(self, digit, sides, dx, dy):
+        return ""
+
 
 @pytest.fixture
 def seen():
@@ -269,6 +272,7 @@ def test_a_pages_notes_go_to_the_log(served):
 
 def test_the_log_keeps_saved_views_and_leaves_out_routine_polls(served):
     _post(served + "/api/data", [])
+    _post(served + "/api/block_refusal", ["2", [], 1, 0])
     _post(served + "/api/keep", [{"views": {"412x915": {"grove": {"k": 4.9}}}}])
 
     assert [(n["call"], n["args"]) for n in _noted()] == [
