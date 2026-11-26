@@ -89,13 +89,21 @@ def _name(found: sessions.Session, agent: Agent) -> str:
             return agent.name
 
 
+def _thread(key: str) -> bool:
+    """A thread in a chat is a session of its own, keyed `<the chat's key>:thread:<id>`. The grove
+    shows the chat and not its threads, as it shows no Codex subagent."""
+    return ":thread:" in key
+
+
 def conversations(
     found: abc.Mapping[str, sessions.Session], now_ms: int, max_age_ms: int, chats: abc.Set[str]
 ) -> list[sessions.Session]:
     return [
         each
         for each in found.values()
-        if _chat(each.key) in chats and now_ms - each.updated_ms < max_age_ms
+        if _chat(each.key) in chats
+        and not _thread(each.key)
+        and now_ms - each.updated_ms < max_age_ms
     ]
 
 
@@ -122,7 +130,7 @@ def _add(conn: sqlite3.Connection, found: sessions.Session, agent: Agent, front_
 def _archive_quiet(conn: sqlite3.Connection, kept: abc.Set[str]) -> list[str]:
     """Archive the rows this added whose session isn't kept and that have no brief, checking
     both in the update itself."""
-    record = json.dumps(ended.record(ended.ARCHIVED, _BY, "its session went quiet"))
+    record = json.dumps(ended.record(ended.ARCHIVED, _BY, "its session is no recent conversation"))
     quiet = [
         channel
         for (channel,) in conn.execute(
@@ -155,10 +163,11 @@ def sync(
     shelved: abc.Mapping[str, str],
     found: abc.Mapping[str, sessions.Session],
 ) -> tuple[list[str], list[str]]:
-    """Follow the *found* sessions (`archived.follow`; *shelved* maps the archived ones to
-    OpenClaw's reason), add a row for each session in *keep* that has none, and archive the
-    rows this added whose session is no longer kept. Returns (added, archived) channels."""
-    gone, restored = archived.follow(conn, shelved, found)
+    """Follow the *found* sessions but threads (`archived.follow`; *shelved* maps the archived
+    ones to OpenClaw's reason), add a row for each session in *keep* that has none, and archive
+    the rows this added whose session is no longer kept. Returns (added, archived) channels."""
+    chats = {key: each for key, each in found.items() if not _thread(key)}  # no thread comes back
+    gone, restored = archived.follow(conn, shelved, chats)
     keep = [each for each in keep if each.key not in shelved]
     added = [
         sessions.channel(each.key)

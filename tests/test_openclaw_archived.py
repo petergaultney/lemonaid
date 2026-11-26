@@ -26,7 +26,12 @@ def test_archiving_in_openclaw_archives_a_lemon_its_session_registered():
     with db.connect() as conn:
         lemons.register(conn, _session(SIGNAL), "thread-1", None, "/home/me", chat.NAME)
         _, gone = sync.sync(
-            conn, [_session(SIGNAL)], AGENTS, chat.NAME, {SIGNAL: "manual"}, {SIGNAL}
+            conn,
+            [_session(SIGNAL)],
+            AGENTS,
+            chat.NAME,
+            {SIGNAL: "manual"},
+            {SIGNAL: _session(SIGNAL)},
         )
 
     row = _row(SIGNAL)

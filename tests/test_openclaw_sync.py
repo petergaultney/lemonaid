@@ -18,6 +18,7 @@ ROOM = "agent:main:matrix:channel:!r00mA1b2:grove.example"
 SIGNAL = "agent:main:signal:direct:uuid:abc"
 BARN_ROOM = "agent:garden:matrix:channel:!g4rd3n:grove.example"
 CRON = "agent:main:cron:3fa3"
+THREAD = f"{ROOM}:thread:a5a3"
 
 
 def _session(key: str, age_days: float = 1) -> sessions.Session:
@@ -34,8 +35,8 @@ def _rows() -> dict[str, db.Notification]:
         }
 
 
-def test_conversations_are_recent_chats_and_leave_out_cron_runs():
-    found = {key: _session(key) for key in (ROOM, SIGNAL, CRON)} | {
+def test_conversations_are_recent_chats_and_leave_out_cron_runs_and_threads():
+    found = {key: _session(key) for key in (ROOM, SIGNAL, CRON, THREAD)} | {
         "old": _session(SIGNAL, 30)._replace(key="agent:main:signal:direct:old")
     }
 
@@ -52,7 +53,7 @@ def test_sync_adds_each_conversation_named_for_its_agent_in_its_workspace():
             AGENTS,
             chat.NAME,
             {},
-            set(),
+            {},
         )
 
     assert (sorted(added), archived) == (
@@ -99,6 +100,18 @@ def test_a_conversation_that_wakes_again_comes_back():
 
     assert added == [sessions.channel(SIGNAL)]
     assert not _rows()[sessions.channel(SIGNAL)].is_archived
+
+
+def test_a_thread_the_sync_added_is_archived_and_its_messages_bring_it_back_no_more():
+    with db.connect() as conn:
+        sync.sync(conn, [_session(THREAD)], AGENTS, chat.NAME, {}, {})
+        talking = _session(THREAD)._replace(interacted_ms=NOW * 2)
+
+        _, archived = sync.sync(conn, [], AGENTS, chat.NAME, {}, {THREAD: talking})
+        again = sync.sync(conn, [], AGENTS, chat.NAME, {}, {THREAD: talking})
+
+    assert (archived, again) == ([sessions.channel(THREAD)], ([], []))
+    assert _rows()[sessions.channel(THREAD)].is_archived
 
 
 def test_agents_reads_the_cli(tmp_path):
