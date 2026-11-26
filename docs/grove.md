@@ -224,7 +224,7 @@ The window only reads the grove, every 3 seconds, and writes it only when you dr
 lemonaid grove window remote http://lemon-grove:8770/
 ```
 
-opens the web grove another machine serves (`lemonaid grove serve`, above) in a window of its own, with this machine's look, `grove_window_opacity` included. It stays open rather than waiting for the tmux key: Escape or `q` minimizes it, and dragging its top bar moves it. Gardening there changes that machine's grove, and the window redraws as soon as its server says the grove changed. Opening a lemon shows its page in a window over the grove, and going back (its `grove` link, or the prefix key twice) closes it, leaving the grove as it was.
+opens the web grove another machine serves (`lemonaid grove serve`, above) in a window of its own. It shows that server's own pages, as a browser does, so it always matches the server's version and look. Gardening there changes that machine's grove, and the window redraws as soon as its server says the grove changed. Opening a lemon shows its page in the same window, and going back (its `grove` link, or the prefix key twice) returns to the grove as you left it. A chat room or PR a page links to opens in your browser.
 
 ## From the command line
 

@@ -31,7 +31,7 @@ def _cmd_remote(args: argparse.Namespace) -> None:
             f"The grove window needs the web extra ({error.name} is missing): "
             "uv tool install 'lemonaid-inbox[web]'"
         )
-    remote.run(load_config(), args.url)
+    remote.run(args.url)
 
 
 def _cmd_send(args: argparse.Namespace) -> None:
@@ -55,7 +55,7 @@ def add_parsers(grove_subparsers: argparse._SubParsersAction) -> None:
         func=_cmd_run
     )
     remote = commands.add_parser(
-        "remote", help="Show another machine's web grove (`grove serve`) in a see-through window"
+        "remote", help="Show another machine's web grove (`grove serve`) in a window of its own"
     )
     remote.add_argument("url", help="The web grove's address, such as http://lemon-grove:8770/")
     remote.set_defaults(func=_cmd_remote)

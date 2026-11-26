@@ -10,12 +10,7 @@
   const lastKey = "lemonaid-last-lemon";
   const onLemon = location.pathname.endsWith("/lemon");
   if (onLemon) { try { localStorage.setItem(lastKey, location.search); } catch {} }
-  // In the grove window showing another machine's grove (`grove window remote`), the window's
-  // own page is the grove, so a lemon's page goes back to it through the window.
   window.groveHome = () => {
-    const api = window.pywebview && window.pywebview.api;
-    if (api && api.home) { api.home(); return; }
-
     // Back, when this page was opened from the grove, so the browser shows that page as it was
     // rather than loading it again.
     const from = document.referrer ? new URL(document.referrer) : null;
