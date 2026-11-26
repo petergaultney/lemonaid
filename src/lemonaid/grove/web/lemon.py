@@ -11,10 +11,10 @@ import time
 from pathlib import Path
 
 from ... import conversation, front_end
-from ...brief import attached, family, pr, render, target
+from ...brief import attached, family, identity, pr, render, target
 from ...config import Config
 from ...front_end import chat, interface, pick
-from ...inbox import db
+from ...inbox import db, pins
 from ...messages import tell_delivery
 from ...openclaw import sessions
 from . import brief_page
@@ -72,14 +72,16 @@ def _conversation(row: db.Notification) -> list[conversation.entry.Entry]:
     raise OSError(f"lemonaid can't read a conversation on {row.channel}")
 
 
-def _brief(row: db.Notification, config: Config, prs: pr.Lookup, width: int) -> tuple[str, dict]:
-    """(path, parts) of *row*'s brief as the inbox's brief pane draws it (`brief_page`), or
-    ("", {}) without one."""
+def _brief(
+    row: db.Notification, config: Config, prs: pr.Lookup, width: int
+) -> tuple[str, dict, render.Section | None]:
+    """(path, parts, its lemon's section) of *row*'s brief as the inbox's brief pane draws it
+    (`brief_page`), or ("", {}, None) without one."""
     with db.connect() as conn:
         found = attached.by_channel(conn, [row.channel])
     path = found.get(row.channel)
     if path is None:
-        return "", {}
+        return "", {}, None
 
     now = time.time()
     shown = family.added(
@@ -92,7 +94,8 @@ def _brief(row: db.Notification, config: Config, prs: pr.Lookup, width: int) -> 
             render.SummaryPolicy(config.brief.summary_open, config.brief.summary_long),
         )
     )
-    return str(path), brief_page.drawn(shown, now, config.brief.vaults, width)
+    own = shown.sections[0] if shown.sections else None
+    return str(path), brief_page.drawn(shown, now, config.brief.vaults, width), own
 
 
 def view(channel: str, config: Config, prs: pr.Lookup, width: int = brief_page.WIDTH) -> dict:
@@ -100,16 +103,20 @@ def view(channel: str, config: Config, prs: pr.Lookup, width: int = brief_page.W
     *width* characters wide. *prs* answers a PR's state, as a `pr.Cache` does without waiting."""
     with db.connect() as conn:
         row = db.get_by_channel(conn, channel, unread_only=False)
+        pinned = pins.is_pinned(conn, channel)
     if row is None:
         return {"error": f"No live lemon on {channel}"}
 
     name, found = _front_end(row)
     how = name if found and found.prompt else MAIL
-    path, brief = _brief(row, config, prs, max(30, min(200, width)))
+    path, brief, own = _brief(row, config, prs, max(30, min(200, width)))
     return {
         "channel": channel,
         "name": row.name or channel,
         "brief_path": path,
+        "status": own.state if own else "",
+        "brief_id": identity.brief_name(own.lemon_id) if own and own.lemon_id else "",
+        "pinned": pinned,
         "brief": brief,
         "how": how,
         "how_text": _HOW.get(how, f"Types into its {how} terminal as you."),

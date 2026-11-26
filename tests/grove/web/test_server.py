@@ -17,7 +17,7 @@ from lemonaid.config import Config
 from lemonaid.front_end import chat
 from lemonaid.grove.web import changes, notes, server
 from lemonaid.grove.window import api
-from lemonaid.inbox import db
+from lemonaid.inbox import db, pins
 
 ROOM_KEY = "agent:garden:matrix:channel:!g4rd3n:grove.example"
 
@@ -290,3 +290,19 @@ def test_the_log_keeps_saved_views_and_leaves_out_routine_polls(served):
     assert [(n["call"], n["args"]) for n in _noted()] == [
         ("keep", [{"views": {"412x915": {"grove": {"k": 4.9}}}}])
     ]
+
+
+def test_a_lemons_page_pins_it_and_the_groups_get_the_pins_in_order():
+    with db.connect() as conn:
+        pins.pin(conn, "claude:first")
+    refreshed: list[int] = []
+    window = dict.fromkeys(("hide", "leave", "stick", "drag"), lambda: None)
+    calls = server._WebApi(
+        api.Shared(Config()), pr.no_state, refresh=lambda: refreshed.append(1), **window
+    )
+
+    assert calls.pin("claude:second") is True
+    assert calls.pins() == ["claude:first", "claude:second"]
+    assert calls.pin("claude:first") is False
+    assert calls.pins() == ["claude:second"]
+    assert refreshed == [1, 1]
