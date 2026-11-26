@@ -1,7 +1,8 @@
-"""Find the Claude or Codex executable a launch command line actually runs."""
+"""Find the harness executable a launch command line actually runs."""
 
 import re
 import typing as ty
+from collections import abc
 
 _OPERATORS = "&|;()"
 _ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
@@ -92,15 +93,15 @@ def _command_words(words: list[_Word]) -> list[_Word]:
     return words
 
 
-def harness_executable(line: str) -> str:
-    """The first `claude`/`codex` executable launched by any command in `line`, else "".
+def harness_executable(line: str, names: abc.Collection[str]) -> str:
+    """The first executable named in *names* launched by any command in `line`, else "".
 
     Wrapper options outside a small known set mean nothing is launched.
     """
     for words in _segments(line):
         if (command := _command_words(words)) and (
             backend := command[0].value.rsplit("/", 1)[-1]
-        ) in ("claude", "codex"):
+        ) in names:
             return backend
 
     return ""

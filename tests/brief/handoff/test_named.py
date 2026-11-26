@@ -89,7 +89,7 @@ def test_handoff_rejects_a_preset_for_an_unsupported_backend(monkeypatch):
         )
     )
     monkeypatch.setattr(handoff_launch, "load_config", lambda: config)
-    with pytest.raises(ValueError, match="must run a Claude or Codex"):
+    with pytest.raises(ValueError, match="must run one of: claude, codex"):
         handoff_launch.destination("other")
 
 
@@ -127,7 +127,7 @@ def test_handoff_rejects_a_preset_for_an_unsupported_backend(monkeypatch):
     ],
 )
 def test_harness_executable_skips_wrappers(line, backend):
-    assert handoff_executable.harness_executable(line) == backend
+    assert handoff_executable.harness_executable(line, ("claude", "codex")) == backend
 
 
 def test_heal_migration_adds_missing_launch_name_and_is_idempotent():
