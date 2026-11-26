@@ -1,20 +1,22 @@
 """Every recent OpenClaw conversation as a lemon, added from outside the session.
 
-A row a session registered itself (`lemons.register`, binding its Codex thread) is never
-written here, and each write checks that under the database's write lock, since a session
-can register at any moment. Archiving follows OpenClaw for every row, though (`archived`).
+A row a session registered itself (`lemons.register`) is never added over or archived as
+quiet here, and each such write checks that under the database's write lock, since a session
+can register at any moment. Archiving (`archived`) and thread binding (`threads`) follow
+OpenClaw for every row, though.
 """
 
 import json
 import sqlite3
 import subprocess
 import time
+import types
 import typing as ty
 from collections import abc
 
 from ..inbox import db, ended
 from ..log import get_logger
-from . import archived, lemons, sessions
+from . import archived, lemons, sessions, threads
 
 _log = get_logger("openclaw.sync")
 
@@ -162,11 +164,10 @@ def sync(
     front_end: str,
     shelved: abc.Mapping[str, str],
     found: abc.Mapping[str, sessions.Session],
+    running: abc.Mapping[str, threads.Thread] = types.MappingProxyType({}),
 ) -> tuple[list[str], list[str]]:
-    """Follow the *found* sessions but threads (`archived.follow`; *shelved* maps the archived
-    ones to OpenClaw's reason), add a row for each session in *keep* that has none, date each
-    row by its session's last message (`archived.reported`), and archive the rows this added
-    whose session is no longer kept. Returns (added, archived) channels."""
+    """*shelved* maps OpenClaw's archived sessions to its reason, and *running* each session id
+    to its Codex thread. Returns (added, archived) channels."""
     chats = {key: each for key, each in found.items() if not _thread(key)}  # no thread comes back
     gone, restored = archived.follow(conn, shelved, chats)
     keep = [each for each in keep if each.key not in shelved]
@@ -176,6 +177,7 @@ def sync(
         if each.agent_id in by_id and _add(conn, each, by_id[each.agent_id], front_end)
     ]
     archived.reported(conn, chats.values(), set(added))
+    threads.bind(conn, chats.values(), running)
     quiet = _archive_quiet(conn, {each.key for each in keep})
     _log.info(
         "synced OpenClaw sessions: %d added, %d restored, %d archived in OpenClaw, %d quiet",
@@ -194,4 +196,4 @@ def refresh(
     found, by_id, shelved = sessions.listed(cli), agents(cli), sessions.archived(cli)
     keep = conversations(found, int(time.time() * 1000), int(max_age_days * 86_400_000), chats)
     with db.connect() as conn:
-        return sync(conn, keep, by_id, front_end, shelved, found)
+        return sync(conn, keep, by_id, front_end, shelved, found, threads.running(threads.STATE_DB))

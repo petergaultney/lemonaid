@@ -1663,7 +1663,7 @@ Run `lemonaid go <Lemon-ID | channel>` to switch to a lemon's recorded tmux pane
 
 ## If OpenClaw runs you
 
-Your shell commands carry `CODEX_THREAD_ID`, but you are not a Codex lemon: you are an OpenClaw session. Before any `--self` command, register once per session, and again whenever `--self` says you aren't registered:
+Your shell commands carry `CODEX_THREAD_ID`, but you are not a Codex lemon: you are an OpenClaw session. Where `lemonaid openclaw observe` runs, your lemon already knows your thread, so `--self` commands find you. Whenever `--self` says you aren't registered, register, and never act on another row by its id or channel in place of yourself:
 
 ```sh
 lemonaid openclaw register --session-key '<the key session_status reports>'
