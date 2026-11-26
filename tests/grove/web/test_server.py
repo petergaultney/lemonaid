@@ -85,7 +85,9 @@ def test_the_page_is_served_at_the_root(served):
 
 
 def test_the_page_comes_compressed_and_a_browser_that_has_it_isnt_sent_it_again(seen):
-    big = server._handler(_Calls(), {"grove": (b"<html>" + b"lemon " * 1000 + b"</html>", "text/html")}, seen)
+    big = server._handler(
+        _Calls(), {"grove": (b"<html>" + b"lemon " * 1000 + b"</html>", "text/html")}, seen
+    )
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), big)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
@@ -216,6 +218,16 @@ def test_each_browser_behind_a_proxy_on_this_machine_gets_its_own_streams(served
     finally:
         for each in streams:
             each.close()
+
+
+def test_a_lemons_page_gets_a_stream_of_its_own_changes(served):
+    stream = urllib.request.urlopen(served + "/api/talk-changes?channel=claude%3Agone", timeout=5)
+    try:
+        assert stream.status == 200
+        assert stream.headers.get_content_type() == "text/event-stream"
+        assert stream.readline() == b"retry: 1000\n"
+    finally:
+        stream.close()
 
 
 def test_a_stream_a_page_closes_frees_its_place(served):
