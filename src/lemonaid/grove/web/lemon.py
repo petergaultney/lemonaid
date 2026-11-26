@@ -117,6 +117,25 @@ def view(channel: str, config: Config, prs: pr.Lookup, width: int = brief_page.W
     }
 
 
+def mark(channel: str) -> str:
+    """What changes whenever the lemon's page would: its conversation, or its brief's file."""
+    with db.connect() as conn:
+        row = db.get_by_channel(conn, channel, unread_only=False)
+        brief = attached.by_channel(conn, [channel]).get(channel)
+    if row is None:
+        return "gone"
+
+    try:
+        talked = _mark(row)
+    except OSError as error:
+        talked = str(error)
+    try:
+        written = brief.stat().st_mtime_ns if brief else 0
+    except OSError:
+        written = 0
+    return f"{talked}|{written}"
+
+
 _read: dict[str, tuple[str, list[conversation.entry.Entry]]] = {}  # by channel, with its mark
 
 

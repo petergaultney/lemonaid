@@ -13,6 +13,7 @@ import collections
 import contextlib
 import json
 import threading
+import time
 from collections import abc
 
 STREAMS_PER_CLIENT = 2
@@ -74,6 +75,28 @@ def stream(
         if now != count:
             write(f"data: {now}\n\n".encode())
             count, quiet = now, 0.0
+        elif (quiet := quiet + check) >= heartbeat:
+            write(b": still here\n\n")
+            quiet = 0.0
+
+
+def watch(
+    mark: abc.Callable[[], str],
+    write: abc.Callable[[bytes], None],
+    gone: abc.Callable[[], bool],
+    heartbeat: float = HEARTBEAT_SECONDS,
+    check: float = CHECK_SECONDS,
+) -> None:
+    """Write an event each time *mark* changes, looking every *check* seconds, until the page is
+    *gone*: for what the server only learns by asking, such as a lemon's conversation."""
+    last, count, quiet = mark(), 0, 0.0
+    write(b"retry: 1000\n\n")
+    while not gone():
+        time.sleep(check)
+        now = mark()
+        if now != last:
+            last, count, quiet = now, count + 1, 0.0
+            write(f"data: {count}\n\n".encode())
         elif (quiet := quiet + check) >= heartbeat:
             write(b": still here\n\n")
             quiet = 0.0

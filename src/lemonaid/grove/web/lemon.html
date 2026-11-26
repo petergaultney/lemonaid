@@ -316,7 +316,21 @@ $("divider").addEventListener("pointerdown", down => {
   divider.addEventListener("pointerup", up, {once: true});
 });
 
+// The server says when the conversation or the brief's file changed, over a stream it keeps open.
+// While the stream is down, or this browser has none to spare, the page asks every few seconds; and
+// now and then regardless, for the brief's PRs, which change on their own.
+let told = null;
+const listen = () => {
+  told = new EventSource(`api/talk-changes?${new URLSearchParams({channel})}`);
+  told.onmessage = refresh;
+  told.onopen = refresh;  // whatever changed while it was closed
+};
 refresh();
-setInterval(refresh, 4000);
+listen();
+setInterval(() => { if (told.readyState !== EventSource.OPEN) refresh(); }, 4000);
+setInterval(refresh, 60000);
+// Leaving closes the stream, so the browser may keep the page to show again, and coming back opens it.
+addEventListener("pagehide", () => told.close());
+addEventListener("pageshow", event => { if (event.persisted) listen(); });
 </script>
 </body></html>

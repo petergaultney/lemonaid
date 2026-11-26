@@ -59,3 +59,11 @@ def test_a_client_gets_a_few_streams_and_its_others_poll():
 
     with seen.admitted("tab") as later:
         assert later
+
+
+def test_watching_writes_each_change_of_a_mark_until_the_page_is_gone():
+    marks, written = iter(["a", "a", "b", "b", "c"]), []
+
+    changes.watch(lambda: next(marks), written.append, lambda: len(written) > 2, check=0.01)
+
+    assert written == [b"retry: 1000\n\n", b"data: 1\n\n", b"data: 2\n\n"]

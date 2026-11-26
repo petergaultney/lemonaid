@@ -106,7 +106,13 @@ def _handler(
         def do_GET(self) -> None:
             path = urllib.parse.urlsplit(self.path).path.strip("/").removesuffix("index.html")
             if path == "api/changes":
-                self._changes()
+                self._stream(lambda write: changes.stream(seen, write, self._gone))
+                return
+
+            if path == "api/talk-changes":
+                asked = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+                mark = functools.partial(lemon.mark, asked.get("channel", [""])[0])
+                self._stream(lambda write: changes.watch(mark, write, self._gone))
                 return
 
             if not path and pages.for_phone(self.headers.get("User-Agent", "")):
@@ -130,7 +136,8 @@ def _handler(
             forwarded = self.headers.get("X-Forwarded-For", "").split(",")[0].strip()
             return forwarded if here and forwarded else peer
 
-        def _changes(self) -> None:
+        def _stream(self, run: abc.Callable[[abc.Callable[[bytes], None]], None]) -> None:
+            """A stream of server-sent events that *run* writes, if this browser may open one."""
             with seen.admitted(self._client()) as ok:
                 if not ok:
                     self._send(204, b"", "text/plain")  # EventSource stops on 204; the page polls
@@ -147,7 +154,7 @@ def _handler(
                     self.wfile.flush()
 
                 try:
-                    changes.stream(seen, write, self._gone)
+                    run(write)
                 except (BrokenPipeError, ConnectionResetError):
                     _log.debug("a page closed its stream of changes")
 
