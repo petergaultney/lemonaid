@@ -4,7 +4,7 @@ import time
 import typing as ty
 from collections import abc
 
-from . import body_norm, doc_diff, own_edits_replay
+from . import body_norm, doc_diff, own_edits, own_edits_replay, turns
 
 if ty.TYPE_CHECKING:
     from . import doc_events
@@ -45,3 +45,13 @@ def changed(
     if hunks:
         message += "\n" + hunks
     return message, own_edits_replay.last_seq(w.own_root, w.writer, w.doc) if w.writer else 0
+
+
+def observe(w: "doc_events.DocWatch", body: str, latest_turn: turns.Turns) -> None:
+    """Record a body change as the writer's own when it appeared while a turn could have made it."""
+    digest, now = own_edits.body_digest(body), time.time()
+    if w.seen_digest and digest != w.seen_digest:
+        turn = latest_turn()
+        if turn and turns.overlaps(turn, w.seen_at, now):
+            own_edits.record(w.own_root, w.writer, w.doc, w.seen_digest, digest)
+    w.seen_digest, w.seen_at = digest, now

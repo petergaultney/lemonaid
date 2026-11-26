@@ -5,13 +5,22 @@ import time
 import typing as ty
 from collections import abc
 
-from . import delivery, doc_events, watch_list
+from . import delivery, doc_events, turns, watch_list
 
 
-def _deliverer(deliver: delivery.Deliver, once: bool) -> ty.Callable[[str], bool]:
-    """True if delivered. A failure ends a one-shot waiter; a long-lived one reports it and tries again."""
+def _deliverer(
+    deliver: delivery.Deliver, once: bool, latest_turn: turns.Turns | None = None
+) -> ty.Callable[[str], bool]:
+    """True if delivered. A failure ends a one-shot waiter; a long-lived one reports it and tries again.
+
+    While the lemon is mid-turn nothing is delivered, and the next read composes one event
+    from everything that arrived meanwhile.
+    """
 
     def attempt(message: str) -> bool:
+        if not turns.idle(latest_turn):
+            return False
+
         try:
             deliver(message)
         except delivery.Failed as e:
@@ -26,9 +35,13 @@ def _deliverer(deliver: delivery.Deliver, once: bool) -> ty.Callable[[str], bool
 
 
 def wait_doc(
-    w: doc_events.DocWatch, deliver: delivery.Deliver, once: bool, interval: float
+    w: doc_events.DocWatch,
+    deliver: delivery.Deliver,
+    once: bool,
+    interval: float,
+    latest_turn: turns.Turns | None = None,
 ) -> None:
-    attempt = _deliverer(deliver, once)
+    attempt = _deliverer(deliver, once, latest_turn)
     while True:
         if doc_events.poll(w, attempt) is doc_events.Outcome.DELIVERED and once:
             return
@@ -48,8 +61,10 @@ def wait_list(
     idle_expire: float,
     interval: float,
     cursor_key: str | None = None,
+    latest_turn: turns.Turns | None = None,
+    writer: str = "",
 ) -> None:
-    attempt = _deliverer(deliver, once=False)
+    attempt = _deliverer(deliver, once=False, latest_turn=latest_turn)
     watches: dict[str, doc_events.DocWatch] = {}
     while True:
         for doc in watch_list.expire(list_path, idle_expire) if idle_expire else []:
@@ -62,7 +77,15 @@ def wait_list(
         watches = {
             d: watches.get(d)
             or doc_events.open_watch(
-                state_dir, pathlib.Path(d), me, legacy, edits, quiet, cursor_key=cursor_key
+                state_dir,
+                pathlib.Path(d),
+                me,
+                legacy,
+                edits,
+                quiet,
+                writer,
+                cursor_key=cursor_key,
+                latest_turn=latest_turn,
             )
             for d in docs
         }

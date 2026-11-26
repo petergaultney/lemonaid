@@ -9,6 +9,7 @@ import sys
 
 import pytest
 
+from lemonaid.brief import lemon
 from lemonaid.watch import delivery, openclaw_cli, watch_list
 
 _FAKE_OPENCLAW = """#!/bin/sh
@@ -152,11 +153,36 @@ def _start_args(*argv: str):
     return ap.parse_args(["openclaw", "start", "doc.md", "--session-key", "agent:main:x", *argv])
 
 
-@pytest.mark.parametrize("me", [(), ("--me", ""), ("--me", "  ")])
-def test_start_requires_a_nonblank_me(me):
+@pytest.mark.parametrize("me", [("--me", ""), ("--me", "  ")])
+def test_start_refuses_a_blank_me(me):
     with pytest.raises(SystemExit):
         _start_args(*me)
 
 
 def test_start_passes_me_through():
     assert _start_args("--me", "Sam").me == "Sam"
+
+
+def test_start_signs_as_the_lemons_brief_name_by_default(lists_dir, started, monkeypatch):
+    monkeypatch.setattr(watch_list, "default_lists_dir", lambda: lists_dir)
+    monkeypatch.setattr(lemon, "own_id", lambda conn: "BarnDeck.paint-the-barn-deck")
+    args = _start_args("--legacy", "Ada")
+
+    args.func(args)
+
+    [argv] = started
+    assert argv[argv.index("--me") + 1] == "BarnDeck"
+    assert argv[argv.index("--legacy") + 1] == "Ada"
+
+
+def test_start_without_me_or_a_brief_says_to_pass_me(lists_dir, started, monkeypatch):
+    def no_brief(conn):
+        raise LookupError("No brief attached")
+
+    monkeypatch.setattr(watch_list, "default_lists_dir", lambda: lists_dir)
+    monkeypatch.setattr(lemon, "own_id", no_brief)
+    args = _start_args()
+
+    with pytest.raises(SystemExit, match="pass --me"):
+        args.func(args)
+    assert started == []

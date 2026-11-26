@@ -19,6 +19,7 @@ from . import (
     own_edits,
     scout_pollers,
     subscriptions,
+    turns,
     waits,
 )
 
@@ -104,6 +105,7 @@ class Scout:
         notes: notes.Reader,
         pacing: waits.Waits = waits.TIMERS,
         detected: threading.Event | None = None,
+        latest_turn: turns.Turns | None = None,
     ):
         self.spec, self.root, self.writer = spec, root, writer
         self.output, self.signatures, self.notes = output, signatures, notes
@@ -111,6 +113,7 @@ class Scout:
             pacing,
             detected or threading.Event(),
         )  # detected wakes the batch
+        self.latest_turn = latest_turn
         self.stopped = threading.Event()
         self.wake = threading.Event()
         self.ready = threading.Event()
@@ -149,7 +152,13 @@ class Scout:
             while not self.stopped.is_set():
                 try:
                     poll = poll or scout_pollers.open_poller(
-                        self.spec, self.root, self.writer, self.deliver, self.signatures, self.notes
+                        self.spec,
+                        self.root,
+                        self.writer,
+                        self.deliver,
+                        self.signatures,
+                        self.notes,
+                        self.latest_turn,
                     )
                     poll()
                     failure_state.clear(failed)

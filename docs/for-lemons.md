@@ -1496,7 +1496,8 @@ thread in `<doc>` is waiting on you, prints one line, and exits. Run it as a bac
 (Claude), or pass a bare `--codex-thread` to have the event queued into your
 Codex thread instead. `--status <doc> --me <name>` says whether a waiter is already running;
 a second one for the same doc and name refuses to start (exit 3). OpenClaw sessions use
-`lemonaid watch openclaw start <doc> --session-key <key> --me <name>`. Details: [watch.md](watch.md).
+`lemonaid watch openclaw start <doc> --session-key <key>`, which signs as your Brief-ID's
+name unless you pass `--me`. Details: [watch.md](watch.md).
 
 Your own edits to the doc's body don't wake your own waiter, as long as they're recorded,
 and reformatting such as a re-padded table never does. With `lemonaid hooks install`, Claude

@@ -12,7 +12,17 @@ from ..brief import identity
 from ..config import load_config
 from ..log import get_logger
 from ..messages import store
-from . import clip, delivery, doc_version, notes, pr_roles, scouts, subscription_state, waits
+from . import (
+    clip,
+    delivery,
+    doc_version,
+    notes,
+    pr_roles,
+    scouts,
+    subscription_state,
+    turns,
+    waits,
+)
 
 _CHILDREN_EVERY = 10.0  # seconds between rereads of the children's PRs
 
@@ -70,6 +80,7 @@ def _reconcile(
     notes: notes.Reader,
     pacing: waits.Waits,
     detected: threading.Event,
+    latest_turn: turns.Turns | None,
 ) -> list[scouts.Pending]:
     for key in list(running):
         if key not in specs or running[key].spec != specs[key]:
@@ -80,7 +91,9 @@ def _reconcile(
             pending = [p for p in pending if p.source != retired.spec.source]
     for key, spec in specs.items():
         if key not in running:
-            scout = scouts.Scout(spec, root, writer, output, signatures, notes, pacing, detected)
+            scout = scouts.Scout(
+                spec, root, writer, output, signatures, notes, pacing, detected, latest_turn
+            )
             _log.info("watching [%s]", spec.source)
             running[key] = scout
             scout.thread.start()
@@ -140,13 +153,15 @@ def wait(
     beat: abc.Callable[[], None] = lambda: None,
     pacing: waits.Waits = waits.TIMERS,
     harness: tuple[abc.Iterable[Path], abc.Iterable[int]] = ((), ()),
+    latest_turn: turns.Turns | None = None,
 ) -> bool:
     """Deliver one batch; True instead when a restart was requested.
 
     Cursors advance only on delivery, so the restarted waiter detects again whatever was
     pending, and undelivered mailbox messages stay on disk for it. With nothing pending, a
     loop with event *pacing* sleeps until its brief, mailbox, a detector or the *harness* files
-    and pids change, or `waits.idle` passes.
+    and pids change, or `waits.idle` passes. With *latest_turn*, nothing is delivered while the
+    lemon is mid-turn; what arrives meanwhile goes in the next batch.
     """
     config = load_config()
     vaults = tuple(config.brief.vaults)
@@ -189,7 +204,17 @@ def wait(
                 pending.append(scouts.Pending("brief", problem))
                 since = time.monotonic()
             pending = _reconcile(
-                running, specs, pending, root, writer, output, signatures, notes, pacing, wake
+                running,
+                specs,
+                pending,
+                root,
+                writer,
+                output,
+                signatures,
+                notes,
+                pacing,
+                wake,
+                latest_turn,
             )
             if _collect(output, running, pending):
                 since = time.monotonic()
@@ -206,7 +231,12 @@ def wait(
                     for s in running.values()
                 )
                 busy = bool(pending or messages) or not armed
-                if (pending or messages) and armed and time.monotonic() - since >= quiet:
+                if (
+                    (pending or messages)
+                    and armed
+                    and time.monotonic() - since >= quiet
+                    and turns.idle(latest_turn)
+                ):
                     _log.info(
                         "delivering to %s: %s",
                         mailbox.name,

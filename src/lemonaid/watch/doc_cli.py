@@ -13,6 +13,8 @@ With `--watch-list FILE`, one waiter serves one actor: it watches every doc on t
 (see watch_list.py), re-reading the list on each pass, drops a doc after `--idle-expire`
 seconds with no event, and exits when the list is empty. With `--openclaw-session`, each
 event runs one OpenClaw agent turn in that session; `lemonaid watch openclaw` manages these.
+OpenClaw has no hook for a lemon's own edits, so nothing is delivered while the session is
+mid-turn, and a body change made during its turn counts as its own.
 
 Events:
 - a previously present document stays missing for `--quiet` seconds; a bounded nearby
@@ -48,6 +50,7 @@ import os
 import pathlib
 import sys
 
+from ..openclaw import sessions
 from . import (
     brief_record,
     cursors,
@@ -62,6 +65,7 @@ from . import (
 )
 
 _OPENCLAW_TURN_TIMEOUT_MS = 600_000
+_OPENCLAW_TURN_EVERY = 5.0  # seconds between checks whether the session is mid-turn
 
 
 def _record_own(a: argparse.Namespace) -> int:
@@ -122,6 +126,16 @@ def run(a: argparse.Namespace) -> int:
         )
         return 0 if running else 1
 
+    writer = (
+        f"openclaw-{a.openclaw_session}"
+        if a.openclaw_session
+        else own_edits.writer_from_env(os.environ, a.codex_thread)
+    )
+    latest_turn = (
+        sessions.turn_checker(a.openclaw_cli, a.openclaw_session, _OPENCLAW_TURN_EVERY)
+        if a.openclaw_session
+        else None
+    )
     watch = (  # before the lock, so a held lock means the baseline is taken
         None
         if a.watch_list
@@ -132,8 +146,9 @@ def run(a: argparse.Namespace) -> int:
             a.legacy,
             a.edits,
             a.quiet,
-            own_edits.writer_from_env(os.environ, a.codex_thread),
+            writer,
             cursor_key=cursor_key,
+            latest_turn=latest_turn,
         )
     )
     lock = watch_list.hold_waiter(a.watch_list) if a.watch_list else waiter_lock.acquire(lock_path)
@@ -190,14 +205,11 @@ def run(a: argparse.Namespace) -> int:
                     a.idle_expire,
                     a.interval,
                     cursor_key,
+                    latest_turn,
+                    writer,
                 )
             else:
-                doc_wait.wait_doc(
-                    watch,
-                    deliver,
-                    once,
-                    a.interval,
-                )
+                doc_wait.wait_doc(watch, deliver, once, a.interval, latest_turn)
     except KeyboardInterrupt:
         pass
     except delivery.Failed as e:

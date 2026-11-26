@@ -19,6 +19,7 @@ from . import (
     path_presence,
     relay_comments,
     signature,
+    turns,
 )
 
 
@@ -47,6 +48,9 @@ class DocWatch:
     presence: path_presence.Presence
     all_threads: bool = False
     settled_quiet: float = 0  # quiet period enforced outside this detector
+    latest_turn: turns.Turns | None = None  # where no hook records the writer's own edits
+    seen_digest: str = ""  # the body this detector saw at its last read, and when
+    seen_at: float = 0
 
 
 def state_stem(state_dir: pathlib.Path, doc: pathlib.Path, me: str) -> pathlib.Path:
@@ -108,12 +112,14 @@ def open_watch(
     writer: str = "",
     own_root: pathlib.Path | None = None,
     cursor_key: str | None = None,
+    latest_turn: turns.Turns | None = None,
 ) -> DocWatch:
     """`writer`, when set, is the watching lemon's own_edits key: body edits it made don't wake it.
 
     The cursors are keyed by doc and `cursor_key`, by default `me`; a waiter using its
     lemon's own cursor directory passes "". `own_root` is where own_edits keeps the
-    writer's records (default: own_edits.root()).
+    writer's records (default: own_edits.root()). With `latest_turn`, each body change seen
+    to appear during a turn is recorded as the writer's own edit.
     """
     state_dir.mkdir(parents=True, exist_ok=True)
     own_root = own_root or own_edits.root()
@@ -140,6 +146,7 @@ def open_watch(
         pending_body=settled_body,
         pending_since=0.0,
         presence=path_presence.open_watch(stem, doc, seen=bool(settled_body)),
+        latest_turn=latest_turn,
     )
 
 
@@ -164,6 +171,9 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
         print(f"cannot read {w.doc}: {e}", flush=True)
         return Outcome.NOTHING
 
+    body = relay_comments.body_without_threads(text)
+    if w.latest_turn and w.writer:
+        doc_body.observe(w, body, w.latest_turn)
     threads = {_thread_key(t): t for t in relay_comments.unanswered_threads(text, w.mine)}
     new = [t for k, t in threads.items() if k not in w.reported]
     reminders = [t for k, t in threads.items() if k in w.reported] if w.all_threads else []
@@ -182,7 +192,6 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
         if new
         else []
     )
-    body = relay_comments.body_without_threads(text)
     edit, consumed = (
         doc_body.changed(w, body, lambda consumed: _settle(w, body, consumed))
         if w.edits

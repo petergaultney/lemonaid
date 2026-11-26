@@ -169,3 +169,14 @@ def test_ensure_keeps_a_scout_already_serving_the_session(monkeypatch):
 
     assert openclaw_scout.ensure(CHANNEL, lemon_id, "/srv/garden") is True
     assert scout_roster.read(lemon_id).token == token
+
+
+def test_a_session_counts_as_mid_turn_from_the_moment_the_scout_sends_it_a_batch(
+    fake_openclaw,
+):
+    found = openclaw_scout.harness(CHANNEL)
+    assert found.latest_turn() is None  # the fake gateway lists no turn
+
+    found.deliver("mail from HQ")
+
+    assert found.latest_turn().running is True
