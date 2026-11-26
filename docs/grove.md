@@ -218,6 +218,14 @@ After upgrading lemonaid, `tmux kill-session -t _lma_grove_window` so that the n
 
 The window only reads the grove, every 3 seconds, and writes it only when you drop a tree, a bare tree or a block.
 
+### Another machine's grove
+
+```sh
+lemonaid grove window remote http://lemon-grove:8770/
+```
+
+opens the web grove another machine serves (`lemonaid grove serve`, above) in a window of its own, with this machine's look, `grove_window_opacity` included. It stays open rather than waiting for the tmux key: Escape or `q` minimizes it, and dragging its top bar moves it. Gardening there changes that machine's grove, and the window redraws as soon as its server says the grove changed. Opening a lemon shows its page in the window, and going back (its `grove` link, or the prefix key twice) shows the grove again.
+
 ## From the command line
 
 ```bash
