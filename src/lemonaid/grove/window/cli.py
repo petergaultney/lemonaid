@@ -21,6 +21,19 @@ def _cmd_run(_args: argparse.Namespace) -> None:
     app.run(load_config())
 
 
+def _cmd_remote(args: argparse.Namespace) -> None:
+    if sys.platform != "darwin":
+        sys.exit("The grove window runs on macOS only, for now")
+    try:
+        from . import remote  # the web extra, as for `run`
+    except ImportError as error:
+        sys.exit(
+            f"The grove window needs the web extra ({error.name} is missing): "
+            "uv tool install 'lemonaid-inbox[web]'"
+        )
+    remote.run(load_config(), args.url)
+
+
 def _cmd_send(args: argparse.Namespace) -> None:
     line = f"show {args.client}" if args.grove_window_command == "show" else "hide"
     try:
@@ -41,6 +54,11 @@ def add_parsers(grove_subparsers: argparse._SubParsersAction) -> None:
     commands.add_parser("run", help="Run the window here, hidden until summoned").set_defaults(
         func=_cmd_run
     )
+    remote = commands.add_parser(
+        "remote", help="Show another machine's web grove (`grove serve`) in a see-through window"
+    )
+    remote.add_argument("url", help="The web grove's address, such as http://lemon-grove:8770/")
+    remote.set_defaults(func=_cmd_remote)
     show = commands.add_parser("show", help="Summon the window, as the tmux key does")
     show.add_argument("--client", default="", help="The tmux client tty to switch on a jump")
     show.set_defaults(func=_cmd_send)

@@ -8,6 +8,13 @@
   const lastKey = "lemonaid-last-lemon";
   const onLemon = location.pathname.endsWith("/lemon");
   if (onLemon) { try { localStorage.setItem(lastKey, location.search); } catch {} }
+  // In the grove window showing another machine's grove (`grove window remote`), the window's
+  // own page is the grove, so a lemon's page goes back to it through the window.
+  window.groveHome = () => {
+    const api = window.pywebview && window.pywebview.api;
+    if (api && api.home) api.home();
+    else location.href = new URL("./", location.href).href;
+  };
   window.groveBack = () => {
     let last = null;
     try { last = localStorage.getItem(lastKey); } catch {}
@@ -43,7 +50,7 @@
     armed = false;
     if (window.groveNote) window.groveNote("prefix", {then: event.key});
     if (is(event, back)) {
-      if (onLemon) location.href = new URL("./", location.href).href;
+      if (onLemon) window.groveHome();
       else window.groveBack();
     }
     else if (is(event, typed) && !p.ctrl) typeIn(prefix);

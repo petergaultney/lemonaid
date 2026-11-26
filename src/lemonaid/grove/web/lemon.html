@@ -58,7 +58,7 @@ form button { font:inherit; background:#f2d94e; color:#0b0e13; border:0; padding
   body.chat-tab #brief, body.brief-tab #chat { display:none; }
 }
 </style></head><body class="chat-tab">
-<header><a href="./">grove</a><span class="chip" id="name"></span><a id="room" target="_blank" rel="noopener"></a>
+<header><a href="./" onclick="event.preventDefault(); window.groveHome()">grove</a><span class="chip" id="name"></span><a id="room" target="_blank" rel="noopener"></a>
 <span class="tabs"><button data-tab="brief">brief</button><button data-tab="chat" class="on">chat</button></span></header>
 <main>
 <section id="brief" tabindex="-1"></section>
