@@ -1,10 +1,11 @@
 """Event detection for one doc, and the state it keeps between waiters."""
 
 import hashlib
+import time
 
 import pytest
 
-from lemonaid.watch import delivery, doc_events
+from lemonaid.watch import delivery, doc_events, turns
 
 _ASK = '{{authorId="1" author="Sam">>is this true?<<}}'
 _ME = "Author (MotorHoe)"
@@ -177,3 +178,140 @@ def test_two_new_threads_are_counted_as_two_events(doc, state_dir):
     doc_events.poll(w, _collect(sent))
 
     assert (delivery.events_in(sent[0]), delivery.has_comments(sent[0])) == (2, True)
+
+
+class _Clock:
+    """The session's turns, set by each test as the lemon starts and ends them."""
+
+    def __init__(self) -> None:
+        self.turn = turns.Turn(False, 0, 0)
+
+    def start(self) -> None:
+        self.turn = turns.Turn(True, time.time(), 0)
+
+    def end(self) -> None:
+        self.turn = turns.Turn(False, self.turn.started, time.time())
+
+
+def _openclaw_watch(state_dir, doc, tmp_path, clock):
+    return doc_events.open_watch(
+        state_dir,
+        doc,
+        _ME,
+        [],
+        edits=True,
+        quiet=0,
+        writer="openclaw-agent:main:x",
+        own_root=tmp_path / "own",
+        latest_turn=lambda: clock.turn,
+    )
+
+
+def _append(doc, line: str) -> None:
+    doc.write_text(doc.read_text() + line)
+
+
+def test_a_body_edit_seen_during_a_turn_is_the_lemons_own(doc, state_dir, tmp_path):
+    clock = _Clock()
+    w = _openclaw_watch(state_dir, doc, tmp_path, clock)
+    sent: list[str] = []
+    doc_events.poll(w, _collect(sent))
+    clock.start()
+    _append(doc, "The lemon's line.\n")
+    doc_events.poll(w, _collect(sent))
+    clock.end()
+
+    for _ in range(3):
+        assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
+    assert sent == [] and "The lemon's line." in w.settled_body
+
+
+def test_someone_elses_edit_during_a_turn_also_counts_as_the_lemons(doc, state_dir, tmp_path):
+    """The waiter can't tell who wrote a change it sees mid-turn; Claude Code's hooks have the
+    same blind spot, but only for the length of one tool call."""
+    clock = _Clock()
+    w = _openclaw_watch(state_dir, doc, tmp_path, clock)
+    sent: list[str] = []
+    doc_events.poll(w, _collect(sent))
+    clock.start()
+    _append(doc, "A human's line, typed while the lemon worked.\n")
+    doc_events.poll(w, _collect(sent))
+    clock.end()
+
+    for _ in range(3):
+        doc_events.poll(w, _collect(sent))
+    assert sent == []
+
+
+def test_a_body_edit_seen_before_the_turn_is_reported_after_it(doc, state_dir, tmp_path):
+    clock = _Clock()
+    w = _openclaw_watch(state_dir, doc, tmp_path, clock)
+    sent: list[str] = []
+    doc_events.poll(w, _collect(sent))
+    w.edits = False  # a scout reports body edits only after its quiet period
+    _append(doc, "A human's line.\n")
+    doc_events.poll(w, _collect(sent))
+    clock.start()
+    _append(doc, f"\n{_ASK.replace('Sam', 'Author (MotorHoe)')}\n")
+    doc_events.poll(w, _collect(sent))
+    clock.end()
+    w.edits = True
+
+    doc_events.poll(w, _collect(sent))  # just changed, as far as the body detector knows
+    doc_events.poll(w, _collect(sent))
+
+    assert len(sent) == 1 and "A human's line." in sent[0]
+
+
+def test_an_own_edit_stays_its_own_after_a_later_turn(doc, state_dir, tmp_path):
+    clock = _Clock()
+    w = _openclaw_watch(state_dir, doc, tmp_path, clock)
+    sent: list[str] = []
+    w.edits = False
+    doc_events.poll(w, _collect(sent))
+    clock.start()
+    _append(doc, "Written in the first turn.\n")
+    doc_events.poll(w, _collect(sent))
+    clock.end()
+    time.sleep(0.01)
+    clock.start()
+    clock.end()
+    w.edits = True
+
+    for _ in range(2):
+        assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
+    assert sent == []
+
+
+def test_a_body_edit_made_after_the_turn_ended_is_reported(doc, state_dir, tmp_path):
+    clock = _Clock()
+    w = _openclaw_watch(state_dir, doc, tmp_path, clock)
+    sent: list[str] = []
+    doc_events.poll(w, _collect(sent))
+    clock.start()
+    clock.end()
+    clock.turn = clock.turn._replace(started=clock.turn.started - 60, ended=clock.turn.ended - 60)
+    _append(doc, "A human's line.\n")
+
+    doc_events.poll(w, _collect(sent))
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED
+    assert "A human's line." in sent[0]
+
+
+def test_a_body_edit_made_well_after_a_turn_is_reported(doc, state_dir, tmp_path, monkeypatch):
+    monkeypatch.setattr(turns, "SLACK", 0.05)
+    clock = _Clock()
+    w = _openclaw_watch(state_dir, doc, tmp_path, clock)
+    sent: list[str] = []
+    doc_events.poll(w, _collect(sent))
+    clock.start()
+    clock.end()
+    time.sleep(0.1)
+    doc_events.poll(w, _collect(sent))  # the body, unchanged, after the turn
+    _append(doc, "A human's line.\n")
+
+    doc_events.poll(w, _collect(sent))
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED
+    assert "A human's line." in sent[0]

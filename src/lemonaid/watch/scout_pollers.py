@@ -34,6 +34,7 @@ from . import (
     roles,
     slack_events,
     subscriptions,
+    turns,
 )
 
 # A new comment is reported once the file has held still this long, so a burst of
@@ -156,6 +157,7 @@ def open_poller(
     deliver: abc.Callable[[str], bool],
     signatures: tuple[str, ...],
     notes: notes.Reader = notes.none,
+    latest_turn: turns.Turns | None = None,
 ) -> abc.Callable[[], object]:
     directory = spec.state_dir or root / spec.kind
     directory.mkdir(parents=True, exist_ok=True)
@@ -171,6 +173,7 @@ def open_poller(
             0,
             writer,
             cursor_key=me,
+            latest_turn=latest_turn,
         )
         watch.all_threads = True
         watch.settled_quiet = spec.quiet

@@ -3,6 +3,7 @@ import subprocess
 from pathlib import Path
 
 from lemonaid.openclaw import sessions
+from lemonaid.watch import turns
 
 ROOM_KEY = "agent:garden:matrix:channel:!g4rd3n:grove.example"
 
@@ -135,3 +136,40 @@ def test_cli_falls_back_to_the_installers_path(monkeypatch, tmp_path):
     monkeypatch.setattr(sessions.shutil, "which", lambda name: None)
 
     assert sessions.cli() == str(Path(tmp_path) / ".local/bin/openclaw")
+
+
+def test_turn_checker_reads_the_sessions_latest_turn_from_the_gateway(monkeypatch):
+    calls = []
+    listing = {
+        "sessions": [
+            {"key": ROOM_KEY, "status": "running", "startedAt": 1795704721783},
+            {"key": "agent:main:other", "status": "done", "startedAt": 1, "endedAt": 2},
+        ]
+    }
+
+    def run(argv, **_):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, json.dumps(listing), "")
+
+    monkeypatch.setattr(sessions.subprocess, "run", run)
+    now = [100.0]
+    monkeypatch.setattr(sessions.time, "monotonic", lambda: now[0])
+    latest = sessions.turn_checker("openclaw", ROOM_KEY, max_age=5)
+
+    assert latest() == turns.Turn(True, 1795704721.783, 0)
+    listing["sessions"][0] |= {"status": "done", "endedAt": 1795704734299}
+    assert latest().running is True  # not asked again yet
+    now[0] += 5
+    assert latest() == turns.Turn(False, 1795704721.783, 1795704734.299)
+    assert len(calls) == 2
+    assert calls[0] == ["openclaw", "gateway", "call", "sessions.list", "--json", "--params", "{}"]
+
+
+def test_turn_checker_says_none_when_the_gateway_cant(monkeypatch):
+    monkeypatch.setattr(
+        sessions.subprocess,
+        "run",
+        lambda argv, **_: subprocess.CompletedProcess(argv, 1, "", "gateway down"),
+    )
+
+    assert sessions.turn_checker("openclaw", ROOM_KEY, max_age=5)() is None

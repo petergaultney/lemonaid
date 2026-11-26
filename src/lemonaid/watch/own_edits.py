@@ -159,6 +159,16 @@ def _sweep(pending: pathlib.Path) -> None:
             continue
 
 
+def record(own_root: pathlib.Path, writer: str, doc: pathlib.Path, before: str, after: str) -> None:
+    """Record the writer's change of the doc's body from digest *before* to *after*."""
+    edits = _edits_path(own_root, writer, doc)
+    with locked(edits):
+        if before != after and (before, after) != next(
+            ((b, a) for _, b, a in sorted(_transitions(edits))[-1:]), None
+        ):
+            _append(edits, before, after)  # parallel tool calls each see the same change
+
+
 def before_edit(own_root: pathlib.Path, writer: str, key: str, doc: pathlib.Path) -> None:
     path = _pending(own_root, writer, key)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -179,12 +189,7 @@ def after_edit(own_root: pathlib.Path, writer: str, key: str, doc: pathlib.Path)
     if not fresh:
         return False
 
-    after, edits = _file_digest(doc), _edits_path(own_root, writer, doc)
-    with locked(edits):
-        if before != after and (before, after) != next(
-            ((b, a) for _, b, a in sorted(_transitions(edits))[-1:]), None
-        ):
-            _append(edits, before, after)  # parallel tool calls each see the same change
+    record(own_root, writer, doc, before, _file_digest(doc))
     # Two parallel calls that both edit the doc record two transitions from the same
     # before digest, which don't chain, so the waiter wakes: a false wake, never a lost one.
     return True

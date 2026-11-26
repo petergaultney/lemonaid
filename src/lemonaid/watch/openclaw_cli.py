@@ -3,9 +3,10 @@
 Each OpenClaw session is one actor with one watch list and at most one waiter, a
 transient systemd user unit running `lemonaid watch doc --watch-list` from the same
 Python as this command. Starting a watch removes the doc from every other session's
-list, so a comment wakes the session that wrote the doc most recently.
+list, so a comment wakes the session that wrote the doc most recently. `--me` defaults to the
+signing name of the lemon running the command, the name half of its Brief-ID.
 
-    lemonaid watch openclaw start <doc> --session-key agent:main:doc-filing-worker-v2:<run_id> --me <name>
+    lemonaid watch openclaw start <doc> --session-key agent:main:doc-filing-worker-v2:<run_id> [--me <name>]
     lemonaid watch openclaw stop <doc>
     lemonaid watch openclaw list
 """
@@ -18,7 +19,10 @@ import subprocess
 import sys
 import time
 import uuid
+from collections import abc
 
+from ..brief import identity, lemon
+from ..inbox import db
 from . import watch_list
 
 _LIST_PREFIX = "openclaw-"
@@ -53,7 +57,12 @@ def _session_key(path: pathlib.Path) -> str:
 
 
 def waiter_command(
-    target: pathlib.Path, session_key: str, me: str, hq_session: str, idle_days: float
+    target: pathlib.Path,
+    session_key: str,
+    me: str,
+    hq_session: str,
+    idle_days: float,
+    legacy: abc.Sequence[str] = (),
 ) -> list[str]:
     return [
         "systemd-run",
@@ -71,6 +80,7 @@ def waiter_command(
         str(target),
         "--me",
         me,
+        *(arg for name in legacy for arg in ("--legacy", name)),
         "--openclaw-session",
         session_key,
         "--hq-session",
@@ -87,6 +97,7 @@ def start(
     me: str,
     hq_session: str,
     idle_days: float,
+    legacy: abc.Sequence[str] = (),
 ) -> None:
     target = list_path(lists_dir, session_key)
     for other in _session_lists(lists_dir):
@@ -95,7 +106,9 @@ def start(
     lists_dir.mkdir(parents=True, exist_ok=True)
     target.with_suffix(".session").write_text(json.dumps({"session_key": session_key}))
     if watch_list.add(target, doc):
-        subprocess.run(waiter_command(target, session_key, me, hq_session, idle_days), check=True)
+        subprocess.run(
+            waiter_command(target, session_key, me, hq_session, idle_days, legacy), check=True
+        )
 
 
 def stop(lists_dir: pathlib.Path, doc: pathlib.Path) -> None:
@@ -118,10 +131,25 @@ def _author_name(value: str) -> str:
     return value
 
 
+def _signing_name() -> str:
+    """The calling lemon's signing name, or "" when it has no brief."""
+    try:
+        with db.connect() as conn:
+            return identity.brief_name(lemon.own_id(conn))
+    except LookupError:
+        return ""
+
+
 def _cmd(a: argparse.Namespace) -> None:
     lists_dir = watch_list.default_lists_dir()
     if a.openclaw_command == "start":
-        start(lists_dir, a.doc, a.session_key, a.me, a.hq_session, a.idle_days)
+        me = a.me or _signing_name()
+        if not me:
+            sys.exit(
+                "not started: this session has no brief to take a signing name from; pass --me"
+            )
+
+        start(lists_dir, a.doc, a.session_key, me, a.hq_session, a.idle_days, a.legacy)
     elif a.openclaw_command == "stop":
         stop(lists_dir, a.doc)
     else:
@@ -145,9 +173,17 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     start_p.add_argument(
         "--me",
-        required=True,
+        default=None,  # argparse would check a "" default as if it were given
         type=_author_name,
-        help="author name the session signs replies with",
+        help="author name the session signs replies with (default: its Brief-ID's name)",
+    )
+    start_p.add_argument(
+        "--legacy",
+        action="append",
+        default=[],
+        metavar="NAME",
+        type=_author_name,
+        help="another name whose comment blocks count as the session's replies (repeatable)",
     )
     start_p.add_argument(
         "--hq-session",

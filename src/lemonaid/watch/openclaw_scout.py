@@ -1,9 +1,14 @@
 """An OpenClaw lemon's scout: `lemonaid watch --self --push`, in the scout host, while its session lasts.
 
 Each batch becomes one agent turn in the session through the gateway, so the lemon wakes
-for its mail and events the way a Codex lemon does through `codex queue`.
+for its mail and events the way a Codex lemon does through `codex queue`. No batch goes while
+the session is mid-turn, so a busy lemon gets one turn for everything that arrived meanwhile,
+not a queue of them, and a body change it made during its turn doesn't wake it.
 """
 
+import threading
+import time
+import typing as ty
 from collections import abc
 from pathlib import Path
 
@@ -16,6 +21,7 @@ from . import (
     push_scout,
     scout_roster,
     scout_start,
+    turns,
     wait_state,
     waiter_lock,
 )
@@ -25,20 +31,59 @@ _log = get_logger("watch.openclaw_scout")
 _NEXT = "delivers the next batch as another turn in this session"
 _ACCEPT_TIMEOUT_MS = 60_000
 _LIST_EVERY = 60.0  # seconds between the scout's checks that its session still exists
+_TURN_EVERY = (
+    5.0  # seconds between its checks whether the session is mid-turn, while it holds a batch
+)
 
 
-def harness(channel: str) -> tuple[delivery.Deliver, abc.Callable[[], bool], str]:
-    """(deliver, alive, writer) for the scout of the lemon on *channel*."""
+def _sent_counts_as_running(
+    send: delivery.Deliver, latest: turns.Turns, within: float
+) -> tuple[delivery.Deliver, turns.Turns]:
+    """*send* and *latest*, with the session counted as mid-turn for *within* seconds after a
+    send, until a listing taken after the gateway accepted the turn can say so itself."""
+    sent = float("-inf")
+    lock = threading.Lock()
+
+    def sending(message: str) -> None:
+        nonlocal sent
+        send(message)
+        with lock:
+            sent = time.monotonic()
+
+    def latest_turn() -> turns.Turn | None:
+        with lock:
+            recent = time.monotonic() - sent < within
+        turn = latest()
+        if not recent:
+            return turn
+
+        return turns.Turn(True, turn.started if turn else 0, turn.ended if turn else 0)
+
+    return sending, latest_turn
+
+
+class Harness(ty.NamedTuple):
+    deliver: delivery.Deliver
+    alive: abc.Callable[[], bool]
+    writer: str
+    latest_turn: turns.Turns
+
+
+def harness(channel: str) -> Harness:
+    """How the scout of the lemon on *channel* reaches its session and tells when it is busy."""
     key = sessions.session_key(channel)
     exists = sessions.exists_checker(sessions.cli(), _LIST_EVERY)
-    turn = delivery.openclaw_turn(  # waiting out the turn would stall the scout's heartbeat
+    send = delivery.openclaw_turn(  # waiting out the turn would stall the scout's heartbeat
         key,
         sessions.cli(),
         _ACCEPT_TIMEOUT_MS,
         lambda m: batch_text.compose(m, _NEXT),
         until_final=False,
     )
-    return turn, lambda: exists(key) is not False, f"openclaw-{key}"
+    deliver, latest_turn = _sent_counts_as_running(
+        send, sessions.turn_checker(sessions.cli(), key, _TURN_EVERY), _TURN_EVERY
+    )
+    return Harness(deliver, lambda: exists(key) is not False, f"openclaw-{key}", latest_turn)
 
 
 def _serves(lemon_id: str, channel: str) -> bool:
