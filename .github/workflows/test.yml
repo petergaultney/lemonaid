@@ -35,4 +35,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node --test tests/grove/window/layout.test.js tests/grove/window/drag.test.js tests/grove/window/keys.test.js tests/grove/window/page.test.js
+      - run: node --test tests/grove/window/layout.test.js tests/grove/window/drag.test.js tests/grove/window/keys.test.js tests/grove/window/page.test.js tests/grove/web/shim.test.js
