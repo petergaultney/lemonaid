@@ -49,12 +49,20 @@ def grove(keys: web_config.WebConfig) -> str:
     return _first(f"{shim}\n{_keys(keys)}", page.html())
 
 
+def _phone(keys: web_config.WebConfig, name: str) -> str:
+    """A page made for a phone, which edits a lemon in a sheet of its own (`edit.js`)."""
+    here = resources.files(__package__)
+    return _first(
+        f"{_keys(keys)}\n{here.joinpath('edit.js').read_text()}", here.joinpath(name).read_text()
+    )
+
+
 def lemon(keys: web_config.WebConfig) -> str:
-    return _first(_keys(keys), resources.files(__package__).joinpath("lemon.html").read_text())
+    return _phone(keys, "lemon.html")
 
 
 def groups(keys: web_config.WebConfig) -> str:
-    return _first(_keys(keys), resources.files(__package__).joinpath("groups.html").read_text())
+    return _phone(keys, "groups.html")
 
 
 def _manifest(app: str) -> bytes:

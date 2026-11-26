@@ -13,8 +13,7 @@ header { display:flex; gap:12px; align-items:center; padding:4px 10px; backgroun
 header .chip { background:#f2d94e; color:#0b0e13; padding:1px 6px; font-weight:800; overflow:hidden; text-overflow:ellipsis; }
 header .status { font-weight:700; }
 header .bid { color:#7c8696; overflow:hidden; text-overflow:ellipsis; }
-header #pin { margin-left:auto; font:inherit; color:#8ab4f8; background:none; border:1px solid #2d3442; border-radius:6px; padding:2px 10px; }
-header #pin.on { color:#0b0e13; background:#8ab4f8; border-color:#8ab4f8; }
+header #edit { margin-left:auto; font:inherit; color:#8ab4f8; background:none; border:1px solid #2d3442; border-radius:6px; padding:2px 10px; }
 /* A phone's buttons, in a bar at the bottom by the thumb; a wider screen keeps the header's link. */
 nav.tabs { display:none; gap:10px; padding:8px 10px calc(8px + env(safe-area-inset-bottom)); background:#161b24; }
 nav.tabs > * { display:flex; align-items:center; justify-content:center; min-height:44px; padding:0 16px; font:inherit; font-size:15px; font-weight:700; background:#2d3442; color:#e6ebf2; border:0; border-radius:8px; text-decoration:none; }
@@ -77,7 +76,7 @@ form button { font:inherit; background:#f2d94e; color:#0b0e13; border:0; padding
   body.chat-tab #brief, body.brief-tab #chat { display:none; }
 }
 </style></head><body class="chat-tab">
-<header><a class="home" href="./" onclick="event.preventDefault(); window.groveHome()">grove</a><span class="chip" id="name"></span><span class="status" id="status"></span><span class="bid" id="bid"></span><a id="room" target="_blank" rel="noopener"></a><button id="pin" type="button" hidden></button></header>
+<header><a class="home" href="./" onclick="event.preventDefault(); window.groveHome()">grove</a><span class="chip" id="name"></span><span class="status" id="status"></span><span class="bid" id="bid"></span><a id="room" target="_blank" rel="noopener"></a><button id="edit" type="button" hidden>edit</button></header>
 <main>
 <section id="brief" tabindex="-1"></section>
 <div id="divider" title="drag to size the brief"></div>
@@ -230,16 +229,19 @@ const briefColumns = () => {
     - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
   return each > 0 && inner > 0 ? Math.floor(inner / each) : 80;
 };
-// Pinned, the lemon keeps a place of its own in the bar at the bottom of a phone's list of groups.
-const showPin = on => { const b = $("pin"); b.hidden = false; b.classList.toggle("on", on); b.textContent = on ? "pinned" : "pin"; };
-document.addEventListener("click", async e => { if (e.target.id === "pin") showPin(await call("pin", [channel])); });
+// Its edits (edit.js); archived, it is gone from the grove, so the page goes back to it.
+let shownView = null;
+$("edit").addEventListener("click", () => window.groveEdit(
+  {channel, name: shownView.name, pinned: shownView.pinned},
+  done => done.gone ? window.groveHome() : refresh(),
+));
 const showView = v => {
   if (v.error) { $("log").innerHTML = `<div class="problem">${escape(v.error)}</div>`; return; }
   document.title = v.name; $("name").textContent = v.name;
   $("status").textContent = v.status || "";
   $("status").style.color = {alert: "#e5534b", blocked: "#f2c14e", merge: "#5fbf6a", approve: "#c58af9", review: "#a8794f", running: "#39b5a8", done: "#5a8dee"}[v.status] || "";
   $("bid").textContent = v.brief_id || "";
-  showPin(v.pinned);
+  shownView = v; $("edit").hidden = false;
   if (v.room) { $("room").href = v.room; $("room").textContent = "room"; }
   $("how").textContent = v.how_text;
   const brief = JSON.stringify(v.brief);

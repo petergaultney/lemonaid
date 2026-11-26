@@ -58,6 +58,20 @@ def _renumber(grove: Grove, action: str, digit: str) -> str:
     return block_numbers.renumber(grove.blocks, digit, -1 if action == "earlier" else 1)
 
 
+def placed(grove: Grove, channel: str) -> tuple[str, str] | None:
+    """The block digit and tree key the grove shows lemon *channel* under, for a page that knows
+    only the lemon."""
+    return next(
+        (
+            (b.digit, t.key)
+            for b in grove.blocks
+            for t in b.trees
+            if any(m.channel == channel for m in t.lemons)
+        ),
+        None,
+    )
+
+
 def info(grove: Grove, config: Config, action: str, digit: str, key: str, channel: str) -> dict:
     """What the page's dialog for the edit shows: what it changes, and the choices it offers."""
     target = _target(grove, action, digit, key, channel)
