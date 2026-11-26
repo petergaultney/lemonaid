@@ -13,7 +13,7 @@ import urllib.request
 import pytest
 
 from lemonaid.brief import pr
-from lemonaid.config import Config, load_config
+from lemonaid.config import BriefConfig, Config, load_config
 from lemonaid.front_end import chat
 from lemonaid.grove.layout import state
 from lemonaid.grove.source import blocks, live
@@ -331,3 +331,12 @@ def test_a_phones_page_edits_a_lemon_it_knows_only_by_its_channel(monkeypatch):
     }
     assert loading.lemon_edit_info("rename", "claude:first") == {"problem": "the grove is loading"}
     assert refreshed == [1, 1, 1]  # each edit the grove shows
+
+
+def test_a_page_asks_which_vaults_the_servers_links_open(tmp_path):
+    config = Config(brief=BriefConfig(vaults=(tmp_path / "trove", tmp_path / "work")))
+    window = dict.fromkeys(("hide", "leave", "stick", "drag", "refresh"), lambda: None)
+    calls = server._WebApi(api.Shared(config), pr.no_state, **window)
+
+    assert calls.vaults() == ["trove", "work"]
+    assert "vaults" in server._CALLS

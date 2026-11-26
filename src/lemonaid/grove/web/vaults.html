@@ -1,0 +1,71 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lemonaid vaults</title>
+<style>
+html,body { margin:0; background:#0b0e13; color:#e6ebf2; }
+body { font:15px/1.4 "SF Mono", Menlo, monospace; }
+header { display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:#161b24; }
+header .chip { background:#f2d94e; color:#0b0e13; padding:1px 8px; font-weight:800; }
+header a { color:#8ab4f8; text-decoration:none; }
+main { padding:8px 14px; max-width:40em; }
+p { color:#aab3c2; }
+.row { display:grid; grid-template-columns:minmax(6em, auto) 1fr auto; gap:6px 10px; align-items:center; padding:8px 0; border-bottom:1px solid #222a36; }
+.row .name { font-weight:700; overflow:hidden; text-overflow:ellipsis; }
+.row input[type=text] { font:inherit; background:#14161b; color:#e6ebf2; border:1px solid #3a4250; padding:4px 6px; min-width:0; }
+.row input[type=text]:disabled { color:#5a6270; }
+.row label { color:#aab3c2; white-space:nowrap; }
+.said { color:#5fbf6a; min-height:1.4em; }
+.problem { color:#e5534b; }
+</style>
+</head><body>
+<header><span class="chip">vaults on this device</span><a href="./">grove</a></header>
+<main>
+<p>A brief links a note by the name of its vault on the server. Where this device names that vault otherwise, write its name here; where it doesn't have the vault, tick "not here" and its links show as plain text. A blank name keeps the server's.</p>
+<div id="rows"></div>
+<div class="said" id="said"></div>
+<p>To set up another device, open this page there with each name in the address: <code>vaults?trove=MyTrove&amp;work=-</code>, where <code>-</code> means not here.</p>
+</main>
+<script>
+// The map is window.groveVaults's (vaults.js). Names come from the server's configured vaults, the
+// map, and the address, which also sets them, so one link sets up a device.
+const {load, save, MISSING} = window.groveVaults;
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"})[c]);
+const said = text => { document.getElementById("said").textContent = text; };
+let map = load();
+const fromAddress = [...new URLSearchParams(location.search)];
+if (fromAddress.length) {
+  for (const [vault, here] of fromAddress) {
+    if (here.trim()) map[vault] = here.trim(); else delete map[vault];
+  }
+  said(save(map) ? `Saved ${fromAddress.length} from the link.` : "This browser won't keep them.");
+  history.replaceState(null, "", "vaults");
+}
+const change = (vault, here) => {
+  if (here) map[vault] = here; else delete map[vault];
+  said(save(map) ? "Saved." : "This browser won't keep them.");
+};
+const row = vault => {
+  const here = map[vault] ?? "", missing = here === MISSING;
+  return `<div class="row" data-vault="${esc(vault)}"><span class="name">${esc(vault)}</span>`
+    + `<input type="text" placeholder="${esc(vault)}" value="${missing ? "" : esc(here)}"${missing ? " disabled" : ""} aria-label="name of ${esc(vault)} here">`
+    + `<label><input type="checkbox"${missing ? " checked" : ""}> not here</label></div>`;
+};
+const draw = names => {
+  const all = [...new Set([...names, ...Object.keys(map)])].sort();
+  const rows = document.getElementById("rows");
+  rows.innerHTML = all.length ? all.map(row).join("") : '<p class="problem">The server names no vaults.</p>';
+  for (const each of rows.querySelectorAll(".row")) {
+    const vault = each.dataset.vault, name = each.querySelector("input[type=text]"), gone = each.querySelector("input[type=checkbox]");
+    name.addEventListener("change", () => change(vault, name.value.trim()));
+    gone.addEventListener("change", () => {
+      name.disabled = gone.checked;
+      change(vault, gone.checked ? MISSING : name.value.trim());
+    });
+  }
+};
+fetch("api/vaults", {method: "POST", headers: {"Content-Type": "application/json"}, body: "[]"})
+  .then(r => r.ok ? r.json() : [])
+  .catch(() => [])
+  .then(draw);
+</script>
+</body></html>

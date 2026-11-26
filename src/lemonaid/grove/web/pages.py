@@ -34,10 +34,12 @@ def _first(scripts: str, into: str) -> str:
 
 
 def _keys(keys: web_config.WebConfig) -> str:
-    """The page's own scripts' first: its notes for the log, then its prefix key."""
+    """The page's own scripts' first: its notes for the log, this device's vault names, then its
+    prefix key."""
     here = resources.files(__package__)
     return (
         f"{here.joinpath('notes.js').read_text()}\n"
+        f"{here.joinpath('vaults.js').read_text()}\n"
         f"window.groveKeys = {json.dumps(dataclasses.asdict(keys))};\n"
         f"{here.joinpath('prefix.js').read_text()}"
     )
@@ -65,6 +67,10 @@ def groups(keys: web_config.WebConfig) -> str:
     return _phone(keys, "groups.html")
 
 
+def vaults(keys: web_config.WebConfig) -> str:
+    return _phone(keys, "vaults.html")
+
+
 def _manifest(app: str) -> bytes:
     shown = json.loads(resources.files(__package__).joinpath(_MANIFEST).read_text())
     return json.dumps({**shown, "name": app, "short_name": app}, indent=2).encode()
@@ -78,6 +84,7 @@ def served(keys: web_config.WebConfig, app: str) -> dict[str, tuple[bytes, str]]
         "grove": (grove(keys).encode(), html),
         "lemon": (lemon(keys).encode(), html),
         "groups": (groups(keys).encode(), html),
+        "vaults": (vaults(keys).encode(), html),
         **{name: (here.joinpath(name).read_bytes(), kind) for name, kind in _FILES.items()},
         _MANIFEST: (_manifest(app), "application/manifest+json"),
     }

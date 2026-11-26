@@ -25,6 +25,15 @@ the `obsidian://open` URL the same way briefs do (the vault is named after its
 folder) and opens it. The rule records the full path of the `lemonaid` it was
 installed by, so reinstall if that moves.
 
+## In briefs
+
+A brief shows a `.md` path under a root in `vaults` as a link to the note by its
+vault's name, and so does a `file://` or `obsidian://open?path=` link to one. A
+link by vault name opens on any machine whose Obsidian has that vault, where a
+path opens only on the machine that wrote it. When a device names a vault
+otherwise, the web grove's `/vaults` page says so for that device (see
+[grove.md](grove.md#vault-links-on-each-device)).
+
 ## Paths without a root
 
 A path without a root matches when it is one run of non-space characters ending in
