@@ -94,7 +94,7 @@ def test_inbox_emoji_finds_the_codex_thread_without_tmux(capsys):
 
     set_emoji = _run(capsys, decorate_cli.add_parsers, "emoji", "--self", "🦫")
 
-    assert set_emoji == {"channel": CHANNEL, "emoji": "🦫", "error": None}
+    assert (set_emoji["channel"], set_emoji["emoji"], set_emoji["yours"]) == (CHANNEL, "🦫", True)
 
 
 def test_a_thread_with_no_inbox_row_is_not_decorated(capsys):

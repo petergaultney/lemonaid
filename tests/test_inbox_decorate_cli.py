@@ -59,8 +59,34 @@ def test_self_renames_the_session_recorded_at_this_pane(monkeypatch, capsys):
 
     result = _run(monkeypatch, capsys, decorate_cli._cmd_rename, use_self=True, name="views")
 
-    assert result == {"channel": "claude:mine", "name": "views", "error": None}
+    assert {k: result[k] for k in ("channel", "name", "was", "yours", "warning", "error")} == {
+        "channel": "claude:mine",
+        "name": "views",
+        "was": "auto title",
+        "yours": True,
+        "warning": "",
+        "error": None,
+    }
     assert _name("claude:other") == "elsewhere"
+
+
+def test_a_change_to_another_session_says_whose_it_was_and_that_it_isnt_yours(monkeypatch, capsys):
+    _session("claude:mine", "mine")
+    theirs = _session("codex:theirs", "Ada", HERE._replace(window="3"))
+
+    result = _run(monkeypatch, capsys, decorate_cli._cmd_rename, id=theirs, name="Ad")
+    decorate_cli._cmd_emoji(_args(id=theirs, emoji="🦫", json=False))
+
+    assert (result["channel"], result["was"], result["name"]) == ("codex:theirs", "Ada", "Ad")
+    assert result["yours"] is False
+    assert result["warning"] == (
+        "That session is not yours: you are claude:mine. To change your own, use --self."
+    )
+    assert capsys.readouterr().out.splitlines() == [
+        'Emoji "" to "🦫"',
+        "  session: codex:theirs",
+        "  That session is not yours: you are claude:mine. To change your own, use --self.",
+    ]
 
 
 def test_clear_restores_the_backend_name(monkeypatch, capsys):

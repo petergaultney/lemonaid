@@ -11,9 +11,10 @@ import argparse
 import json
 import sqlite3
 import sys
+from collections import abc
 
 from .. import brief
-from . import db, emoji
+from . import db, emoji, whose
 
 
 def target_channel(conn: sqlite3.Connection, args: argparse.Namespace) -> tuple[str, str]:
@@ -41,11 +42,20 @@ def target_channel(conn: sqlite3.Connection, args: argparse.Namespace) -> tuple[
     return (channel, "") if found else ("", f"No inbox session {channel!r}")
 
 
-def finish(args: argparse.Namespace, result: dict, error: str) -> None:
+def finish(
+    args: argparse.Namespace, result: dict, error: str, told: abc.Sequence[str] = ()
+) -> None:
+    said: dict = {}
+    if result.get("channel") and not error:
+        with db.connect() as conn:
+            said = whose.about(conn, result["channel"])
+
     if args.json:
-        print(json.dumps({**result, "error": error or None}, ensure_ascii=False))
+        print(json.dumps({**result, **said, "error": error or None}, ensure_ascii=False))
     elif error:
         print(error, file=sys.stderr)
+    elif said:
+        print("\n".join([*told, *whose.told(result["channel"], said)]))
 
     if error:
         sys.exit(1)
@@ -54,6 +64,7 @@ def finish(args: argparse.Namespace, result: dict, error: str) -> None:
 def _cmd_rename(args: argparse.Namespace) -> None:
     name = "" if args.clear else args.name.strip()
     renamed: db.Notification | None = None
+    was = ""
     with db.connect() as conn:
         channel, error = target_channel(conn, args)
         if channel and not args.clear and not name:
@@ -61,18 +72,22 @@ def _cmd_rename(args: argparse.Namespace) -> None:
 
         newest = db.get_by_channel(conn, channel, unread_only=False) if channel else None
         if newest and not error:
+            was = newest.name or ""
             db.update_name(conn, newest.id, name or None)
             renamed = db.get(conn, newest.id)
 
+    shown = renamed.name if renamed else None
     finish(
         args,
-        {"channel": channel or None, "name": renamed.name if renamed else None},
+        {"channel": channel or None, "name": shown, **({"was": was} if renamed else {})},
         error,
+        [f'Renamed "{was}" to "{shown}"'],
     )
 
 
 def _cmd_emoji(args: argparse.Namespace) -> None:
     value = "" if args.clear else args.emoji.strip()
+    was = ""
     with db.connect() as conn:
         channel, error = target_channel(conn, args)
         if channel and not args.clear and not value:
@@ -86,12 +101,22 @@ def _cmd_emoji(args: argparse.Namespace) -> None:
             )
 
         if channel and not error:
+            was = emoji.by_channel(conn).get(channel, "")
             if value:
                 emoji.set_emoji(conn, channel, value)
             else:
                 emoji.clear(conn, channel)
 
-    finish(args, {"channel": channel or None, "emoji": value}, error)
+    finish(
+        args,
+        {
+            "channel": channel or None,
+            "emoji": value,
+            **({"was": was} if channel and not error else {}),
+        },
+        error,
+        [f'Emoji "{was}" to "{value}"'],
+    )
 
 
 def _cmd_emojis(args: argparse.Namespace) -> None:

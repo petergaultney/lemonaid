@@ -101,7 +101,14 @@ lemonaid inbox rename --self --clear         # back to the backend's name
 
 `inbox emojis --json` prints `[{"emoji", "id", "channel", "name", "cwd"}]`. `rename` and
 `emoji` take `--json` and print `{"channel", "name"}` or `{"channel", "emoji"}`, plus
-`"error"`.
+`"error"`, and say what they replaced (`"was"`).
+
+Every inbox command that changes a session (`rename`, `emoji`, `pin`, `unpin`, `archive`,
+`unarchive`, `snooze`) also says whose session it changed (`"brief_id"`, `"cwd"`), and
+`"yours"` says whether that is your own: `false` comes with a `"warning"` naming who you
+are. Without `--json`, the session, its directory and any warning are printed as text.
+Changing another lemon's session, such as a child's, is allowed; when you meant your own,
+undo it and use `--self`.
 
 ### Pinning, ordering pins and unarchiving
 
