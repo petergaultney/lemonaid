@@ -56,7 +56,7 @@ def zoomed(
     plots.speckle(canvas)
     canvas.target = (block.digit,)
     plots.ground(canvas, plot, view, block.color, live=True)
-    sign = plots.sign(canvas, plot, view, block.digit, block.name, block.color)
+    sign = plots.sign(canvas, plot, view, block.digit, block.title, block.color)
     for stump in arrangement.stumps.get(block.name, ()):
         canvas.target = (block.digit, "", stump.key)  # what a drag takes hold of; no letter
         plots.stump(canvas, *view.screen(plot.x + stump.cx, plot.y + stump.cy), stump.label)

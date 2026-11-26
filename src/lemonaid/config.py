@@ -234,6 +234,8 @@ class TuiConfig:
     grove_big_trees: bool = False
     # Stand the lemons in no group in the packhouse at the grove's middle; off, they are block 0.
     grove_packhouse: bool = False
+    # The number of the lemons in no group, 0 or 1; the groups are numbered from the next one.
+    grove_first_block: int = 0
     # Seconds a working lemon's pulse takes, from rest to darkest and back.
     grove_pulse_seconds: float = 4.5
     # How solid the grove window's background is: 1 hides the terminal under it, lower shows it through.
@@ -805,6 +807,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         grove_pan_rows=max(1, int(tui_data.get("grove_pan_rows", 1))),
         grove_big_trees=bool(tui_data.get("grove_big_trees", False)),
         grove_packhouse=bool(tui_data.get("grove_packhouse", False)),
+        grove_first_block=min(1, max(0, int(tui_data.get("grove_first_block", 0)))),
         grove_pulse_seconds=max(0.5, float(tui_data.get("grove_pulse_seconds", 4.5))),
         grove_window_opacity=min(1.0, max(0.2, float(tui_data.get("grove_window_opacity", 1.0)))),
         status_pulse_seconds=max(0.0, float(tui_data.get("status_pulse_seconds", 10.0))),

@@ -72,7 +72,7 @@ def move(target: Target, name: str) -> str:
                 lemon_id = _lemon_id(conn, channel)
                 if lemon_id not in _members(conn, name):
                     groups.editing.add(conn, name, lemon_id, channel)
-                if target.block and target.block != name:
+                if target.block not in ("", name) and lemon_id in _members(conn, target.block):
                     groups.editing.remove(
                         conn, groups.store.find(conn, target.block), lemon_id, channel
                     )

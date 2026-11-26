@@ -25,7 +25,7 @@ def _saved() -> dict:
 def test_a_group_the_saved_layout_has_not_seen_is_placed_from_the_proposal(
     monkeypatch, tmp_path, capsys
 ):
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("t")),))
+    monkeypatch.setattr(blocks, "blocks", lambda *_args, **_kw: (block("a", "1", tree("t")),))
     proposed = tmp_path / "proposed.json"
 
     _run(monkeypatch, "propose", str(proposed))
@@ -41,7 +41,7 @@ def test_a_group_the_saved_layout_has_not_seen_is_placed_from_the_proposal(
 
 def test_a_refused_apply_leaves_the_grove_alone(monkeypatch, tmp_path, capsys):
     live_blocks = (block("a", "1", tree("s")), block("b", "2", tree("t")))
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: live_blocks)
+    monkeypatch.setattr(blocks, "blocks", lambda *_args, **_kw: live_blocks)
     state.save(_saved())
     proposed = tmp_path / "proposed.json"
     state.save(stream_saved({"a": plot_data(50, 2, 30, 10)}), proposed)
@@ -63,7 +63,9 @@ def test_a_layout_must_exist(monkeypatch, tmp_path, capsys):
 def test_plant_stands_a_tree_in_the_proposal_and_refuses_one_on_another(
     monkeypatch, tmp_path, capsys
 ):
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("s"), tree("t")),))
+    monkeypatch.setattr(
+        blocks, "blocks", lambda *_args, **_kw: (block("a", "1", tree("s"), tree("t")),)
+    )
     proposed = tmp_path / "proposed.json"
     _run(monkeypatch, "propose", str(proposed))
     spots = state.load(proposed)["trees"]["a"]
@@ -78,7 +80,7 @@ def test_plant_stands_a_tree_in_the_proposal_and_refuses_one_on_another(
 
 
 def test_a_tree_off_a_rounded_corner_is_refused_by_plant_and_apply(monkeypatch, tmp_path, capsys):
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("t")),))
+    monkeypatch.setattr(blocks, "blocks", lambda *_args, **_kw: (block("a", "1", tree("t")),))
     state.save(
         {"version": state.VERSION} | stream_saved({"a": plot_data(2, 2, 40, 20, roundness=1.5)})
     )
@@ -106,7 +108,7 @@ def test_apply_leaves_an_untouched_packhouse_alone(monkeypatch, tmp_path, capsys
         block("", "0", tree("hq"), tree("misc")),
         block("a", "1", tree("s"), tree("t"), tree("u")),
     )
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: grove_blocks)
+    monkeypatch.setattr(blocks, "blocks", lambda *_args, **_kw: grove_blocks)
     proposed = tmp_path / "proposed.json"
     _run(monkeypatch, "propose", str(proposed))
     state.save(state.load(proposed))  # the live grove laid out as the proposal was
@@ -132,7 +134,7 @@ def test_apply_leaves_an_untouched_packhouse_alone(monkeypatch, tmp_path, capsys
 
 
 def test_reshape_refuses_corners_rounded_out_from_under_a_tree(monkeypatch, tmp_path, capsys):
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("t")),))
+    monkeypatch.setattr(blocks, "blocks", lambda *_args, **_kw: (block("a", "1", tree("t")),))
     state.save(
         {"version": state.VERSION} | stream_saved({"a": plot_data(2, 2, 40, 20, roundness=12)})
     )
@@ -150,7 +152,7 @@ def test_reshape_refuses_corners_rounded_out_from_under_a_tree(monkeypatch, tmp_
 
 def test_plant_moves_a_lead_away_from_the_packhouse(monkeypatch, tmp_path):
     grove_blocks = (block("", "0", tree("hq")), block("a", "1", tree("l", lead=True), tree("s")))
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: grove_blocks)
+    monkeypatch.setattr(blocks, "blocks", lambda *_args, **_kw: grove_blocks)
     proposed = tmp_path / "proposed.json"
     _run(monkeypatch, "propose", str(proposed))
     layout = state.load(proposed)
@@ -174,7 +176,7 @@ def test_plant_moves_a_lead_away_from_the_packhouse(monkeypatch, tmp_path):
 
 def test_apply_saves_the_live_layout_in_the_configured_mode(monkeypatch, tmp_path, capsys):
     grove_blocks = (block("", "0", tree("hq"), tree("misc")), block("a", "1", tree("s")))
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: grove_blocks)
+    monkeypatch.setattr(blocks, "blocks", lambda *_args, **_kw: grove_blocks)
     Path(os.environ["LEMONAID_CONFIG"]).write_text("[tui]\ngrove_packhouse = true\n")
     _run(monkeypatch, "show", "--json")  # lays out the packhouse, and saves it
     house = state.load()["plots"][""]

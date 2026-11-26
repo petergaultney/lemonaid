@@ -48,9 +48,14 @@ class Tree:
 @dataclasses.dataclass(frozen=True)
 class Block:
     name: str  # the group's name; "" for lemons in no group
-    digit: str  # its place in the inbox's group order; "0" for no group
+    digit: str  # its place in the inbox's group order; "0" for no group, or "1" with `grove_first_block = 1`
     color: str
     trees: tuple[Tree, ...]
+    home: str = ""  # block 0's only: the group it holds along with the lemons in no group
+
+    @property
+    def title(self) -> str:
+        return self.home or self.name or "no group"
 
 
 @dataclasses.dataclass(frozen=True)

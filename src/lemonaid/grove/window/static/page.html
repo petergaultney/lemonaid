@@ -429,7 +429,7 @@ function drawLayer({g, c}) {
 function txtAt(s, x, y, color, bg, weight, k) { ctx.save(); ctx.translate(x, y); ctx.scale(k, k); txt(s, 0, 0, color, bg, weight); ctx.restore(); }
 function drawSign(b, k) {
   const p = b.plot, x0 = sx(p.x), x1 = sx(p.x + p.w);
-  txtAt(` ${b.digit} ${(b.group || "no group").toUpperCase()} `, x0 + Math.min(4 * CW, (x1 - x0) / 8), sy(p.y) - RH * 0.6 * k, "#0b0e13", b.color || "#8b949e", 800, k);
+  txtAt(` ${b.digit} ${(b.home || b.group || "no group").toUpperCase()} `, x0 + Math.min(4 * CW, (x1 - x0) / 8), sy(p.y) - RH * 0.6 * k, "#0b0e13", b.color || "#8b949e", 800, k);
 }
 
 // A shadow on the ground, *rx* by *ry* pixels around (cx, cy), in rows of whole *px* cells.
@@ -645,7 +645,10 @@ function drawFocus() {
   const top = box.groundY + RH, k = Math.max(0.55, Math.min(1.4, (H() - top - RH) / ((n + 1.3) * RH * 1.25)));
   // Rows that still don't fit at their smallest go on in further columns.
   const rh = RH * k * 1.25, cw = CW * k, per = Math.max(1, Math.floor((H() - top - RH) / rh - 0.3)), colW = (W() - CW) / Math.ceil(n / per);
-  txtAt(` ${f.b.digit} ${f.t.label} `, CW, top, "#0b0e13", f.b.color || "#8b949e", 800, k);
+  // A group's title opens its block's menu, as a right-click on its ground does: a phone has no right-click.
+  const named = f.b.group || f.b.home, title = ` ${f.b.digit} ${f.t.label} ${named ? "⋯ " : ""}`;
+  txtAt(title, CW, top, "#0b0e13", f.b.color || "#8b949e", 800, k);
+  if (named) hits.push({x: CW, y: top, w: cw * title.length, h: RH * k, block: f.b, ground: true, blockMenu: true});
   f.t.lemons.forEach((l, j) => {
     const x = CW + colW * Math.floor(j / per), right = x + colW - CW, ry = top + rh * (j % per + 1.3), fruit = box.fruit.find(fr => fr.lemon === l), c = STATUS[l.status] || "#9aa3ad";
     const key = j ? `.${f.t.letter}${j}` : f.t.letter, ask = ASKS.includes(l.status) ? l.status : "";
@@ -996,7 +999,7 @@ function status() {
     : selecting.mode === "." ? `select > ${zoomed} .${selecting.letter || ""}${selecting.num || ""} · ${selecting.letter ? "the lemon's place: 1 for the second" : "a tree's letter"}`
     : `select > ${zoomed} · a letter for its first lemon · .s1 another · $ and a letter the whole tree · # the block · tab leaves`;
   else if (dot) where.textContent = `> ${zoomed} .${dot.letter}${dot.num}   ${dot.letter ? "the lemon's place: 1 for the second, 0a for the eleventh" : "a tree's letter for its other lemons, or . again to refit"}`;
-  else where.textContent = b ? `> ${b.digit} · ${b.group || (isHouse(b) ? "packhouse" : "no group")}` : "> type a block number";
+  else where.textContent = b ? `> ${b.digit} · ${b.group || b.home || (isHouse(b) ? "packhouse" : "no group")}` : "> type a block number";
   document.getElementById("legend").innerHTML = ["alert", "blocked", "running", "merge", "review"].map(s => `<span style="color:${STATUS[s]}">●</span> ${s}`).join("  ") + `  <span style="color:#9aa3ad">●</span> idle`;
 }
 
@@ -1302,6 +1305,7 @@ cv.addEventListener("pointerup", e => {
   if (!p || p.moved) return;
   const r = cv.getBoundingClientRect(), h = hitAt(e.clientX - r.left, e.clientY - r.top);
   if (h && h.url) return window.pywebview.api.open_link(h.url);  // a PR's number, on a list's other page
+  if (h && h.blockMenu) return showMenu(e.clientX, e.clientY, editTarget(h));
   if (focus && (!h || h.unfocus)) { focus = null; return draw(); }
   if (touch() && h && h.tree && !h.lemon && h.tree.lemons.length > 1) { focus = {digit: h.block.digit, key: h.tree.key}; hideCard(); return draw(); }
   if (h && h.tree) jumpTo(h.lemon || h.tree.lemons[0]); else if (h && h.ground && zoomed !== h.block.digit) zoomTo(h.block.digit);

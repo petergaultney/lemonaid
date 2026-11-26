@@ -3,6 +3,10 @@
 // Python makes the change (window/edits.py). Each edit has the terminal's letter.
 const menu = document.getElementById("menu"), dialog = document.getElementById("dialog");
 const EDITS = [["rename", "r", "Rename…"], ["snooze", "s", "Snooze…"], ["archive", "a", "Archive"], ["pin", "p", "Pin or unpin"], ["group", "g", "Move to group…"], ["graft", "t", "To another lemon's tree…"], ["color", "c", "Recolor block…"]];
+// A block's own edits: its number (the inbox's group order) or block 0, which a home group shares with
+// the lemons in no group.
+const BLOCK_EDITS = [["color", "c", "Recolor block…"], ["earlier", "e", "Earlier number"], ["later", "l", "Later number"], ["home", "h", "Make it the home block"]];
+const HOME_EDITS = [["home", "h", "Give its group back its own number"]];
 const escaped = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const menuOpen = () => menu.style.display === "block", dialogOpen = () => dialog.style.display === "block";
 let menuItems = [], menuAt = 0, menuTarget = null;  // the open menu's edits, the highlighted one, and what they change
@@ -19,10 +23,11 @@ function editTarget(h) {
   if (h.lemon) return {digit: h.block.digit, key: h.tree.key, channel: h.lemon.channel, title: h.lemon.name || h.lemon.session};
   if (h.tree) return {digit: h.block.digit, key: h.tree.key, channel: "", title: `${h.block.digit}${h.tree.letter} ${h.tree.label}`};
   if (h.ground && h.block.group) return {digit: h.block.digit, key: "", channel: "", title: h.block.group, block: true};
+  if (h.ground && h.block.home) return {digit: h.block.digit, key: "", channel: "", title: h.block.home, block: true, home: true};
   return null;
 }
-// A block's menu only recolors it; a lemon's or a tree's has the rest.
-const editsFor = target => EDITS.filter(([action]) => (action === "color") === !!target.block);
+// A block's menu has its own edits; a lemon's or a tree's has the rest.
+const editsFor = target => target.home ? HOME_EDITS : target.block ? BLOCK_EDITS : EDITS.filter(([action]) => action !== "color");
 
 function drawMenu() {
   menu.innerHTML = `<div class="title">${escaped(menuTarget.title)}</div>` + menuItems.map(([action, key, label], i) => {
@@ -71,7 +76,7 @@ function selectKey(e) {
   if (!b) { said("type a block's digit first"); return; }
 
   selecting = {mode: ""};
-  if (e.key === "#" && b.group) return menuBeside({digit: b.digit, key: "", channel: "", title: b.group, block: true}, () => false);
+  if (e.key === "#" && (b.group || b.home)) return menuBeside({digit: b.digit, key: "", channel: "", title: b.group || b.home, block: true, home: !b.group}, () => false);
   if (e.key === "$" || e.key === ".") { selecting = {mode: e.key}; return status(); }
   const t = was.letter ? b.trees.find(t => t.letter === was.letter) : b.trees.find(t => t.letter === e.key);
   if (!t) { status(); return said(`no tree ${b.digit}${was.letter || e.key}`); }
@@ -95,7 +100,7 @@ function edit(action, target, answer) {
 }
 
 async function begin(action, target) {
-  if (action === "archive" || action === "pin") return edit(action, target, "");
+  if (["archive", "pin", "earlier", "later", "home"].includes(action)) return edit(action, target, "");
 
   const info = await window.pywebview.api.edit_info(action, target.digit, target.key, target.channel);
   if (info.problem) return said(info.problem);
