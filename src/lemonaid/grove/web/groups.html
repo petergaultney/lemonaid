@@ -64,7 +64,7 @@ const remember = name => { try { name === null ? sessionStorage.removeItem(OPEN)
 const remembered = () => { try { return sessionStorage.getItem(OPEN); } catch { return null; } };
 const RECENT = "lemonaid-recent";  // the bar's unpinned places, by channel, on this device
 const SLOT = 88;  // a bar button's narrowest, with its gap
-let DATA = null, PINS = [], drawn = "";  // PINS: the inbox's pinned channels, in its order
+let DATA = null, PINS = [], drawn = "", inBar = [];  // inBar: the bar's lemons as last drawn  // PINS: the inbox's pinned channels, in its order
 
 function opened() {
   const name = new URLSearchParams(location.hash.slice(1)).get("group");
@@ -128,7 +128,8 @@ function barLemons(count) {
 
 function bar(b) {
   const count = Math.max(2, Math.min(7, Math.floor((innerWidth - 80) / SLOT)));
-  const lemons = barLemons(count).map(l => !l ? "<span></span>"
+  inBar = barLemons(count);
+  const lemons = inBar.map(l => !l ? "<span></span>"
     : `<a class="lemon" href="lemon?channel=${encodeURIComponent(l.channel)}" data-channel="${esc(l.channel)}" data-hold style="border-bottom-color:${STATUS[l.status] || "transparent"}"><span class="label">${l.unread ? '<span class="unread">●</span>' : ""}${esc(l.emoji)}${esc(l.name)}</span></a>`);
   let last = null;
   try { last = localStorage.getItem("lemonaid-last-lemon"); } catch {}
@@ -166,6 +167,20 @@ async function refresh() {
     history.replaceState(null, "", `#group=${encodeURIComponent(remembered())}`);
   }
   draw();
+  readAhead();
+}
+
+// The bar's lemons and the lemon last opened, read ahead so their pages draw at once (talks.js).
+let reading = false;
+async function readAhead() {
+  if (reading || !DATA || DATA.error) return;
+  reading = true;
+  let last = "";
+  try { last = new URLSearchParams(localStorage.getItem("lemonaid-last-lemon") || "").get("channel") || ""; } catch {}
+  const all = DATA.blocks.flatMap(lemonsOf);
+  const ahead = [all.find(l => l.channel === last), ...inBar].filter(Boolean);
+  await window.groveTalks.ahead([...new Map(ahead.map(l => [l.channel, l])).values()]);
+  reading = false;
 }
 
 // Up from a group to the groups, for the home button and keys (prefix.js); false on the groups.

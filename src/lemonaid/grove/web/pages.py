@@ -50,11 +50,11 @@ def grove(keys: web_config.WebConfig) -> str:
 
 
 def _phone(keys: web_config.WebConfig, name: str) -> str:
-    """A page made for a phone, which edits a lemon in a sheet of its own (`edit.js`)."""
+    """A page made for a phone, which edits a lemon in a sheet of its own (`edit.js`) and keeps
+    conversations to draw at once (`talks.js`)."""
     here = resources.files(__package__)
-    return _first(
-        f"{_keys(keys)}\n{here.joinpath('edit.js').read_text()}", here.joinpath(name).read_text()
-    )
+    scripts = "\n".join(here.joinpath(each).read_text() for each in ("edit.js", "talks.js"))
+    return _first(f"{_keys(keys)}\n{scripts}", here.joinpath(name).read_text())
 
 
 def lemon(keys: web_config.WebConfig) -> str:
