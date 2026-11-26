@@ -259,3 +259,59 @@ test("esc and backspace back out of a block, then go back to the terminal rather
   context.back();
   assert.deepEqual(asked, ["terminal"]);
 });
+
+test("a lemon hanging in a crown is a tap target of its own on a touch screen only", () => {
+  const lemon = {channel: "claude:a"}, tree = {key: "t", lemons: [lemon]}, box = {fruit: [{x: 1, y: 2, w: 12, h: 12, lemon}]};
+  for (const web of [true, false]) {  // a touch screen, then a mouse
+    const context = {window: {matchMedia: () => ({matches: web})}, hits: []};
+    vm.createContext(context);
+    vm.runInContext('const touch = () => window.matchMedia?.("(pointer: coarse)").matches;\n' + source("fruitHits"), context);
+    context.fruitHits({digit: "1"}, box, () => tree);
+    assert.deepEqual(context.hits.map(h => [h.lemon, h.tree]), web ? [[lemon, tree]] : []);
+  }
+});
+
+for (const many of [12, 20]) test(`each of ${many} lemons in a tree opened on a short touch screen has its own row on the screen to tap`, () => {
+  const lemons = Array.from({length: many}, (_, i) => ({channel: `claude:${i}`, name: `lemon ${i}`, status: "merge"}));
+  const tree = {key: "t", label: "mops", letter: "t", lemons};
+  const context = {
+    W: () => 500, H: () => 269, RH: 18, CW: 9, BG: "#000", TEXT: "#fff", TAG: "#333", STATUS: {}, ASKS: ["merge"],
+    view: {treeZ: 1}, hits: [], focus: {digit: "6", key: "t"},
+    ctx: {fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}},
+    focused: () => ({b: {digit: "6"}, t: tree, each: () => tree}),
+    crownExtent: () => ({left: -4, right: 4, top: -6, bottom: 0}), crownShape: () => ({}),
+    drawTree: (b, t, cx, cy) => ({groundY: cy + 18 * context.view.treeZ, fruit: []}),
+    fruitHits: () => {}, txtAt: () => {}, mix: c => c,
+  };
+  vm.createContext(context);
+  vm.runInContext(source("drawFocus"), context);
+  assert.equal(context.drawFocus(), true);
+  const rows = context.hits.filter(h => h.lemon);
+  assert.equal(rows.length, many);
+  assert.ok(rows.every(h => h.y >= 0 && h.y + h.h <= 269 && h.x >= 0 && h.x + h.w <= 500), rows.map(h => [h.x, h.y, h.y + h.h]).join(" "));
+  const overlaps = (a, b) => a.x + 0.01 < b.x + b.w && b.x + 0.01 < a.x + a.w && a.y + 0.01 < b.y + b.h && b.y + 0.01 < a.y + a.h;  // rows meet edge to edge
+  assert.ok(rows.every((a, i) => rows.every((b, j) => i === j || !overlaps(a, b))));
+});
+
+test("the browser's back button closes an open tree, then the block, and the page leaves no entry behind", () => {
+  const listeners = {}, stack = [null];
+  const history = {
+    get state() { return stack[stack.length - 1]; },
+    pushState: s => stack.push(s),
+    back: () => { stack.pop(); listeners.popstate(); },
+  };
+  const context = {history, window: {addEventListener: (n, f) => { listeners[n] = f; }}, zoomed: null, focus: null};
+  context.goTo = d => { context.zoomed = d; };
+  vm.createContext(context);
+  vm.runInContext(page.match(/let leaving = false;[^]*?\n\}\);/)[0] + "\nfunction draw() { inHistory(); }", context);
+  const at = () => [vm.runInContext("zoomed", context), Boolean(vm.runInContext("focus", context)), stack.length];
+
+  vm.runInContext('zoomed = "6"; draw(); focus = {digit: "6", key: "t"}; draw()', context);
+  assert.deepEqual(at(), ["6", true, 2]);
+  history.back();
+  assert.deepEqual(at(), ["6", false, 2]);
+  history.back();
+  assert.deepEqual(at(), [null, false, 1]);
+  vm.runInContext('zoomed = "6"; draw(); zoomed = null; draw()', context);  // a tap back out to the whole grove
+  assert.deepEqual(at(), [null, false, 1]);
+});

@@ -11,7 +11,7 @@ from textual.widgets import Label, Static
 from . import flip, select_view, selecting
 
 _GROVE = [
-    ("a digit", "zoom into that block; 0 is the packhouse, and 1 0 is block 10"),
+    ("a digit", "zoom into that block; 1 0 is block 10"),
     ("a digit, then a letter", "jump to that tree's first lemon, as 2c"),
     (
         "a digit, a dot, a letter, a place",
