@@ -13,11 +13,14 @@ import urllib.request
 import pytest
 
 from lemonaid.brief import pr
-from lemonaid.config import Config
+from lemonaid.config import Config, load_config
 from lemonaid.front_end import chat
+from lemonaid.grove.layout import state
+from lemonaid.grove.source import blocks, live
 from lemonaid.grove.web import changes, notes, server
-from lemonaid.grove.window import api
-from lemonaid.inbox import db, pins
+from lemonaid.grove.window import api, data
+from lemonaid.inbox import db
+from tests.grove import shared
 
 ROOM_KEY = "agent:garden:matrix:channel:!g4rd3n:grove.example"
 
@@ -292,17 +295,39 @@ def test_the_log_keeps_saved_views_and_leaves_out_routine_polls(served):
     ]
 
 
-def test_a_lemons_page_pins_it_and_the_groups_get_the_pins_in_order():
+def test_a_phones_page_edits_a_lemon_it_knows_only_by_its_channel(monkeypatch):
     with db.connect() as conn:
-        pins.pin(conn, "claude:first")
+        for name in ("first", "second", "hidden"):  # the grove shows only the first two
+            db.add(conn, f"claude:{name}", "a message", name, {"tty": f"/dev/ttys5{name}"})
+    two = shared.tree("s", shared.lemon("claude:first"), shared.lemon("claude:second"))
+    monkeypatch.setattr(blocks, "blocks", lambda *_args, **_kw: (shared.block("a", "1", two),))
+    state.save(
+        {"version": state.VERSION} | shared.stream_saved({"a": shared.plot_data(2, 2, 60, 14)})
+    )
+    live.fresh(load_config(), None)
     refreshed: list[int] = []
     window = dict.fromkeys(("hide", "leave", "stick", "drag"), lambda: None)
+    loading = server._WebApi(api.Shared(Config()), pr.no_state, refresh=lambda: None, **window)
     calls = server._WebApi(
-        api.Shared(Config()), pr.no_state, refresh=lambda: refreshed.append(1), **window
+        api.Shared(Config(), grove=data.load(load_config())),
+        pr.no_state,
+        refresh=lambda: refreshed.append(1),
+        **window,
     )
 
-    assert calls.pin("claude:second") is True
-    assert calls.pins() == ["claude:first", "claude:second"]
-    assert calls.pin("claude:first") is False
-    assert calls.pins() == ["claude:second"]
-    assert refreshed == [1, 1]
+    assert {"lemon_edit", "lemon_edit_info"} <= server._CALLS and "pin" not in server._CALLS
+    pinned = {"said": "pinned 1 lemon", "gone": False}
+    assert calls.lemon_edit("pin", "claude:second", "") == pinned
+    assert calls.lemon_edit("pin", "claude:first", "") == pinned
+    assert calls.pins() == ["claude:second", "claude:first"]
+    assert calls.lemon_edit_info("snooze", "claude:first")["presets"]
+    assert calls.lemon_edit("archive", "claude:first", "") == {
+        "said": "archived 1 lemon",
+        "gone": True,
+    }
+    assert calls.lemon_edit("archive", "claude:hidden", "") == {
+        "said": "the grove doesn't show that lemon",
+        "gone": False,
+    }
+    assert loading.lemon_edit_info("rename", "claude:first") == {"problem": "the grove is loading"}
+    assert refreshed == [1, 1, 1]  # each edit the grove shows

@@ -24,7 +24,7 @@ from ...config import Config
 from ...inbox import db, pins
 from ...log import get_logger
 from ...openclaw import gateway
-from ..window import api, data
+from ..window import api, data, edits
 from . import brief_page, changes, lemon, notes, pages
 
 _log = get_logger("grove.web")
@@ -69,12 +69,25 @@ class _WebApi(api.Api):
             at = pins.pinned_positions(conn)
         return sorted(at, key=at.__getitem__)
 
-    def pin(self, channel: str) -> bool:
-        """Pin the lemon on *channel* below the other pins, or unpin it; whether it is pinned now."""
+    def _placed(self, channel: str) -> tuple[str, str] | str:
+        grove = self._shared.grove
+        if grove is None:
+            return "the grove is loading"
+        return edits.placed(grove, channel) or "the grove doesn't show that lemon"
+
+    def lemon_edit_info(self, action: str, channel: str) -> dict:
+        """The window's `edit_info` for a page that knows only the lemon."""
+        at = self._placed(channel)
+        return {"problem": at} if isinstance(at, str) else self.edit_info(action, *at, channel)
+
+    def lemon_edit(self, action: str, channel: str, answer: str) -> dict:
+        """What happened, and whether the lemon is gone from the inbox now, as an archived one is:
+        the edits answer a refusal and a change alike in words, and its page has nothing to show."""
+        at = self._placed(channel)
+        said = at if isinstance(at, str) else self.edit(action, *at, channel, answer)
         with db.connect() as conn:
-            pinned = pins.toggle(conn, channel)
-        self._refresh()
-        return pinned
+            row = db.get_by_channel(conn, channel, unread_only=False)
+        return {"said": said, "gone": row is None or row.is_archived}
 
 
 # What a browser may call, named one by one so a method added to the native window isn't served
@@ -89,9 +102,10 @@ _CALLS = frozenset(
         "jump",
         "keep",
         "lemon",
+        "lemon_edit",
+        "lemon_edit_info",
         "log",
         "look",
-        "pin",
         "pins",
         "plant",
         "reframe",
