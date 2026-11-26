@@ -42,6 +42,9 @@ class _WebApi(api.Api):
         super().__init__(shared, **window)
         self._prs = prs
 
+    def look(self) -> dict:
+        return {**super().look(), "summoned": False}  # a browser's page stays open
+
     def jump(self, channel: str) -> str | dict[str, str]:  # type: ignore[override]
         with db.connect() as conn:
             found = db.get_by_channel(conn, channel, unread_only=False)

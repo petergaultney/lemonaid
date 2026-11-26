@@ -138,6 +138,7 @@ class Api:
             "flipKey": tui.grove_flip_key,
             "flipHold": tui.grove_flip == "hold",
             "usageKey": tui.keybindings.usage_view,
+            "summoned": True,  # each summon opens on the whole grove
         }
 
     def usage(self) -> list[dict]:

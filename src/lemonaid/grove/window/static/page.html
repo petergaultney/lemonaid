@@ -136,6 +136,11 @@ const still = document.createElement("canvas");  // the last full frame, which a
 let pulsers = {dots: [], tags: []};
 let CW = 8, RH = 16, YS = 2, CAP = 9;  // a cell's width, a row's height, their ratio, and a capital's height, from the font
 let DATA = null, view = {x: 0, y: 0, k: 8}, zoomed = null, typed = "", hits = [], hover = null;
+// The window a tmux key summons opens on the whole grove each time. A page that stays open, in a
+// browser or a window of its own, keeps the block it shows, also across a reload.
+let summoned = true;
+const zoomedKey = "lemonaid-grove-zoomed";
+const keptZoom = d => { try { const z = sessionStorage.getItem(zoomedKey); return d.blocks.some(b => b.digit === z) ? z : null; } catch { return null; } };
 // A `/` search under way, {text, found, chosen}, and a `.` typed in a block toward a lemon's place, {letter, num}.
 let search = null, dot = null, searchAsked = 0;  // searchAsked: the last search Python was asked for; navigating keeps its answer wanted
 // `Tab`'s select mode: {mode: "" | "." | "$", letter, num}, what's typed toward a choice, and the view it began in
@@ -918,6 +923,7 @@ function keepStill() { still.width = cv.width; still.height = cv.height; still.g
 function draw() {
   if (!DATA) return;
   inHistory();
+  if (!summoned) try { sessionStorage.setItem(zoomedKey, zoomed || ""); } catch {}
   clearTimeout(resting); resting = 0;
   const began = performance.now();
   hits = []; pulsers = {dots: [], tags: []};
@@ -1170,6 +1176,7 @@ function onKey(e) {
 document.addEventListener("keydown", onKey);
 cv.addEventListener("wheel", e => {
   e.preventDefault();
+  if (!DATA) return;  // the grove hasn't come yet: nothing to zoom
   const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
   const most = touch() ? Math.min(40, 8 * homeView(DATA.blocks, null, screen()).k) : 40;  // a phone zooms only so far past the whole grove
   const wx = view.x + mx / view.k, wy = view.y + my / (view.k * YS), k = Math.max(2, Math.min(most, view.k * Math.exp(-e.deltaY * 0.003)));
@@ -1223,7 +1230,7 @@ function moveTo(e) {
 }
 
 cv.addEventListener("pointerdown", e => {
-  if (e.button !== 0) return;  // a right-click opens the edit menu (menu.js), and moves nothing
+  if (e.button !== 0 || !DATA) return;  // a right-click opens the edit menu (menu.js), and moves nothing
   if (drag?.landing || moving?.landing) { drag = moving = null; draw(); }
   const r = cv.getBoundingClientRect(), h = hitAt(e.clientX - r.left, e.clientY - r.top);
   // On a touch screen a drag only ever pans: moving a tree or a block by finger is too fiddly.
@@ -1232,6 +1239,7 @@ cv.addEventListener("pointerdown", e => {
   cv.setPointerCapture(e.pointerId);
 });
 cv.addEventListener("pointermove", e => {
+  if (!DATA) return;
   if (press) {
     const dx = e.clientX - press.x, dy = e.clientY - press.y;
     if (Math.abs(dx) + Math.abs(dy) > 4) press.moved = true;
@@ -1273,7 +1281,7 @@ function dragTo(e) {
   first ? draw() : drawDrag();  // the first move draws the frame without the tree, for the rest to draw over
 }
 cv.addEventListener("pointerup", e => {
-  if (e.button !== 0) return;
+  if (e.button !== 0 || !DATA) return;
   // A drop that may stand stays drawn where it was dropped ("landing") until the grove's data shows it
   // there (`landed`), so it never shows at its old place while Python saves it; a refused save puts it back.
   const p = press, d = drag, m = moving; press = drag = moving = null;
@@ -1335,13 +1343,14 @@ window.groveData = async () => {
   const first = !DATA;
   if (shape !== window.groveShape) { layouts = {}; window.groveShape = shape; }
   DATA = d;
-  if (first || gone) goTo(null);
+  if (first || gone) goTo(first && !summoned ? keptZoom(d) : null);
   if (drag?.landing || moving?.landing) landed(d);
   draw();
 };
 window.addEventListener("pywebviewready", async () => {
   const look = await window.pywebview.api.look();
   document.documentElement.style.setProperty("--opacity", look.opacity);
+  summoned = look.summoned ?? summoned;
   flipKey = look.flipKey ?? flipKey; flipHold = look.flipHold ?? flipHold; usageKey = look.usageKey ?? usageKey;
   const kept = await window.pywebview.api.settings();
   views = Object.fromEntries(Object.entries(kept.views || {}).filter(([size]) => /^\d+x\d+$/.test(size)));  // by window size
@@ -1355,7 +1364,7 @@ window.addEventListener("resize", () => {
   clearTimeout(resizing);
   resizing = setTimeout(() => { measure(); layouts = {}; if (DATA) { goTo(zoomed); draw(); } }, 150);
 });
-window.addEventListener("focus", () => { typed = ""; drag = press = moving = search = dot = selecting = null; if (DATA) { goTo(null); draw(); } });  // a summon opens on the whole grove
+window.addEventListener("focus", () => { typed = ""; drag = press = moving = search = dot = selecting = null; if (DATA && summoned) { goTo(null); draw(); } });  // a summon opens on the whole grove
 </script>
 <script src="menu.js"></script>
 </body></html>

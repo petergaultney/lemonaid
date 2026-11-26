@@ -3,8 +3,8 @@ grove window, see-through as the window is.
 
 The page is the window's own. Its calls about the grove go to the server, and it redraws when the
 server's stream of changes says the grove changed. How it looks (this machine's config), links,
-and moving or hiding the window stay here. A lemon's page opens in the window, and going back
-from it shows the window's own page again.
+and moving or hiding the window stay here. A lemon's page opens in a window of its own over the
+grove, and going back closes it, leaving the grove as it was.
 """
 
 import json
@@ -100,7 +100,7 @@ class RemoteApi:
         self._home()
 
     def look(self) -> dict:
-        return self._local.look()
+        return {**self._local.look(), "summoned": False}  # this window stays open
 
     def open_link(self, url: str) -> None:
         self._local.open_link(url)
@@ -140,6 +140,28 @@ def _listen(base: str, redraw: abc.Callable[[], None]) -> None:
         time.sleep(_RETRY_SECONDS)
 
 
+def _lemons(calls: list["RemoteApi"]) -> tuple[abc.Callable[[str], None], abc.Callable[[], None]]:
+    """Show a lemon's page in a window of its own over the grove, and close it again, so going
+    back leaves the grove's window as it was."""
+    shown: list[webview.Window] = []
+
+    def show(url: str) -> None:
+        if shown:
+            shown[0].load_url(url)
+            shown[0].show()
+            return
+
+        lemon = webview.create_window("lemon", url, js_api=calls[0], width=1100, height=760)
+        lemon.events.closed += shown.clear
+        shown.append(lemon)
+
+    def home() -> None:
+        if shown:
+            shown.pop().destroy()
+
+    return show, home
+
+
 def run(config: Config, url: str) -> None:
     base = url if url.endswith("/") else f"{url}/"
     window_ref: list[webview.Window] = []
@@ -151,15 +173,13 @@ def run(config: Config, url: str) -> None:
         stick=lambda: None,
         drag=lambda: position.drag(window_ref[0]),
     )
+    calls_ref: list[RemoteApi] = []
+    show, home = _lemons(calls_ref)
+    calls_ref.append(RemoteApi(base, local, show=show, home=home))
     window = webview.create_window(
         f"lemon grove at {urllib.parse.urlsplit(base).hostname}",
         html=page.html(),
-        js_api=RemoteApi(
-            base,
-            local,
-            show=lambda url: window_ref[0].load_url(url),
-            home=lambda: window_ref[0].load_html(page.html()),
-        ),
+        js_api=calls_ref[0],
         frameless=True,
         easy_drag=False,
         width=1200,
