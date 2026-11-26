@@ -13,9 +13,9 @@ import time
 from pathlib import Path
 
 _MAX_BYTES = 2_000_000
-_POLLS = frozenset(
-    {"data", "lemon", "talk"}
-)  # asked every few seconds: noted only when slow or failing
+_ASKED_OFTEN = frozenset(
+    {"data", "lemon", "talk", "block_refusal", "search"}
+)  # every few seconds, or each step of a drag or keystroke of a search: noted only when slow or failing
 _SLOW_SECONDS = 1.0
 _KEPT_ARGS = frozenset({"keep"})  # the page's saved views: small, and what a stuck view comes from
 _lock = threading.Lock()
@@ -38,8 +38,8 @@ def write(event: dict, client: str) -> None:
 
 
 def call(name: str, seconds: float, error: str, client: str, args: object = None) -> None:
-    """Note a call the page made, unless it's a routine poll that went well."""
-    if name in _POLLS and not error and seconds < _SLOW_SECONDS:
+    """Note a call the page made, unless it's one asked often that went well."""
+    if name in _ASKED_OFTEN and not error and seconds < _SLOW_SECONDS:
         return
 
     write(
