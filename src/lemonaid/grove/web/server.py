@@ -7,7 +7,6 @@ itself, which can switch the terminal as the window does. Each page hears when t
 over its own open stream (`changes.py`), where the window has Python push it.
 """
 
-import dataclasses
 import functools
 import gzip
 import hashlib
@@ -19,16 +18,14 @@ import threading
 import time
 import urllib.parse
 from collections import abc
-from importlib import resources
 
-from ... import web_config
 from ...brief import pr
 from ...config import Config
 from ...inbox import db
 from ...log import get_logger
 from ...openclaw import gateway
-from ..window import api, data, page
-from . import brief_page, changes, lemon, notes
+from ..window import api, data
+from . import brief_page, changes, lemon, notes, pages
 
 _log = get_logger("grove.web")
 
@@ -67,35 +64,11 @@ class _WebApi(api.Api):
 _CALLS = frozenset(name for name in (*vars(api.Api), *vars(_WebApi)) if not name.startswith("_"))
 
 
-def _first(scripts: str, into: str) -> str:
-    at = into.index("<script")
-    return f"{into[:at]}<script>\n{scripts}</script>\n{into[at:]}"
-
-
-def _keys(keys: web_config.WebConfig) -> str:
-    """The page's own scripts' first: its notes for the log, then its prefix key."""
-    here = resources.files(__package__)
-    return (
-        f"{here.joinpath('notes.js').read_text()}\n"
-        f"window.groveKeys = {json.dumps(dataclasses.asdict(keys))};\n"
-        f"{here.joinpath('prefix.js').read_text()}"
-    )
-
-
-def html(keys: web_config.WebConfig) -> str:
-    """The window's page, with the shim that turns its Python calls into requests first."""
-    shim = resources.files(__package__).joinpath("shim.js").read_text()
-    return _first(f"{shim}\n{_keys(keys)}", page.html())
-
-
-def lemon_page(keys: web_config.WebConfig) -> str:
-    lemon_html = resources.files(__package__).joinpath("lemon.html").read_text()
-    return _first(_keys(keys), lemon_html)
-
-
 def _handler(
-    calls: api.Api, body: bytes, lemon_page: bytes, seen: changes.Changes
+    calls: api.Api, served: abc.Mapping[str, bytes], seen: changes.Changes
 ) -> type[http.server.BaseHTTPRequestHandler]:
+    """*served* is each page by its path (`pages.served`)."""
+
     class Handler(http.server.BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"  # a page's calls share one connection, not one each
 
@@ -128,13 +101,21 @@ def _handler(
             self._send(200, content, kind, cache="no-cache", tag=tag)
 
         def do_GET(self) -> None:
-            path = urllib.parse.urlsplit(self.path).path
-            if path in ("/", "/index.html"):
-                self._page(body, "text/html; charset=utf-8")
-            elif path == "/api/changes":
+            path = urllib.parse.urlsplit(self.path).path.strip("/").removesuffix("index.html")
+            if path == "api/changes":
                 self._changes()
-            elif path == "/lemon":
-                self._send(200, lemon_page, "text/html; charset=utf-8")
+                return
+
+            if not path and pages.for_phone(self.headers.get("User-Agent", "")):
+                self.send_response(302)
+                self.send_header("Location", "groups")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+
+            found = served.get(path or "grove")
+            if found:
+                self._page(found, "text/html; charset=utf-8")
             else:
                 self._send(404, b"not found", "text/plain")
 
@@ -266,8 +247,7 @@ def serve(config: Config, host: str, port: int) -> None:
     )
     threading.Thread(target=functools.partial(_refresher, shared, seen), daemon=True).start()
     with http.server.ThreadingHTTPServer(
-        (host, port),
-        _handler(calls, html(config.web).encode(), lemon_page(config.web).encode(), seen),
+        (host, port), _handler(calls, pages.served(config.web), seen)
     ) as server:
         print(
             f"serving the grove at http://{host}:{port}/ with no login: anyone who reaches"

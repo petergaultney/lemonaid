@@ -12,7 +12,6 @@ import urllib.request
 
 import pytest
 
-from lemonaid import web_config
 from lemonaid.brief import pr
 from lemonaid.config import Config
 from lemonaid.front_end import chat
@@ -46,7 +45,15 @@ def seen():
 def served(seen):
     httpd = http.server.ThreadingHTTPServer(
         ("127.0.0.1", 0),
-        server._handler(_Calls(), b"<html>page</html>", b"<html>lemon</html>", seen),
+        server._handler(
+            _Calls(),
+            {
+                "grove": b"<html>page</html>",
+                "lemon": b"<html>lemon</html>",
+                "groups": b"<html>groups</html>",
+            },
+            seen,
+        ),
     )
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -74,7 +81,7 @@ def test_the_page_is_served_at_the_root(served):
 
 
 def test_the_page_comes_compressed_and_a_browser_that_has_it_isnt_sent_it_again(seen):
-    big = server._handler(_Calls(), b"<html>" + b"lemon " * 1000 + b"</html>", seen)
+    big = server._handler(_Calls(), {"grove": b"<html>" + b"lemon " * 1000 + b"</html>"}, seen)
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), big)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
@@ -91,6 +98,17 @@ def test_the_page_comes_compressed_and_a_browser_that_has_it_isnt_sent_it_again(
 
     assert first.getheader("Content-Encoding") == "gzip" and page.startswith(b"<html>lemon")
     assert again.status == 304
+
+
+def test_a_phone_is_sent_to_the_groups(served):
+    phone = urllib.request.Request(
+        served + "/", headers={"User-Agent": "Mozilla/5.0 (Android 17; Mobile)"}
+    )
+    with urllib.request.urlopen(phone) as response:
+        assert (response.url, response.read()) == (served + "/groups", b"<html>groups</html>")
+
+    with urllib.request.urlopen(served + "/grove") as response:
+        assert response.read() == b"<html>page</html>"
 
 
 def test_api_calls_reach_the_window_api(served):
@@ -119,12 +137,6 @@ def test_only_the_calls_named_for_browsers_are_served(served):
     assert _post(served + "/api/nothing", [])[0] == 404
     assert _post(served + "/api/open_link", ["https://example.com"])[0] == 404
     assert _post(served + "/api/drag", [])[0] == 404
-
-
-def test_the_page_gets_the_shim_before_its_own_scripts():
-    page = server.html(web_config.WebConfig())
-
-    assert page.index("window.pywebview = {api") < page.index("window.groveData = async")
 
 
 def test_the_lemon_page_is_served_with_its_query(served):
@@ -223,13 +235,6 @@ def test_a_pages_calls_share_one_connection_even_after_a_refusal(served):
         (200, b'["barn"]', False),
         (200, b'["barn"]', False),
     ]
-def test_both_pages_get_the_web_keys_before_their_own_scripts():
-    keys = web_config.WebConfig(prefix="C-a")
-    for page in (server.html(keys), server.lemon_page(keys)):
-        given = page.index(
-            'window.groveKeys = {"prefix": "C-a", "home": "prefix", "literal": "h", "brief": "b"}'
-        )
-        assert given < page.index("<script>", given)
 
 
 def _noted() -> list[dict]:
