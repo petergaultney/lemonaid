@@ -2,12 +2,15 @@
 
 The page and its calls into Python are the grove window's (`window/api.py`). What a browser on
 another machine can't use is left out: placing the window, and switching a terminal on the server.
-A lemon whose front end is a chat room opens its room in the browser instead.
+A lemon whose front end is a chat room opens its room in the browser instead. Each page hears
+when the grove changed over its own open stream (`changes.py`), where the window has Python push it.
 """
 
 import functools
 import http.server
 import json
+import select
+import socket
 import threading
 import time
 import urllib.parse
@@ -18,6 +21,7 @@ from ...front_end import chat
 from ...inbox import db
 from ...log import get_logger
 from ..window import api, data, page
+from . import changes
 
 _log = get_logger("grove.web")
 
@@ -53,8 +57,12 @@ def html() -> str:
     return f"{window_page[:at]}<script>\n{shim}</script>\n{window_page[at:]}"
 
 
-def _handler(calls: api.Api, body: bytes) -> type[http.server.BaseHTTPRequestHandler]:
+def _handler(
+    calls: api.Api, body: bytes, seen: changes.Changes
+) -> type[http.server.BaseHTTPRequestHandler]:
     class Handler(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"  # a page's calls share one connection, not one each
+
         def _send(self, status: int, content: bytes, kind: str) -> None:
             self.send_response(status)
             self.send_header("Content-Type", kind)
@@ -66,8 +74,42 @@ def _handler(calls: api.Api, body: bytes) -> type[http.server.BaseHTTPRequestHan
         def do_GET(self) -> None:
             if self.path in ("/", "/index.html"):
                 self._send(200, body, "text/html; charset=utf-8")
+            elif self.path == "/api/changes":
+                self._changes()
             else:
                 self._send(404, b"not found", "text/plain")
+
+        def _changes(self) -> None:
+            with seen.admitted(self.client_address[0]) as ok:
+                if not ok:
+                    self._send(204, b"", "text/plain")  # EventSource stops on 204; the page polls
+                    return
+
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.close_connection = True  # a stream ends only with its connection
+
+                def write(event: bytes) -> None:
+                    self.wfile.write(event)
+                    self.wfile.flush()
+
+                try:
+                    changes.stream(seen, write, self._gone)
+                except (BrokenPipeError, ConnectionResetError):
+                    _log.debug("a page closed its stream of changes")
+
+        def _gone(self) -> bool:
+            """Whether the page closed its end of a stream: it sends nothing after asking, so
+            anything to read means it hung up."""
+            if not select.select([self.connection], [], [], 0)[0]:
+                return False
+
+            try:
+                return not self.connection.recv(1, socket.MSG_PEEK)
+            except OSError:
+                return True
 
         def _from_the_page(self) -> bool:
             """A call from the served page: JSON, from the page's own origin. A page on another site
@@ -78,6 +120,8 @@ def _handler(calls: api.Api, body: bytes) -> type[http.server.BaseHTTPRequestHan
             return same and self.headers.get_content_type() == "application/json"
 
         def do_POST(self) -> None:
+            length = int(self.headers.get("Content-Length") or 0)
+            sent = self.rfile.read(length)  # even if refused: the connection carries the next call
             name = self.path.removeprefix("/api/")
             if not self.path.startswith("/api/") or name not in _CALLS:
                 self._send(404, b"not found", "text/plain")
@@ -87,9 +131,8 @@ def _handler(calls: api.Api, body: bytes) -> type[http.server.BaseHTTPRequestHan
                 self._send(403, b"only the grove page may call this", "text/plain")
                 return
 
-            length = int(self.headers.get("Content-Length") or 0)
             try:
-                args = json.loads(self.rfile.read(length) or b"[]")
+                args = json.loads(sent or b"[]")
                 result = getattr(calls, name)(*args)
             except (ValueError, TypeError) as error:
                 self._send(400, str(error).encode(), "text/plain")
@@ -103,33 +146,36 @@ def _handler(calls: api.Api, body: bytes) -> type[http.server.BaseHTTPRequestHan
     return Handler
 
 
-def _reload(shared: api.Shared) -> None:
+def _reload(shared: api.Shared, seen: changes.Changes) -> None:
     try:
         shared.grove = data.load(shared.config)
+        seen.saw(data.shown(shared.grove))
     except Exception:  # a refresh thread's top: log it and keep the last grove
         _log.exception("can't load the grove")
 
 
-def _refresher(shared: api.Shared) -> None:
+def _refresher(shared: api.Shared, seen: changes.Changes) -> None:
     while True:
         time.sleep(REFRESH_SECONDS)
-        _reload(shared)
+        _reload(shared, seen)
 
 
 def serve(config: Config, host: str, port: int) -> None:
-    shared = api.Shared(config)
-    _reload(shared)
+    shared, seen = api.Shared(config), changes.Changes()
+    _reload(shared, seen)
     nothing = lambda: None  # noqa: E731
     calls = _WebApi(
         shared,
         hide=nothing,
-        refresh=lambda: threading.Thread(target=_reload, args=(shared,), daemon=True).start(),
+        refresh=lambda: threading.Thread(target=_reload, args=(shared, seen), daemon=True).start(),
         leave=nothing,
         stick=nothing,
         drag=nothing,
     )
-    threading.Thread(target=functools.partial(_refresher, shared), daemon=True).start()
-    with http.server.ThreadingHTTPServer((host, port), _handler(calls, html().encode())) as server:
+    threading.Thread(target=functools.partial(_refresher, shared, seen), daemon=True).start()
+    with http.server.ThreadingHTTPServer(
+        (host, port), _handler(calls, html().encode(), seen)
+    ) as server:
         print(
             f"serving the grove at http://{host}:{port}/ with no login: anyone who reaches"
             " this address controls the grove",

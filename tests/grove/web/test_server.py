@@ -1,16 +1,18 @@
 """The grove window's page, served over HTTP: its calls reach the window's `Api`, and a chat
 lemon's jump opens its room in the browser."""
 
+import http.client
 import http.server
 import json
 import threading
+import time
 import urllib.error
 import urllib.request
 
 import pytest
 
 from lemonaid.front_end import chat
-from lemonaid.grove.web import server
+from lemonaid.grove.web import changes, server
 from lemonaid.inbox import db
 
 ROOM_KEY = "agent:garden:matrix:channel:!g4rd3n:grove.example"
@@ -25,9 +27,14 @@ class _Calls:
 
 
 @pytest.fixture
-def served():
+def seen():
+    return changes.Changes()
+
+
+@pytest.fixture
+def served(seen):
     httpd = http.server.ThreadingHTTPServer(
-        ("127.0.0.1", 0), server._handler(_Calls(), b"<html>page</html>")
+        ("127.0.0.1", 0), server._handler(_Calls(), b"<html>page</html>", seen)
     )
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -108,3 +115,53 @@ def test_a_terminal_lemon_cant_be_jumped_to_from_a_browser():
 
     assert "runs in a terminal" in server._jump("claude:abc")
     assert server._jump("claude:missing") == "No live lemon on claude:missing"
+
+
+def test_an_open_page_hears_each_change(served, seen):
+    with urllib.request.urlopen(served + "/api/changes", timeout=5) as stream:
+        assert stream.headers["Content-Type"] == "text/event-stream"
+        assert stream.readline() == b"retry: 1000\n"
+        seen.saw({"blocks": [1]})
+        assert [stream.readline(), stream.readline(), stream.readline()] == [
+            b"\n",
+            b"data: 1\n",
+            b"\n",
+        ]
+
+
+def test_streams_past_a_clients_few_are_turned_away_and_its_calls_still_answer(served):
+    streams = [urllib.request.urlopen(served + "/api/changes", timeout=5) for _ in range(3)]
+    try:
+        assert [stream.status for stream in streams] == [200, 200, 204]
+        assert _post(served + "/api/search", ["barn"]) == (200, ["barn"])
+    finally:
+        for stream in streams:
+            stream.close()
+
+
+def test_a_stream_a_page_closes_frees_its_place(served):
+    kept = urllib.request.urlopen(served + "/api/changes", timeout=5)
+    urllib.request.urlopen(served + "/api/changes", timeout=5).close()
+    time.sleep(2 * changes.CHECK_SECONDS)
+    try:
+        with urllib.request.urlopen(served + "/api/changes", timeout=5) as again:
+            assert again.status == 200
+    finally:
+        kept.close()
+
+
+def test_a_pages_calls_share_one_connection_even_after_a_refusal(served):
+    connection = http.client.HTTPConnection(served.removeprefix("http://"), timeout=5)
+    headers = {"Content-Type": "application/json"}
+    answers = []
+    for path in ("/api/nothing", "/api/search", "/api/search"):
+        connection.request("POST", path, body=json.dumps(["barn"]), headers=headers)
+        response = connection.getresponse()
+        answers.append((response.status, response.read(), response.will_close))
+    connection.close()
+
+    assert answers == [
+        (404, b"not found", False),
+        (200, b'["barn"]', False),
+        (200, b'["barn"]', False),
+    ]
