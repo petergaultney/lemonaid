@@ -35,6 +35,7 @@ header, form, nav.tabs { flex-shrink:0; }
 .day { color:#7c8696; font-size:11px; text-align:center; margin:14px 0 8px; border-top:1px solid #262c36; padding-top:4px; }
 .entry.user .body { background:#1f2a3a; border-left:3px solid #f2d94e; padding:4px 8px; }
 .entry.pending { opacity:0.55; }
+.entry .sent { color:#f2c14e; }
 .entry.failed .who { color:#e5534b; }
 .entry.failed .body { border-left:3px solid #e5534b; padding:4px 8px; color:#f19990; }
 .entry.other .body { border-left:3px solid #3a4250; padding:4px 8px; color:#aab3c2; }
@@ -65,6 +66,12 @@ form .row { display:flex; gap:8px; align-items:center; }
 form .how { color:#7c8696; flex:1; }
 form button { font:inherit; background:#f2d94e; color:#0b0e13; border:0; padding:3px 12px; font-weight:700; }
 #said { color:#f2c14e; }
+@keyframes pulse { 50% { opacity:0.35; } }
+#dot { flex:0 0 9px; height:9px; border-radius:50%; background:#e6ebf2; animation:pulse 1.6s ease-in-out infinite; }
+.entry.working { color:#c9a23a; display:flex; align-items:center; gap:4px; }
+.entry.working i { width:5px; height:5px; border-radius:50%; background:currentColor; animation:pulse 1.2s ease-in-out infinite; }
+.entry.working i:nth-child(2) { animation-delay:0.2s; } .entry.working i:nth-child(3) { animation-delay:0.4s; margin-right:4px; }
+[hidden] { display:none !important; }
 @media (max-width: 760px) {
   nav.tabs { display:flex; }
   body { position:fixed; inset:0; font-size:15px; }  /* only the brief and chat scroll, never the bars off the screen */
@@ -76,7 +83,7 @@ form button { font:inherit; background:#f2d94e; color:#0b0e13; border:0; padding
   body.chat-tab #brief, body.brief-tab #chat { display:none; }
 }
 </style></head><body class="chat-tab">
-<header><a class="home" href="./" onclick="event.preventDefault(); window.groveHome()">grove</a><span class="chip" id="name"></span><span class="status" id="status"></span><span class="bid" id="bid"></span><a id="room" target="_blank" rel="noopener"></a><button id="edit" type="button" hidden>edit</button></header>
+<header><a class="home" href="./" onclick="event.preventDefault(); window.groveHome()">grove</a><span id="dot" title="mid-turn" hidden></span><span class="chip" id="name"></span><span class="status" id="status"></span><span class="bid" id="bid"></span><a id="room" target="_blank" rel="noopener"></a><button id="edit" type="button" hidden>edit</button></header>
 <main>
 <section id="brief" tabindex="-1"></section>
 <div id="divider" title="drag to size the brief"></div>
@@ -185,7 +192,8 @@ const matching = (text, entries) => entries.filter(e => (e.role === "user" || e.
 const recorded = (p, entries) => matching(p.text, entries) > (p.seen ?? 0);
 let lastEntries = [];
 const renderPending = p => `<div class="entry user pending"><div class="who">you ${time(new Date(p.at).toISOString())}`
-  + ` \u00b7 ${p.unsure ? "may not have been sent: the server didn't answer" : "sent"}, waiting for the lemon's record of it</div>`
+  + (p.unsure ? " \u00b7 may not have been sent: the server didn't answer</div>"
+    : ` <span class="sent" title="waiting for the lemon's record of it">\u00b7 sent</span></div>`)
   + `<div class="body">${rich(p.text)}</div></div>`;
 
 $("log").addEventListener("toggle", ev => {
@@ -244,14 +252,18 @@ const showView = v => {
   shownView = v; $("edit").hidden = false;
   if (v.room) { $("room").href = v.room; $("room").textContent = "room"; }
   $("how").textContent = v.how_text;
+  $("dot").hidden = !v.working;
+  if (Boolean(v.working) !== working) { working = Boolean(v.working); if (lastTalk) showTalk(lastTalk); }
   const brief = JSON.stringify(v.brief);
   if (brief !== shownBrief) {
     shownBrief = brief;
     $("brief").innerHTML = drawBrief(v.brief);
   }
 };
+let working = false, lastTalk = null;  // the working row stands where the next reply will appear
 const showTalk = c => {
   if (c.error) return;
+  lastTalk = c;
   if (!c.conversation_problem) {
     lastEntries = c.entries;
     const left = pending.filter(p => !recorded(p, c.entries));
@@ -259,7 +271,8 @@ const showTalk = c => {
   }
   const html = (c.conversation_problem ? `<div class="problem">${escape(c.conversation_problem)}</div>` : "")
     + byDay([...(c.conversation_problem ? [] : grouped(c.entries)),
-             ...pending.map(p => [p.at, renderPending(p)])]);
+             ...pending.map(p => [p.at, renderPending(p)])])
+    + (working ? `<div class="entry working"><i></i><i></i><i></i>working...</div>` : "");
   if (html !== shownLog) {
     const log = $("log"), atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
     log.innerHTML = shownLog = html;
@@ -310,7 +323,7 @@ const send = async () => {
   $("said").textContent = "sending...";
   try {
     const problem = await call("say", [channel, text]);
-    $("said").textContent = problem || "sent";
+    $("said").textContent = problem;
     if (!problem) {
       $("text").value = "";
       keepDraft();

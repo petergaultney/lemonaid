@@ -19,6 +19,7 @@ import sys
 import threading
 import typing as ty
 import uuid
+from collections import abc
 from pathlib import Path
 
 from ..log import get_logger
@@ -152,13 +153,13 @@ def _connect() -> ty.Any:
 
 
 class _Held:
-    """One connection, opened on first use and again after it drops. A reader thread takes every
-    frame as it comes, handing each answer to the call waiting on it and a failed turn to
-    `turns`, and dropping the other events: a
-    connection nothing reads stops answering its keepalive pings, and the gateway's events (a tick
+    """One connection, opened on first use or `listen` and again after it drops. A reader thread
+    takes every frame as it comes, handing each answer to the call waiting on it and each `agent`
+    event to `turns`, and dropping the other events: a connection nothing reads stops answering its keepalive pings, and the gateway's events (a tick
     every 15 s, and more) would back up until it does."""
 
-    def __init__(self) -> None:
+    def __init__(self, on_turn: abc.Callable[[str, float | None], None] | None = None) -> None:
+        self._on_turn = on_turn  # a session's turn running as of a time, or over (`turns.track`)
         self._lock = threading.Lock()  # opening a connection, and sending on it
         self._socket: ty.Any = None
         self._waiting: dict[
@@ -173,8 +174,12 @@ class _Held:
                     waiting[1].put(frame)
                 elif frame.get("type") == "event" and frame.get("event") == "agent":
                     turns.note(frame.get("payload") or {})
+                    if self._on_turn:
+                        turns.track(frame.get("payload") or {}, self._on_turn)
         except (websocket_errors.ConnectionClosed, ValueError) as error:
             _log.info("gateway connection closed: %s", error)
+        except Exception:  # the reader thread's top: log it, and let the next call reconnect
+            _log.exception("gateway reader failed")
         with self._lock:
             if self._socket is socket:
                 self._socket = None
@@ -182,12 +187,20 @@ class _Held:
             if on is socket:
                 answer.put(None)
 
+    def _open(self) -> ty.Any:
+        """The connection, opened with its reader if it isn't; the caller holds the lock."""
+        if self._socket is None:
+            self._socket = _connect()
+            threading.Thread(target=self._read, args=(self._socket,), daemon=True).start()
+        return self._socket
+
+    def listen(self) -> None:
+        with self._lock:
+            self._open()
+
     def _send(self, request: dict, answer: queue.Queue) -> None:
         with self._lock:
-            if self._socket is None:
-                self._socket = _connect()
-                threading.Thread(target=self._read, args=(self._socket,), daemon=True).start()
-            self._waiting[request["id"]] = (self._socket, answer)
+            self._waiting[request["id"]] = (self._open(), answer)
             try:
                 self._socket.send(json.dumps(request))
             except websocket_errors.ConnectionClosed:
@@ -220,13 +233,21 @@ class _Held:
 _held: _Held | None = None
 
 
-def hold() -> bool:
-    """Call the gateway over one held connection from now on, for a long-lived process.
-    False without the `openclaw` extra, which leaves calls on the CLI."""
+def hold(on_turn: abc.Callable[[str, float | None], None] | None = None) -> bool:
+    """Call the gateway over one held connection from now on, for a long-lived process, telling
+    *on_turn* when a session's turn runs or ends. False without the `openclaw` extra, which
+    leaves calls on the CLI."""
     global _held
     if websocket_client is not None and _held is None:
-        _held = _Held()
+        _held = _Held(on_turn)
     return _held is not None
+
+
+def listen() -> None:
+    """Open the held connection now if it isn't open, so its events arrive without waiting for a
+    call. Raises when the gateway can't be reached."""
+    if _held is not None:
+        _held.listen()
 
 
 def _by_cli(cli: str, method: str, params: dict, timeout: float) -> dict:
