@@ -50,6 +50,16 @@
     to_terminal: async () => window.groveBack && window.groveBack(),
     drag: async () => {}, stick: async () => {},
   };
-  window.pywebview = {api: new Proxy({}, {get: (_, name) => here[name] || ((...args) => call(name, args))})};
-  document.addEventListener("DOMContentLoaded", () => window.dispatchEvent(new Event("pywebviewready")));
+  const api = new Proxy({}, {get: (_, name) => here[name] || ((...args) => call(name, args))});
+  window.pywebview = {api};
+  // In a pywebview window (`grove window remote`), pywebview also puts its own object here and says
+  // it's ready: the calls stay this page's, and the page starts once, on whichever
+  // comes first.
+  let started = false;
+  window.addEventListener("pywebviewready", event => {
+    window.pywebview.api = api;
+    if (started) event.stopImmediatePropagation();
+    started = true;
+  }, true);
+  document.addEventListener("DOMContentLoaded", () => { if (!started) window.dispatchEvent(new Event("pywebviewready")); });
 })();

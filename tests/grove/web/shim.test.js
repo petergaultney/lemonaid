@@ -60,3 +60,38 @@ test("the grove page's first call asks for everything it starts with at once", a
   await api.data();
   assert.deepEqual(asked.slice(3), ["api/data"]);
 });
+
+test("in a pywebview window the page keeps the shim's calls and starts once", async () => {
+  const listeners = [], docReady = {}, asked = [];
+  let starts = 0;
+  const window = {
+    open: () => {},
+    addEventListener: (type, then, capture) => listeners.push({type, then, capture}),
+    dispatchEvent: event => {
+      let stopped = false;
+      event.stopImmediatePropagation = () => { stopped = true; };
+      for (const l of [...listeners.filter(l => l.capture), ...listeners.filter(l => !l.capture)]) {
+        if (stopped) break;
+        if (l.type === event.type) l.then(event);
+      }
+    },
+  };
+  const context = {
+    EventSource: class { constructor() { this.readyState = 0; } }, setInterval: () => 0,
+    Event: class { constructor(type) { this.type = type; } },
+    fetch: async url => { asked.push(url); return {ok: true, json: async () => ({})}; },
+    document: {addEventListener: (type, then) => { docReady[type] = then; }},
+    window,
+  };
+  vm.createContext(context);
+  vm.runInContext(shim, context);
+  window.addEventListener("pywebviewready", () => { starts += 1; });  // the page's own start
+
+  docReady.DOMContentLoaded();
+  window.pywebview = {api: {}};  // what pywebview puts there once the page has loaded
+  window.dispatchEvent({type: "pywebviewready"});
+  await window.pywebview.api.search("barn");
+
+  assert.equal(starts, 1);
+  assert.deepEqual(asked, ["api/search"]);
+});
