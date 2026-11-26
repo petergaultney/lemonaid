@@ -41,6 +41,7 @@
     if (!armed) { armed = true; return; }
 
     armed = false;
+    if (window.groveNote) window.groveNote("prefix", {then: event.key});
     if (is(event, back)) {
       if (onLemon) location.href = new URL("./", location.href).href;
       else window.groveBack();

@@ -16,7 +16,7 @@ from lemonaid import web_config
 from lemonaid.brief import pr
 from lemonaid.config import Config
 from lemonaid.front_end import chat
-from lemonaid.grove.web import changes, server
+from lemonaid.grove.web import changes, notes, server
 from lemonaid.grove.window import api
 from lemonaid.inbox import db
 
@@ -32,6 +32,9 @@ class _Calls:
 
     def switch(self, channel):
         return f"switched to {channel}"
+
+    def keep(self, settings):
+        return None
 
 
 @pytest.fixture
@@ -227,3 +230,36 @@ def test_both_pages_get_the_web_keys_before_their_own_scripts():
             'window.groveKeys = {"prefix": "C-a", "home": "prefix", "literal": "h", "brief": "b"}'
         )
         assert given < page.index("<script>", given)
+
+
+def _noted() -> list[dict]:
+    found = notes.path()
+    return [json.loads(line) for line in found.read_text().splitlines()] if found.exists() else []
+
+
+def test_a_pages_notes_go_to_the_log(served):
+    request = urllib.request.Request(
+        served + "/api/note",
+        data=json.dumps([{"what": "load", "w": 412, "h": 915, "touch": True}]).encode(),
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(request) as response:
+        assert response.status == 204
+
+    (noted,) = _noted()
+    assert (noted["kind"], noted["what"], noted["w"], noted["client"]) == (
+        "page",
+        "load",
+        412,
+        "127.0.0.1",
+    )
+
+
+def test_the_log_keeps_saved_views_and_leaves_out_routine_polls(served):
+    _post(served + "/api/data", [])
+    _post(served + "/api/keep", [{"views": {"412x915": {"grove": {"k": 4.9}}}}])
+
+    assert [(n["call"], n["args"]) for n in _noted()] == [
+        ("keep", [{"views": {"412x915": {"grove": {"k": 4.9}}}}])
+    ]

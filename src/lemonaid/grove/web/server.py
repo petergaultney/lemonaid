@@ -28,7 +28,7 @@ from ...inbox import db
 from ...log import get_logger
 from ...openclaw import gateway
 from ..window import api, data, page
-from . import brief_page, changes, lemon
+from . import brief_page, changes, lemon, notes
 
 _log = get_logger("grove.web")
 
@@ -73,8 +73,13 @@ def _first(scripts: str, into: str) -> str:
 
 
 def _keys(keys: web_config.WebConfig) -> str:
-    found = resources.files(__package__).joinpath("prefix.js").read_text()
-    return f"window.groveKeys = {json.dumps(dataclasses.asdict(keys))};\n{found}"
+    """The page's own scripts' first: its notes for the log, then its prefix key."""
+    here = resources.files(__package__)
+    return (
+        f"{here.joinpath('notes.js').read_text()}\n"
+        f"window.groveKeys = {json.dumps(dataclasses.asdict(keys))};\n"
+        f"{here.joinpath('prefix.js').read_text()}"
+    )
 
 
 def html(keys: web_config.WebConfig) -> str:
@@ -185,6 +190,10 @@ def _handler(
             length = int(self.headers.get("Content-Length") or 0)
             sent = self.rfile.read(length)  # even if refused: the connection carries the next call
             name = self.path.removeprefix("/api/")
+            if name == "note" and self._from_the_page():
+                self._note(sent)
+                return
+
             if not self.path.startswith("/api/") or name not in _CALLS:
                 self._send(404, b"not found", "text/plain")
                 return
@@ -199,14 +208,27 @@ def _handler(
                 )
                 return
 
+            began = time.monotonic()
             try:
                 args = json.loads(sent or b"[]")
                 result = getattr(calls, name)(*args)
             except (ValueError, TypeError) as error:
+                notes.call(name, time.monotonic() - began, str(error), self.client_address[0])
                 self._send(400, str(error).encode(), "text/plain")
                 return
 
+            notes.call(name, time.monotonic() - began, "", self.client_address[0], args)
             self._send(200, json.dumps(result).encode(), "application/json")
+
+        def _note(self, sent: bytes) -> None:
+            try:
+                found = json.loads(sent or b"[]") if len(sent) <= 64_000 else []
+            except ValueError:
+                found = []
+            for event in found if isinstance(found, list) else [found]:
+                if isinstance(event, dict):
+                    notes.write({"kind": "page", **event}, self.client_address[0])
+            self._send(204, b"", "text/plain")
 
         def log_message(self, format: str, *args: object) -> None:
             _log.debug(format, *args)

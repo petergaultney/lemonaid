@@ -35,6 +35,7 @@
     open_link: async url => open(url),
     jump: async channel => {
       if (["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) return call("switch", [channel]);
+      if (window.groveNote) window.groveNote("jump", {channel});
       const r = await call("jump", [channel]);
       if (r && r.lemon) { location.href = `lemon?channel=${encodeURIComponent(r.lemon)}`; return ""; }
       return r;
