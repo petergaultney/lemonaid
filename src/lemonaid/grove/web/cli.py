@@ -29,7 +29,7 @@ def _cmd_serve(args: argparse.Namespace) -> None:
     if not host:
         sys.exit("No Tailscale address found; pass --host to choose where to listen")
 
-    serve(load_config(), host, args.port)
+    serve(load_config(), host, args.port, args.name)
 
 
 def add_parsers(grove_subparsers: argparse._SubParsersAction) -> None:
@@ -44,4 +44,7 @@ def add_parsers(grove_subparsers: argparse._SubParsersAction) -> None:
         "--host", default="", help="address to listen on (default: `tailscale ip -4`)"
     )
     serve.add_argument("--port", type=int, default=DEFAULT_PORT)
+    serve.add_argument(
+        "--name", default="lemonaid", help="what a phone calls the grove installed as an app"
+    )
     serve.set_defaults(func=_cmd_serve)

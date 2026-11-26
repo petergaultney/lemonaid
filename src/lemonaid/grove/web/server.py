@@ -231,7 +231,7 @@ def _refresher(shared: api.Shared, seen: changes.Changes) -> None:
         _reload(shared, seen)
 
 
-def serve(config: Config, host: str, port: int) -> None:
+def serve(config: Config, host: str, port: int, app: str) -> None:
     gateway.hold()
     shared, seen = api.Shared(config), changes.Changes()
     _reload(shared, seen)
@@ -247,7 +247,7 @@ def serve(config: Config, host: str, port: int) -> None:
     )
     threading.Thread(target=functools.partial(_refresher, shared, seen), daemon=True).start()
     with http.server.ThreadingHTTPServer(
-        (host, port), _handler(calls, pages.served(config.web), seen)
+        (host, port), _handler(calls, pages.served(config.web, app), seen)
     ) as server:
         print(
             f"serving the grove at http://{host}:{port}/ with no login: anyone who reaches"
