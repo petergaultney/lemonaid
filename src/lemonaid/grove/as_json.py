@@ -14,6 +14,7 @@ def grove(found: abc.Iterable[Block], arrangement: arrange.Arrangement) -> dict[
             {
                 "digit": block.digit,
                 "group": block.name,
+                "home": block.home,
                 "color": block.color,
                 "plot": dataclasses.asdict(arrangement.plots[block.name]),
                 "trees": [

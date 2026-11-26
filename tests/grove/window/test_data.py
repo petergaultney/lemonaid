@@ -11,7 +11,9 @@ from tests.grove.shared import block, plot_data, stream_saved, tree
 
 
 def _grove(monkeypatch):
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("s"), tree("t")),))
+    monkeypatch.setattr(
+        blocks, "blocks", lambda *_args, **_kw: (block("a", "1", tree("s"), tree("t")),)
+    )
     state.save({"version": state.VERSION} | stream_saved({"a": plot_data(2, 2, 60, 14)}))
     live.fresh(load_config(), None)  # saves the trees' spots, as an open grove would have
     return data.load(load_config())
@@ -55,7 +57,7 @@ def test_the_window_shows_what_grove_show_json_prints_with_colors_leads_and_land
 def _stumped(monkeypatch):
     """A grove whose tree t has gone, leaving a bare tree, beside tree s."""
     _grove(monkeypatch)
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("s")),))
+    monkeypatch.setattr(blocks, "blocks", lambda *_args, **_kw: (block("a", "1", tree("s")),))
     live.fresh(load_config(), None)
     return data.load(load_config())
 
@@ -96,7 +98,9 @@ def test_a_bare_tree_dropped_on_a_tree_or_gone_is_refused_and_not_saved(monkeypa
 @pytest.mark.parametrize("moved", [(2, 0), (0, 100)], ids=["move", "clear"])
 def test_a_bare_tree_whose_tree_came_back_during_the_drag_is_left_alone(monkeypatch, moved):
     grove = _stumped(monkeypatch)
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("s"), tree("t")),))
+    monkeypatch.setattr(
+        blocks, "blocks", lambda *_args, **_kw: (block("a", "1", tree("s"), tree("t")),)
+    )
     live.fresh(load_config(), None)  # another grove saves t standing again
     before = state.load()
 
@@ -105,7 +109,7 @@ def test_a_bare_tree_whose_tree_came_back_during_the_drag_is_left_alone(monkeypa
 
 
 def test_a_tree_no_grove_has_saved_yet_can_be_dropped(monkeypatch):
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("s")),))
+    monkeypatch.setattr(blocks, "blocks", lambda *_args, **_kw: (block("a", "1", tree("s")),))
     state.save({"version": state.VERSION} | stream_saved({"a": plot_data(2, 2, 60, 14)}))
     grove = data.load(load_config())  # read only: the tree's spot isn't saved
     standing = grove.arrangement.trees[("a", "s")]
@@ -140,7 +144,7 @@ def test_a_block_moved_onto_the_stream_or_shrunk_too_far_is_refused_and_not_save
 
 
 def test_a_block_no_grove_has_saved_yet_can_be_moved_and_resized(monkeypatch):
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("s")),))
+    monkeypatch.setattr(blocks, "blocks", lambda *_args, **_kw: (block("a", "1", tree("s")),))
     grove = data.load(load_config())  # read only: no layout is saved
     was = grove.arrangement.plots["a"]
 
@@ -157,7 +161,7 @@ def test_a_lead_tree_can_be_moved_farther_from_the_packhouse(
     monkeypatch.setattr(
         blocks,
         "blocks",
-        lambda *_args: (
+        lambda *_args, **_kw: (
             block("west", "1", tree("one"), tree("head", lead=True)),
             block("", "0", tree("hq")),
         ),
@@ -193,7 +197,7 @@ def test_the_window_gets_each_trees_flip_key_line(monkeypatch):
 
 
 def test_open_ground_moves_and_resizes_like_a_block(monkeypatch):
-    monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("s")),))
+    monkeypatch.setattr(blocks, "blocks", lambda *_args, **_kw: (block("a", "1", tree("s")),))
     plots = {"a": plot_data(2, 2, 60, 14), "gone": plot_data(70, 2, 40, 12)}
     state.save({"version": state.VERSION} | stream_saved(plots))
     live.fresh(load_config(), None)  # marks the ended group's plot open
@@ -208,7 +212,7 @@ def test_open_ground_moves_and_resizes_like_a_block(monkeypatch):
 
 def test_a_drop_in_a_window_saves_the_layout_in_the_mode_it_drew(monkeypatch):
     monkeypatch.setattr(
-        blocks, "blocks", lambda *_args: (block("", "0", tree("hq"), tree("misc")),)
+        blocks, "blocks", lambda *_args, **_kw: (block("", "0", tree("hq"), tree("misc")),)
     )
     Path(os.environ["LEMONAID_CONFIG"]).write_text("[tui]\ngrove_packhouse = true\n")
     live.fresh(load_config(), None)  # the packhouse, saved

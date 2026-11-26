@@ -15,8 +15,8 @@ from ..config import load_config
 from ..lemon_watchers.common import detect_terminal_switch_source
 from . import as_json, edit_cli, garden_cli, graft_cli, layout_cli
 from .draw import block_scene, canvas, scenes
-from .layout import advice
-from .source import live, standalone
+from .layout import advice, state
+from .source import block_numbers, live, standalone
 from .tui.frame import Grove
 from .window import cli as window_cli
 
@@ -78,6 +78,13 @@ def _cmd_show(args: argparse.Namespace) -> None:
         console.print(Segments([*canvas.line_segments(row), Segment.line()]), end="")
 
 
+def _cmd_home(args: argparse.Namespace) -> None:
+    if args.group is not None:
+        print(block_numbers.set_home(args.group))
+    else:
+        print(live.home(state.load()) or "none: the home block holds only the lemons in no group")
+
+
 def _cmd_open(_args: argparse.Namespace) -> None:
     source = detect_terminal_switch_source()
     standalone.run(load_config(), None if source == "unknown" else source)
@@ -114,6 +121,16 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     grove_subparsers.add_parser(
         "open", help="Open the grove full-screen here; choosing a lemon switches to it"
     ).set_defaults(func=_cmd_open)
+    home = grove_subparsers.add_parser(
+        "home",
+        help="Print the group drawn in the home block with the lemons in no group, or set it",
+    )
+    home.add_argument(
+        "group",
+        nargs="?",
+        help='A group to draw in the home block, or "" for none (default: print it)',
+    )
+    home.set_defaults(func=_cmd_home)
     edit_cli.add_parsers(grove_subparsers)
     garden_cli.add_parsers(grove_subparsers)
     graft_cli.add_parsers(grove_subparsers)

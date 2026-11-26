@@ -57,7 +57,7 @@ def overview(
         block_dim = scene_parts.fade(highlight, scene_parts.block_channels(block))
         canvas.dim, canvas.target = block_dim, (block.digit,)
         plots.ground(canvas, plot, view, block.color, live=True)
-        taken.append(plots.sign(canvas, plot, view, block.digit, block.name, block.color))
+        taken.append(plots.sign(canvas, plot, view, block.digit, block.title, block.color))
         signs.append((plot, block))
         for stump in arrangement.stumps.get(block.name, ()):
             plots.stump(canvas, *view.screen(plot.x + stump.cx, plot.y + stump.cy), stump.label)
@@ -80,5 +80,5 @@ def overview(
         drawn.extend(zip(planted, fitted, strict=True))
     for plot, block in signs:  # again, over any pennant that reached a sign
         canvas.dim = scene_parts.fade(highlight, scene_parts.block_channels(block))
-        plots.sign(canvas, plot, view, block.digit, block.name, block.color)
+        plots.sign(canvas, plot, view, block.digit, block.title, block.color)
     canvas.dim = 0.0

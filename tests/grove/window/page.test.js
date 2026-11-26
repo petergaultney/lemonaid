@@ -97,12 +97,14 @@ test("tab's keys choose a tree's first lemon, another lemon, the whole tree, or 
   assert.deepEqual(shown.map(t => [t.key, t.channel, !!t.block]), [["ant", "c:1", false], ["ant", "c:2", false], ["bee", "", false], ["", "", true]]);
 });
 
-test("a block's menu only recolors it, and a lemon's or a tree's never does", () => {
+test("a block's menu recolors it and changes its number, block 0's gives back its home group's, and a lemon's or a tree's does neither", () => {
   const context = {EDITS: null};
   vm.createContext(context);
-  vm.runInContext(`${menuJs.match(/const EDITS = [^\n]*/)[0]}\nconst editsFor = ${menuJs.match(/const editsFor = ([^\n]*)/)[1]}`, context);
+  const line = name => menuJs.match(new RegExp(`const ${name} = [^\\n]*`))[0];
+  vm.runInContext(`${line("EDITS")}\n${line("BLOCK_EDITS")}\n${line("HOME_EDITS")}\nconst editsFor = ${menuJs.match(/const editsFor = ([^\n]*)/)[1]}`, context);
 
-  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(editsFor({block: true}).map(e => e[0]))", context)), ["color"]);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(editsFor({block: true}).map(e => e[0]))", context)), ["color", "earlier", "later", "home"]);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(editsFor({block: true, home: true}).map(e => e[0]))", context)), ["home"]);
   assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(editsFor({}).map(e => e[0]))", context)), ["rename", "snooze", "archive", "pin", "group", "graft"]);
 });
 
@@ -278,7 +280,7 @@ for (const many of [12, 20]) test(`each of ${many} lemons in a tree opened on a 
     W: () => 500, H: () => 269, RH: 18, CW: 9, BG: "#000", TEXT: "#fff", TAG: "#333", STATUS: {}, ASKS: ["merge"],
     view: {treeZ: 1}, hits: [], focus: {digit: "6", key: "t"},
     ctx: {fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}},
-    focused: () => ({b: {digit: "6"}, t: tree, each: () => tree}),
+    focused: () => ({b: {digit: "6", group: many === 20 ? "mops" : ""}, t: tree, each: () => tree}),
     crownExtent: () => ({left: -4, right: 4, top: -6, bottom: 0}), crownShape: () => ({}),
     drawTree: (b, t, cx, cy) => ({groundY: cy + 18 * context.view.treeZ, fruit: []}),
     fruitHits: () => {}, txtAt: () => {}, mix: c => c,
@@ -288,6 +290,7 @@ for (const many of [12, 20]) test(`each of ${many} lemons in a tree opened on a 
   assert.equal(context.drawFocus(), true);
   const rows = context.hits.filter(h => h.lemon);
   assert.equal(rows.length, many);
+  assert.equal(context.hits.filter(h => h.blockMenu).length, many === 20 ? 1 : 0);  // a group's title opens its block's menu
   assert.ok(rows.every(h => h.y >= 0 && h.y + h.h <= 269 && h.x >= 0 && h.x + h.w <= 500), rows.map(h => [h.x, h.y, h.y + h.h]).join(" "));
   const overlaps = (a, b) => a.x + 0.01 < b.x + b.w && b.x + 0.01 < a.x + a.w && a.y + 0.01 < b.y + b.h && b.y + 0.01 < a.y + a.h;  // rows meet edge to edge
   assert.ok(rows.every((a, i) => rows.every((b, j) => i === j || !overlaps(a, b))));

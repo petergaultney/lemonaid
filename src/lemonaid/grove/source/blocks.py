@@ -148,9 +148,16 @@ def _packhouse_lead(
 
 
 def blocks(
-    inputs: Inputs, thresholds: abc.Mapping[str, context_use.Threshold], now: float | None = None
+    inputs: Inputs,
+    thresholds: abc.Mapping[str, context_use.Threshold],
+    now: float | None = None,
+    home: str = "",
+    first: int = 0,
 ) -> tuple[Block, ...]:
-    """One block per group with live lemons, numbered in the inbox's group order, and block 0 for the rest."""
+    """Block *first* (0 or 1) for the lemons in no group, and one block per group with live lemons,
+    numbered on from it in the inbox's group order. The *home* group's lemons are in block *first*,
+    which takes its name and color, and its lead.
+    """
     now = time.time() if now is None else now
     roots = rooting.rooted(inputs.rows, inputs.lemon_ids, inputs.grafts)
     lemons = {
@@ -159,32 +166,34 @@ def blocks(
     }
     first_group = {channel: names[0] for channel, names in inputs.memberships.items() if names}
     found: list[Block] = []
-    for group in inputs.groups:
+    for group in (g for g in inputs.groups if g.name != home):
         rows = [n for n in inputs.rows if first_group.get(n.channel) == group.name]
         if rows:
             lead = group_lead.find(rows, inputs.parents)
             found.append(
                 Block(
                     group.name,
-                    str(len(found) + 1),
+                    str(first + len(found) + 1),
                     group.color,
                     _trees(rows, lemons, roots, lead, inputs.parents),
                 )
             )
-    loose = [n for n in inputs.rows if n.channel not in first_group]
+    homed = [n for n in inputs.rows if home and first_group.get(n.channel) == home]
+    loose = [n for n in inputs.rows if n.channel not in first_group] + homed
+    color = next((g.color for g in inputs.groups if homed and g.name == home), UNGROUPED_COLOR)
     if loose:
+        lead = (
+            group_lead.find(homed, inputs.parents)
+            if homed
+            else _packhouse_lead(loose, inputs.rows, inputs.parents)
+        )
         found.append(
             Block(
                 "",
-                "0",
-                UNGROUPED_COLOR,
-                _trees(
-                    loose,
-                    lemons,
-                    roots,
-                    _packhouse_lead(loose, inputs.rows, inputs.parents),
-                    inputs.parents,
-                ),
+                str(first),
+                color,
+                _trees(loose, lemons, roots, lead, inputs.parents),
+                home if homed else "",
             )
         )
     return tuple(found)

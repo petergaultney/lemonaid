@@ -1,6 +1,6 @@
 """The terminal grove's select-mode edits, from the window's right-click menu: rename, snooze,
 archive, pin, move to another group or onto another lemon's tree, and recolor, made by the same
-changes.
+changes. A block's menu also changes block numbers: home (block 0) and earlier or later.
 """
 
 import dataclasses
@@ -9,7 +9,7 @@ from collections import abc
 
 from ...config import Config
 from ...inbox import snooze_time
-from ..source import changes, renames
+from ..source import block_numbers, changes, renames
 from ..tui import keys, picking
 from ..tui.frame import Grove
 
@@ -33,7 +33,7 @@ def _target(grove: Grove, action: str, digit: str, key: str, channel: str) -> pi
                 block,
                 None,
             )
-            if block.name
+            if block.name or block.home
             else "lemons in no group have no color"
         )
 
@@ -44,6 +44,18 @@ def _target(grove: Grove, action: str, digit: str, key: str, channel: str) -> pi
     picked = channel or ("" if whole else tree.lemons[0].channel)
     where = keys.Where(block=digit, editing=action, picked_tree=key, picked_lemon=picked)
     return picking.target(where, grove.blocks, grove.arrangement, block, tree)
+
+
+_RENUMBERING = ("home", "earlier", "later")
+
+
+def _renumber(grove: Grove, action: str, digit: str) -> str:
+    block = next((b for b in grove.blocks if b.digit == digit), None)
+    if block is None:
+        return "that block is gone"
+    if action == "home":
+        return block_numbers.set_home("" if block.home else block.name)
+    return block_numbers.renumber(grove.blocks, digit, -1 if action == "earlier" else 1)
 
 
 def info(grove: Grove, config: Config, action: str, digit: str, key: str, channel: str) -> dict:
@@ -83,6 +95,9 @@ def make(
 ) -> str:
     """Make the edit with the dialog's *answer*; what happened, or why it didn't.
     *rename_session(old, new)* renames a tree's tmux session; without it, only lemons are renamed."""
+    if action in _RENUMBERING:
+        return _renumber(grove, action, digit)
+
     target = _target(grove, action, digit, key, channel)
     if isinstance(target, str):
         return target

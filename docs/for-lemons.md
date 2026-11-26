@@ -1057,6 +1057,10 @@ lemonaid grove show --plain 2          # block 2 drawn as text
 lemonaid grove move 2 40 10            # move block 2's corner; resize, reshape, clear-open too
 ```
 
+Block 0 can hold a home group as well as the lemons in no group: its `show --json` entry has
+`group` empty and `home` naming that group. `lemonaid grove home` prints it; set or clear it only
+when the person asks.
+
 A tree is a terminal workspace unless a graft puts a lemon on another lemon's tree. When the
 person asks to put a lemon on another's tree, or to combine two trees, graft each lemon onto the
 other tree's main lemon:

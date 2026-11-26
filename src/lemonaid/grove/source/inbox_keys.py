@@ -25,8 +25,10 @@ def names(found: Grove) -> dict[str, str]:
 
 
 def digits(found: Grove) -> dict[str, str]:
-    """Each group's block digit, by group name."""
-    return {block.name: block.digit for block in found.blocks if block.name}
+    """Each group's block digit, by group name: block 0's for the home group."""
+    return {
+        block.name or block.home: block.digit for block in found.blocks if block.name or block.home
+    }
 
 
 def zoomed(found: Grove, block: str, letter: str) -> tuple[frozenset[str], frozenset[str]]:

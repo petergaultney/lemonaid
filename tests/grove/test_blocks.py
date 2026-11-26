@@ -95,6 +95,12 @@ def test_lemons_in_no_group_stand_in_block_zero():
     assert [(b.name, b.digit) for b in found] == [("oria", "1"), ("", "0")]
 
 
+def test_numbered_from_1_the_lemons_in_no_group_are_block_1_and_the_groups_follow():
+    rows = [notification("claude:a", "x"), notification("claude:b", "y")]
+    found = blocks.blocks(read(rows, {"claude:a": ("oria",)}), {}, first=1)
+    assert [(b.name, b.digit) for b in found] == [("oria", "2"), ("", "1")]
+
+
 def test_hq_leads_the_packhouse_though_its_children_are_in_groups():
     rows = [
         notification("claude:hq", "hq"),
@@ -183,3 +189,19 @@ def test_a_grafted_lead_comes_after_its_hosts_own_so_the_tree_still_renames_its_
     letter = arrangement.trees[("oria", "host")].letter
     _, _, rename = press("tab", "1", "$", letter, "r", blocks=grove, arrangement=arrangement)
     assert (rename.channel, rename.name) == ("", "host")
+
+
+def test_a_home_group_joins_block_zero_under_its_name_and_color_and_leads_it():
+    rows = [
+        notification("claude:meyer", "m"),
+        notification("claude:kid", "k"),
+        notification("claude:loose", "l"),
+        notification("claude:r", "r"),
+    ]
+    memberships = {"claude:meyer": ("oria",), "claude:kid": ("oria",), "claude:r": ("relay",)}
+    found = blocks.blocks(read(rows, memberships, {"claude:kid": "claude:meyer"}), {}, home="oria")
+    assert [(b.name, b.digit, b.home) for b in found] == [("relay", "1", ""), ("", "0", "oria")]
+    zero = found[-1]
+    assert (zero.title, zero.color) == ("oria", "#6495ed")
+    assert {t.key for t in zero.trees} == {"m", "k", "l"}
+    assert [t.key for t in zero.trees if t.lead] == ["m"]

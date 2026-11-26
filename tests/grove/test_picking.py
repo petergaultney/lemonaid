@@ -93,3 +93,11 @@ def test_a_session_rename_covers_lemons_running_there_that_a_graft_draws_elsewhe
     letter = found.trees[("oria", "old")].letter
     _, _, rename = press("tab", "1", "$", letter, "r", blocks=grafted, arrangement=found)
     assert sorted(channel for channel, _ in rename.lemons) == ["claude:a", "claude:b", "claude:s"]
+
+
+def test_an_edit_in_block_0_names_its_home_group():
+    home = dataclasses.replace(block("", "0", _in("m", lemon("claude:meyer"))), home="meyer")
+    found, _ = arrange.arrange((home,), {"plots": {}, "trees": {}}, NOW)
+    letter = next(s.letter for (_, key), s in found.trees.items())
+    _, _, move = press("tab", "0", letter, "g", blocks=(home,), arrangement=found)
+    assert (move.block, home.title) == ("meyer", "meyer")

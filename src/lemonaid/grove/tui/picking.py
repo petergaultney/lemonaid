@@ -21,7 +21,7 @@ _VERBS = {
 @dataclasses.dataclass(frozen=True)
 class Target:
     action: str  # one of `selecting.VERBS`' values
-    block: str  # the group it's drawn in, "" for the packhouse
+    block: str  # the group it's drawn in: block 0's home group, or "" for lemons in no group
     groups: tuple[str, ...]  # every group with a tree for the session
     tree: str  # the tree's key, which is its tmux session, or "" for a block's color
     channel: str  # the lemon, or "" for the whole tree (for a rename, its session)
@@ -95,7 +95,7 @@ def target(
     ]
     return Target(
         where.editing,
-        block.name,
+        block.name or block.home,
         tuple(b.name for b, _ in same),
         tree.key,
         where.picked_lemon,

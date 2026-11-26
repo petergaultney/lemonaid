@@ -1,7 +1,10 @@
 import dataclasses
 
+import pytest
+
 from lemonaid.grove.layout import landmarks, new_spots
 from lemonaid.grove.layout.arrange import arrange
+from lemonaid.grove.model import WORLD_HEIGHT, WORLD_WIDTH
 
 from ..shared import DAY, NOW, block, lemon, tree
 
@@ -354,6 +357,17 @@ def test_with_the_packhouse_off_block_0_is_an_ordinary_block():
     found, _ = arrange(blocks, landmarks.with_packhouse(EMPTY, False), NOW)
     assert found.plots[""].texture != "house"
     assert all(found.trees[("", key)].bay == -1 for key in ("hq", "misc"))
+
+
+@pytest.mark.parametrize("house", [True, False])
+def test_block_0_takes_the_middle_ahead_of_the_groups_with_the_packhouse_on_or_off(house):
+    groups = tuple(block(f"g{n}", str(n), tree(f"s{n}"), tree(f"t{n}")) for n in range(1, 5))
+    found, _ = arrange(
+        (*groups, block("", "0", tree("hq"))), landmarks.with_packhouse(EMPTY, house), NOW
+    )
+    plot = found.plots[""]
+    assert plot.x <= WORLD_WIDTH / 2 <= plot.x + plot.w
+    assert plot.y <= WORLD_HEIGHT / 2 <= plot.y + plot.h
 
 
 def test_turning_the_packhouse_off_and_on_again_restores_both_layouts():
