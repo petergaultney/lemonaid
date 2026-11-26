@@ -83,7 +83,8 @@ def test_a_child_blocked_on_its_user_does_not_wake_its_parent(tmp_path):
         )
         assert sent == []
 
-        child.write_text("# child\n\nStatus: merge\n")
+        (briefs / "child.new").write_text("# child\n\nStatus: merge\n")
+        (briefs / "child.new").replace(child)  # a poll mid-write would see Status: none
         thread.join(5)
         assert not thread.is_alive() and not errors
         assert len(sent) == 1 and "Status: blocked -> merge" in sent[0]
