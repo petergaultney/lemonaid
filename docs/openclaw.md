@@ -34,6 +34,8 @@ lemonaid lemon start --brief <brief> --parent self
 
 The new session is an ordinary one, as the dashboard's New Session makes (`agent:<agent>:dashboard:<id>`), not a subagent: OpenClaw doesn't announce its runs to the session that started it or tell it about the new session's messages. Its parent is lemonaid's alone, and hears only of its brief's status. Lemonaid registers it, attaches the brief, and sends the first prompt with `chat.send`; that prompt first asks the session to register itself, which binds the Codex thread its `--self` commands carry. `--preset`, `--shape`, `--docs`, `--lemon-arg` and `--dry-run` are refused, since the session runs its agent's own model and docs.
 
+`lemonaid brief handoff --to openclaw` moves a brief into a new session the same way, once the outgoing lemon has written its `## Handoff`. That replaces a session OpenClaw started as a subagent with an ordinary one: run it with `--source <Lemon-ID>` for the subagent's lemon. A lemon archived as quiet can be handed off; the request restores it. The outgoing lemon stays archived after the handoff, even when its old session gets another message.
+
 ### Every conversation in the grove
 
 ```sh

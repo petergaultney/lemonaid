@@ -11,9 +11,10 @@ import dataclasses
 import os
 import sqlite3
 from collections import abc
+from pathlib import Path
 
 from ...inbox.channel import channel_id, full_channel_id
-from . import claude, codex
+from . import claude, codex, openclaw
 
 Record = abc.Callable[[str], object]  # records one message its user typed
 
@@ -32,6 +33,12 @@ class Harness:
     )
     """Pass each recent message its user typed in a channel to the recorder. Where a harness's
     hooks report typed prompts as they come, this reads nothing."""
+    request_note: abc.Callable[[str, Path], str] = lambda channel, brief: ""
+    """What the outgoing lemon, on a channel with a brief, must be told besides the handoff
+    request; "" or a sentence ending with a space."""
+    answers_when_archived: bool = False
+    """An archived lemon of this harness still takes a turn when sent one, so a handoff restores
+    it to the inbox and asks it as it would a live one."""
     start: (
         abc.Callable[[sqlite3.Connection, sqlite3.Row, abc.Callable[[str], None]], None] | None
     ) = None
@@ -65,6 +72,17 @@ HARNESSES: dict[str, Harness] = {
             _env_channel("codex", "CODEX_THREAD_ID", full=True),
             codex.has_ready_marker,
             codex.typed,
+            request_note=lambda channel, brief: (
+                "If Codex blocks writing this brief or running `lemonaid brief check`, "
+                "retry those operations with escalated permissions before reporting ready. "
+            ),
+        ),
+        Harness(
+            "openclaw",
+            openclaw.own_channel,
+            start=openclaw.start,
+            request_note=openclaw.request_note,
+            answers_when_archived=True,
         ),
     )
 }

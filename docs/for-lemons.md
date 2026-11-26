@@ -419,7 +419,7 @@ a phrase like `tmux window work:5`, plus the front end's own keys: `session`, `w
 `window_id` for tmux, `wezterm_pane` and `wezterm_workspace` for WezTerm, `cmux_workspace` for cmux,
 `session_key` and `channel` for `openclaw-chat`.
 
-`brief handoff --to NAME` accepts a named lemon running Claude or Codex, as well as the original backend names. It keeps the preset name for command selection and the resolved backend for session identity and acceptance.
+`brief handoff --to NAME` accepts a named lemon running Claude, Codex or OpenClaw, as well as the original backend names. It keeps the preset name for command selection and the resolved backend for session identity and acceptance.
 
 ### Bringing one back: `lemon resume`
 
@@ -810,7 +810,21 @@ lemonaid brief handoff --source LemonAce.control-center --to codex-low
 
 A short name must identify exactly one attached lemon. `--brief FILE` remains supported
 and also accepts these IDs. Explicit source selection opts out of controlling-TTY
-selection. Destinations can be Claude, Codex, or configured presets for either.
+selection. Destinations can be Claude, Codex, OpenClaw, or configured presets for them.
+
+`--to openclaw` starts the receiver as a new, ordinary OpenClaw session, as `lemon start` does
+from one, once the outgoing lemon is ready: a session of the outgoing lemon's agent when it is
+an OpenClaw lemon, else of the gateway's default agent. It runs on the gateway's machine. An outgoing
+lemon in a tmux pane is stopped first, as recovery stops one: its harness process is terminated
+and confirmed gone, then the pane's shell is replaced by a placeholder that names the handoff and
+the old session's resume command, and only then does the receiver start. `brief handoff ready
+TOKEN` from the outgoing lemon only records that it is ready; the background handoff process
+does the stop and the start, since a command running in the sender's terminal can't stop it. If the receiver never starts, the old session is resumed in its pane; if one may be
+running, the handoff fails without resuming it, and its status gives the resume command. An
+outgoing OpenClaw session is not stopped, since it runs only when sent a turn; its lemon is
+archived when the receiver accepts. An archived OpenClaw
+lemon can be handed off too: the request restores it to the inbox, since its session still
+takes turns.
 
 Recovery is selected manually. Lemonaid does not detect exhausted credits or choose
 recovery automatically. If the outgoing lemon cannot take a final turn, select Recovery

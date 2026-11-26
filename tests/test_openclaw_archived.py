@@ -3,7 +3,7 @@
 import time
 
 from lemonaid.front_end import chat
-from lemonaid.inbox import db
+from lemonaid.inbox import db, ended
 from lemonaid.openclaw import archived, lemons, sessions, sync
 
 NOW = 1_800_000_000_000
@@ -91,3 +91,16 @@ def test_a_message_after_an_archive_by_hand_brings_the_lemon_back():
 
     assert back == [sessions.channel(SIGNAL)]
     assert not _row(SIGNAL).is_archived
+
+
+def test_a_lemon_a_handoff_replaced_stays_archived_when_its_old_session_answers():
+    with db.connect() as conn:
+        lemons.register(conn, _session(SIGNAL), "thread-1", None, "/home/me", chat.NAME)
+        db.archive_channel(
+            conn, sessions.channel(SIGNAL), "handed off", cause=ended.REPLACED, by="handoff"
+        )
+        later = _session(SIGNAL)._replace(interacted_ms=int((time.time() + 60) * 1000))
+        back, _ = sync.sync(conn, [later], AGENTS, chat.NAME, {}, {SIGNAL: later})
+
+    assert back == []
+    assert _row(SIGNAL).is_archived

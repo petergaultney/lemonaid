@@ -43,17 +43,16 @@ def _unsupported(args: argparse.Namespace) -> list[str]:
     ]
 
 
-def first_message(key: str, prompt: str) -> str:
+def register_line(key: str) -> str:
     register = f"lemonaid openclaw register --session-key {shlex.quote(key)}"
-    return " ".join(
-        part
-        for part in (
-            f"Your OpenClaw session key is {key}. Before any other lemonaid command, run"
-            f" `{register}` so lemonaid can find you.",
-            prompt,
-        )
-        if part
+    return (
+        f"Your OpenClaw session key is {key}. Before any other lemonaid command, run"
+        f" `{register}` so lemonaid can find you."
     )
+
+
+def first_message(key: str, prompt: str) -> str:
+    return " ".join(part for part in (register_line(key), prompt) if part)
 
 
 def new_session(conn: sqlite3.Connection, agent: sync.Agent, title: str) -> sessions.Session:

@@ -8,11 +8,13 @@ import sys
 import time
 
 from ...config import load_config
-from ...inbox import db
+from ...inbox import db, unarchive
 from ...messages import to_brief
+from ...openclaw import sessions
 from ...resume import build_resume_command
-from .. import lemon
-from . import coordinator, launch, recovery, selection, shell, state
+from ...watch import openclaw_scout
+from .. import identity, lemon
+from . import coordinator, harnesses, launch, recovery, selection, shell, state
 
 
 def _pending_handoff(conn, path, now: float):
@@ -38,17 +40,12 @@ def _pending_handoff(conn, path, now: float):
     return existing
 
 
-def _request_message(channel: str, token: str, same_terminal: bool) -> str:
+def _request_message(note: str, token: str, same_terminal: bool) -> str:
+    """*note* is what the outgoing lemon's harness needs it told besides."""
     exit_instruction = (
         "After writing the ready marker, exit this harness normally so the "
         "same terminal can start the replacement. "
         if same_terminal
-        else ""
-    )
-    sandbox_instruction = (
-        "If Codex blocks writing this brief or running `lemonaid brief check`, "
-        "retry those operations with escalated permissions before reporting ready. "
-        if channel.startswith("codex:")
         else ""
     )
     return (
@@ -56,7 +53,7 @@ def _request_message(channel: str, token: str, same_terminal: bool) -> str:
         "when the brief is already current. Stop your waiters. "
         f"Put Handoff-Ready: {token} on its own final line in the brief. "
         "You may instead print that exact line in your final reply after editing "
-        f"## Handoff. {sandbox_instruction}{exit_instruction}"
+        f"## Handoff. {note}{exit_instruction}"
         "The old session stays active until cutover."
     )
 
@@ -94,6 +91,9 @@ def prepare(
             source_job = stopped[1]
     else:
         channel = lemon.self_channel(conn)
+    archived = db.get_by_channel(conn, channel, unread_only=False)
+    if archived and archived.is_archived and harnesses.of(channel).answers_when_archived:
+        unarchive.restore(conn, channel)
     path, session, index, window_id, pane_id, source_command = coordinator.source(conn, channel)
     notification = db.get_by_channel(conn, channel, unread_only=False)
     if same_terminal:
@@ -146,7 +146,14 @@ def prepare(
     if not row["recovery_hash"] and (
         existing is None or existing["error"] or time.time() > existing["deadline"]
     ):
-        to_brief.send(path, _request_message(channel, row["token"], same_terminal))
+        note = harnesses.of(channel).request_note(channel, path)
+        to_brief.send(path, _request_message(note, row["token"], same_terminal))
+        if channel.startswith(sessions.PREFIX):  # only its push scout delivers the request
+            openclaw_scout.ensure(
+                channel,
+                identity.ensure(conn, path),
+                str(notification.metadata.get("cwd") or ""),
+            )
     token = row["token"]
     return token, direct_tty, source_job
 

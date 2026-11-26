@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ...inbox import db
 from .. import attached
-from . import harnesses, recovery
+from . import harnesses, recovery, self_started
 from . import launch as handoff_launch
 from . import pane as handoff_tmux
 from . import report as handoff_report
@@ -58,14 +58,6 @@ def _read_typed(conn, row) -> None:
             )
 
 
-def _launched(conn, token: str, channel: str) -> None:
-    """A receiver its harness started itself is launched, with *channel* as the target."""
-    conn.execute("UPDATE brief_handoffs SET phase = 'launched' WHERE token = ?", (token,))
-    conn.commit()
-    if not handoff_state.bind_target(conn, token, channel):
-        raise ValueError(f"Could not reserve {channel} as the handoff's receiver")
-
-
 def recover_source(conn, row, reason: str) -> str:
     if row["error"]:
         return row["error"]
@@ -86,6 +78,10 @@ def recover_source(conn, row, reason: str) -> str:
             f"handoff {reason}; outgoing channel retains its brief; "
             "resume the original session if it exited, then rearm its waiters before retrying"
         )
+    elif harnesses.named(row["harness"]).start is not None and (
+        unresumed := self_started.unresumed(row, reason)
+    ):
+        error = unresumed
     elif row["target_pid"]:
         resumed = handoff_tmux.resume_source(conn, row)
         error = (
@@ -123,6 +119,15 @@ def recover_source(conn, row, reason: str) -> str:
     )
     conn.commit()
     return error
+
+
+def _launch(conn, row) -> None:
+    if row["recovery_hash"]:
+        recovery.launch(conn, row)
+    elif (start := harnesses.named(row["harness"]).start) is not None:
+        self_started.start(conn, row, start)
+    else:
+        handoff_launch.run(conn, row)
 
 
 def _advance(conn, token: str) -> dict:
@@ -175,32 +180,22 @@ def _advance(conn, token: str) -> dict:
             return {**handoff_report.build(row), "missing": [reason]}
 
         handoff_state.acknowledge(conn, token, row["source"], "ready")
-        if (start := harnesses.named(row["harness"]).start) is not None:
-            start(conn, row, lambda channel: _launched(conn, token, channel))
-            return handoff_report.build(handoff_state.get(conn, token))
-
-        if not row["source_pane_id"]:
+        if not row["source_pane_id"] and harnesses.named(row["harness"]).start is None:
             conn.execute("UPDATE brief_handoffs SET phase = 'launched' WHERE token = ?", (token,))
             conn.commit()
             return {
                 **handoff_report.build(handoff_state.get(conn, token)),
                 "missing": ["start the target command, then accept from that harness"],
             }
-        if row["recovery_hash"]:
-            recovery.launch(conn, row)
-        else:
-            handoff_launch.run(conn, row)
+        _launch(conn, row)
         row = handoff_state.get(conn, token)
 
     if row["phase"] == "prepared":
-        if row["recovery_hash"]:
-            recovery.launch(conn, row)
-        else:
-            handoff_launch.run(conn, row)
+        _launch(conn, row)
         row = handoff_state.get(conn, token)
 
     if row["phase"] == "launched":
-        if row["source_pane_id"]:
+        if row["target_pane_id"]:
             state = handoff_tmux.pane_process(row["target_pane_id"], row["target_window_id"])
             if state is None or state[0] != row["target_pid"]:
                 return {

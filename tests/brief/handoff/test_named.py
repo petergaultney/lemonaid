@@ -89,7 +89,7 @@ def test_handoff_rejects_a_preset_for_an_unsupported_backend(monkeypatch):
         )
     )
     monkeypatch.setattr(handoff_launch, "load_config", lambda: config)
-    with pytest.raises(ValueError, match="must run one of: claude, codex"):
+    with pytest.raises(ValueError, match="must run one of: claude, codex, openclaw"):
         handoff_launch.destination("other")
 
 

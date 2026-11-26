@@ -17,7 +17,8 @@ BY = "openclaw archive"
 
 def _restore(conn: sqlite3.Connection, channel: str, interacted: float) -> bool:
     """Bring back the channel's newest row, if it is archived and either this archived it or
-    its session has had a message since (*interacted*, in seconds)."""
+    its session has had a message since (*interacted*, in seconds). A lemon a handoff replaced
+    stays archived: its brief went to another session, and its old one still answers."""
     return bool(
         conn.execute(
             "UPDATE notifications SET status = 'read', read_at = ?,"
@@ -25,8 +26,9 @@ def _restore(conn: sqlite3.Connection, channel: str, interacted: float) -> bool:
             " WHERE id = (SELECT MAX(id) FROM notifications WHERE channel = ?)"
             " AND status = 'archived'"
             " AND (json_extract(metadata, '$.ended.by') = ?"
-            " OR COALESCE(json_extract(metadata, '$.ended.at'), 0) < ?)",
-            (time.time(), channel, BY, interacted),
+            " OR (COALESCE(json_extract(metadata, '$.ended.at'), 0) < ?"
+            " AND COALESCE(json_extract(metadata, '$.ended.cause'), '') != ?))",
+            (time.time(), channel, BY, interacted, ended.REPLACED),
         ).rowcount
     )
 
