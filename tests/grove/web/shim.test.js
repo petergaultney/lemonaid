@@ -18,7 +18,7 @@ function browser() {
     EventSource, Event: class { constructor(type) { this.type = type; } }, setInterval: () => 0,
     fetch: async url => { asked.push(url); return {ok: true, json: async () => ({})}; },
     document: {addEventListener: (type, then) => { ready[type] = then; }},
-    window: {open: () => {}, dispatchEvent: () => {}, groveData: () => fetched.push(1)},
+    window: {open: () => {}, dispatchEvent: () => {}, addEventListener: () => {}, groveData: () => fetched.push(1)},
   };
   vm.createContext(context);
   vm.runInContext(shim, context);

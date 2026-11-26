@@ -9,12 +9,17 @@
   // read its saved views: a grove that came sooner would be fitted to a canvas of no size.
   let changes = null;
   const fetchGrove = () => window.groveData && window.groveData();
+  let polling = null;
   const listen = () => {
     changes = new EventSource("api/changes");
     changes.onmessage = fetchGrove;
     changes.onopen = fetchGrove;  // whatever changed while it was closed
-    setInterval(() => { if (changes.readyState !== EventSource.OPEN) fetchGrove(); }, 3000);
+    polling ??= setInterval(() => { if (changes.readyState !== EventSource.OPEN) fetchGrove(); }, 3000);
   };
+  // Leaving the page closes its stream, so the browser may keep the page to show again as it was
+  // when you come back, and the stream opens again then.
+  window.addEventListener("pagehide", () => { if (changes) changes.close(); });
+  window.addEventListener("pageshow", event => { if (event.persisted && changes) listen(); });
   const post = async (name, args) => {
     const r = await fetch(`api/${name}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(args)});
     if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);

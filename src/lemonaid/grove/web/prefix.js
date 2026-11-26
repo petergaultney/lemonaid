@@ -12,7 +12,12 @@
   // own page is the grove, so a lemon's page goes back to it through the window.
   window.groveHome = () => {
     const api = window.pywebview && window.pywebview.api;
-    if (api && api.home) api.home();
+    if (api && api.home) { api.home(); return; }
+
+    // Back, when this page was opened from the grove, so the browser shows that page as it was
+    // rather than loading it again.
+    const from = document.referrer ? new URL(document.referrer) : null;
+    if (from && from.origin === location.origin && !from.pathname.endsWith("/lemon") && history.length > 1) history.back();
     else location.href = new URL("./", location.href).href;
   };
   window.groveBack = () => {
