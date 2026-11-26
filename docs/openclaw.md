@@ -10,7 +10,7 @@ Lemonaid supports [OpenClaw](https://openclaw.ai/), the open-source personal AI 
 OpenClaw is two things to lemonaid, kept apart:
 
 - **The harness** is the gateway. It runs each turn, and a session's identity is its session key, such as `agent:main:matrix:channel:!room:server`. Lemonaid lists sessions with `openclaw sessions --all-agents --json` and wakes one with `openclaw gateway call agent`.
-- **The front end** is the chat room the session lives in (`openclaw-chat`). Showing the lemon opens its room. Prompting it, as the web grove's lemon page does, sends the text with `chat.send`, which the session takes as its user's. lemonaid never starts one.
+- **The front end** is the chat room the session lives in (`openclaw-chat`). Showing the lemon opens its room. Prompting it, as the web grove's lemon page does, sends the text with `chat.send`, which the session takes as its user's. A command a session runs is in this front end, so `lemon start` from it opens a new session beside it.
 
 ### Registering a session
 
@@ -23,6 +23,16 @@ lemonaid openclaw register --session-key 'agent:main:matrix:channel:!room:server
 The session's inbox row is `openclaw:<session key>`. A shell command OpenClaw runs carries the Codex thread underneath the session (`CODEX_THREAD_ID`) but nothing naming the session, so registering records that thread, and `--self` commands from the session find their lemon by it. OpenClaw starts a new thread after a reset or compaction; `--self` then refuses with a reminder to register again, rather than mistaking the session for a Codex lemon.
 
 A lemon that registers another session, such as one it spawned, keeps its own thread: the other session keeps whatever thread it had. If a thread was given to the wrong session, run the command inside the right one with `--claim` to take it back.
+
+### Starting a lemon from a session
+
+Run inside a session, `lemonaid lemon start` opens a new session of the same agent instead of a terminal window:
+
+```sh
+lemonaid lemon start --brief <brief> --parent self
+```
+
+The new session is an ordinary one, as the dashboard's New Session makes (`agent:<agent>:dashboard:<id>`), not a subagent: OpenClaw doesn't announce its runs to the session that started it or tell it about the new session's messages. Its parent is lemonaid's alone, and hears only of its brief's status. Lemonaid registers it, attaches the brief, and sends the first prompt with `chat.send`; that prompt first asks the session to register itself, which binds the Codex thread its `--self` commands carry. `--preset`, `--shape`, `--docs`, `--lemon-arg` and `--dry-run` are refused, since the session runs its agent's own model and docs.
 
 ### Every conversation in the grove
 
