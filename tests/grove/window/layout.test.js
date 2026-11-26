@@ -72,6 +72,17 @@ test("a block's view hangs a list under each of its trees and labels no other bl
   }
 });
 
+test("a chat lemon's tree, keyed by its long channel, gets a list no wider than a short-keyed one's", () => {
+  const room = "openclaw:agent:main:matrix:channel:!r00mA1b2c3d4e5f6g7h8:grove.example";
+  const width = key => {
+    const blocks = grove();
+    blocks[0].trees[0] = {...tree("a", key, [10, 6], "garden"), lemons: [{...lemon("", "garden"), channel: room}]};
+    return placed(blocks, "1", 0.88).find(l => l.id === `1/${key}`).w;
+  };
+
+  assert.equal(width(room), width("ant"));
+});
+
 test("a smaller label size gives smaller tags", () => {
   const small = placed(grove(), null, 0.5), big = placed(grove(), null, 0.9);
 

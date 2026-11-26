@@ -779,7 +779,7 @@ function drawList(b, t, x, y, w, parts) {
   frame(x + CW / 2 - 1, y + CW / 2 - 1, bw - CW + 2, bottom - y - CW / 2 + 2, edge, 2);
   drawTag(b, t, x + CW, y, parts);
   const after = x + CW + (parts.key.length + parts.body.length) * CW;
-  txt(` ${t.key} `.slice(0, Math.max(0, Math.floor((x + bw - after) / CW) - 2)), after, y, "#9aa3ad", "rgba(13,17,23,1)", 500);
+  if (shownKey(t)) txt(` ${shownKey(t)} `.slice(0, Math.max(0, Math.floor((x + bw - after) / CW) - 2)), after, y, "#9aa3ad", "rgba(13,17,23,1)", 500);
   const left = x + CW * 1.5, right = x + bw - CW * 1.5, nameW = cols - 36;
   t.lemons.forEach((l, j) => {
     const ly = y + RH + pad + RH * j, c = STATUS[l.status] || "#8b949e", key = j ? `.${t.letter}${j}` : t.letter;
@@ -1023,7 +1023,8 @@ const hitAt = (x, y) => [...hits].reverse().find(h => x >= h.x && x <= h.x + h.w
 function hideCard() { hover = null; card.style.display = "none"; }
 function showCard(e, b, t) {
   const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-  card.innerHTML = `<div><b>${b.digit}${esc(t.letter)}</b> ${esc(t.label)}</div>` + t.lemons.map((l, j) =>
+  const key = t.key !== t.label ? ` <span style="color:#7c8696">${esc(t.key)}</span>` : "";
+  card.innerHTML = `<div><b>${b.digit}${esc(t.letter)}</b> ${esc(t.label)}${key}</div>` + t.lemons.map((l, j) =>
     `<div style="color:${STATUS[l.status] || '#9aa3ad'}">${esc(t.letter)}${j || ""} ${esc(l.status || "·")} ${esc(l.brief_id)} <span style="color:#e6ebf2">${esc(l.name)}</span> · ${esc(l.model)} ${esc(l.context)} · ${esc(l.age)}${l.jump_problem ? " · no jump" : ""}</div>`).join("");
   card.dataset.tree = JSON.stringify(t);
   if (!e) return;  // the same tree's lines, where the card already is
