@@ -35,10 +35,19 @@ def _front_end(row: db.Notification) -> tuple[str, interface.FrontEnd | None]:
     return name, pick.named(name)
 
 
+def _named(session_key: str) -> str:
+    """The name of the lemon on another OpenClaw session."""
+    with db.connect() as conn:
+        row = db.get_by_channel(conn, sessions.channel(session_key), unread_only=False)
+    return (row.name if row else "") or "the session that started it"
+
+
 def _conversation(row: db.Notification) -> list[conversation.entry.Entry]:
     """Raises OSError when the harness's record can't be read."""
     if row.channel.startswith(sessions.PREFIX):
-        return conversation.openclaw.read(sessions.session_key(row.channel), sessions.cli(), LIMIT)
+        return conversation.openclaw.read(
+            sessions.session_key(row.channel), sessions.cli(), LIMIT, _named
+        )
 
     if row.channel.startswith("claude:"):
         return conversation.claude.read(Path(str(row.metadata.get("transcript_path") or "")), LIMIT)
