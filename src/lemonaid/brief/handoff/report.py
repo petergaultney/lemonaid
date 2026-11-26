@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ...config import load_config
 from ...launch import command
+from . import harnesses
 from . import launch as handoff_launch
 
 
@@ -26,7 +27,11 @@ def build(row) -> dict:
     }
     if row["resume_line"] and row["resume_cwd"]:
         report["resume_command"] = f"cd {shlex.quote(row['resume_cwd'])} && {row['resume_line']}"
-    if manual and row["phase"] in ("launched", "transferred", "complete"):
+    if (
+        manual
+        and harnesses.named(row["harness"]).start is None
+        and row["phase"] in ("launched", "transferred", "complete")
+    ):
         prompt = (
             f"Read {row['path']}, especially ## Handoff. Rearm ## Waiters, then run "
             f"lemonaid brief handoff accept {row['token']}. "

@@ -7,10 +7,9 @@ from pathlib import Path
 
 from ...inbox import db
 from .. import attached
-from . import codex as handoff_codex
+from . import harnesses, recovery
 from . import launch as handoff_launch
 from . import pane as handoff_tmux
-from . import recovery
 from . import report as handoff_report
 from . import state as handoff_state
 from . import transfer as handoff_transfer
@@ -44,6 +43,27 @@ def source(conn, channel: str) -> tuple[Path, str, str, str, str, str]:
         raise ValueError("The outgoing lemon's working directory is unavailable")
 
     return path, session, index, window_id, pane, current_command
+
+
+def _read_typed(conn, row) -> None:
+    """Record the handoff phrases users typed into either lemon, where its harness keeps them."""
+    for channel in (row["source"], row["target"]):
+        if channel:
+            harnesses.of(channel).typed(
+                conn,
+                channel,
+                lambda message, channel=channel: handoff_state.typed_message(
+                    conn, channel, message
+                ),
+            )
+
+
+def _launched(conn, token: str, channel: str) -> None:
+    """A receiver its harness started itself is launched, with *channel* as the target."""
+    conn.execute("UPDATE brief_handoffs SET phase = 'launched' WHERE token = ?", (token,))
+    conn.commit()
+    if not handoff_state.bind_target(conn, token, channel):
+        raise ValueError(f"Could not reserve {channel} as the handoff's receiver")
 
 
 def recover_source(conn, row, reason: str) -> str:
@@ -149,12 +169,16 @@ def _advance(conn, token: str) -> dict:
         return {**handoff_report.build(row), "missing": ["outgoing pane changed; cutover stopped"]}
 
     if row["phase"] == "requested":
-        handoff_codex.phrases(conn, row)
+        _read_typed(conn, row)
         good, reason = handoff_state.ready(conn, row)
         if not good:
             return {**handoff_report.build(row), "missing": [reason]}
 
         handoff_state.acknowledge(conn, token, row["source"], "ready")
+        if (start := harnesses.named(row["harness"]).start) is not None:
+            start(conn, row, lambda channel: _launched(conn, token, channel))
+            return handoff_report.build(handoff_state.get(conn, token))
+
         if not row["source_pane_id"]:
             conn.execute("UPDATE brief_handoffs SET phase = 'launched' WHERE token = ?", (token,))
             conn.commit()
@@ -192,7 +216,7 @@ def _advance(conn, token: str) -> dict:
         target = row["target"]
 
         if row["source_pane_id"]:
-            handoff_codex.phrases(conn, row)
+            _read_typed(conn, row)
         row = handoff_state.get(conn, token)
 
         if not target or not row["accepted"]:

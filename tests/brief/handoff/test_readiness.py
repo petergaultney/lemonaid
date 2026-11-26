@@ -6,6 +6,7 @@ import time
 from lemonaid.brief import attached
 from lemonaid.brief.handoff import claude as handoff_claude
 from lemonaid.brief.handoff import codex as handoff_codex
+from lemonaid.brief.handoff import coordinator as handoff_coordinator
 from lemonaid.brief.handoff import state as handoff_state
 from lemonaid.codex import stored
 
@@ -28,7 +29,7 @@ def test_codex_user_phrase_is_detected_from_codex_s_turns(setup, monkeypatch):
     conn, row = _codex_request(setup, "New.\nHandoff-Ready: {token}")
     _turns(monkeypatch, stored.Turn(True, (), (f"lemonaid handoff ready {row['token']}",)))
 
-    handoff_codex.phrases(conn, row)
+    handoff_coordinator._read_typed(conn, row)
 
     assert handoff_state.get(conn, row["token"])["ready"] == 1
 

@@ -1,8 +1,9 @@
 """Read a Codex lemon's ready marker and its user's exact handoff phrases from Codex."""
 
+from collections import abc
+
 from ...codex import channels, threads
 from ...inbox import db
-from . import state as handoff_state
 
 _PHRASE_TURNS = 5  # how far back a typed handoff phrase is still looked for
 
@@ -25,11 +26,11 @@ def has_ready_marker(conn, row) -> bool:
     return f"Handoff-Ready: {row['token']}" in latest[0].said[-1].splitlines()
 
 
-def phrases(conn, row) -> None:
-    for channel in (row["source"], row["target"]):
-        if not channel.startswith("codex:") or not (thread := _thread(conn, channel)):
-            continue
+def typed(conn, channel: str, record: abc.Callable[[str], object]) -> None:
+    """Pass each message the user typed in the channel's last few turns to *record*."""
+    if not (thread := _thread(conn, channel)):
+        return
 
-        for turn in reversed(threads.latest_turns(thread, _PHRASE_TURNS)):
-            for typed in turn.typed:
-                handoff_state.typed_message(conn, channel, typed)
+    for turn in reversed(threads.latest_turns(thread, _PHRASE_TURNS)):
+        for message in turn.typed:
+            record(message)

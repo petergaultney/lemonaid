@@ -8,6 +8,7 @@ from ...inbox import db
 from ...launch import command, resolve
 from ...resume import build_resume_command
 from . import executable as handoff_executable
+from . import harnesses
 from . import pane as handoff_tmux
 
 
@@ -30,11 +31,14 @@ def configured_line(harness: str, fallback: str = "") -> str:
 
 
 def destination(name: str) -> str:
-    if name in ("claude", "codex"):
+    if name in harnesses.HARNESSES:
         return name
 
-    if not (backend := handoff_executable.harness_executable(configured_line(name))):
-        raise ValueError(f"Handoff destination {name!r} must run a Claude or Codex executable")
+    if not (
+        backend := handoff_executable.harness_executable(configured_line(name), harnesses.HARNESSES)
+    ):
+        known = ", ".join(sorted(harnesses.HARNESSES))
+        raise ValueError(f"Handoff destination {name!r} must run one of: {known}")
 
     return backend
 
