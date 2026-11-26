@@ -10,7 +10,7 @@ Lemonaid supports [OpenClaw](https://openclaw.ai/), the open-source personal AI 
 OpenClaw is two things to lemonaid, kept apart:
 
 - **The harness** is the gateway. It runs each turn, and a session's identity is its session key, such as `agent:main:matrix:channel:!room:server`. Lemonaid lists sessions with `openclaw sessions --all-agents --json` and wakes one with `openclaw gateway call agent`.
-- **The front end** is the chat room the session lives in (`openclaw-chat`). Showing the lemon opens its room. Prompting it, as the web grove's lemon page does, sends the text with `chat.send`, which the session takes as its user's. A command a session runs is in this front end, so `lemon start` from it opens a new session beside it.
+- **The front end** is the chat room the session lives in (`openclaw-chat`). Showing the lemon does nothing. Prompting it, as the web grove's lemon page does, sends the text with `chat.send`, which the session takes as its user's. A command a session runs is in this front end, so `lemon start` from it opens a new session beside it.
 
 ### Registering a session
 

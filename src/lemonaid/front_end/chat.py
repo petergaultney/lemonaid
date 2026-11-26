@@ -1,54 +1,20 @@
 """A chat room as a front end: the room an OpenClaw gateway serves a lemon's session in.
 
-There is no terminal to find or type into. Showing a lemon opens its room. The gateway runs
+There is no terminal to find or type into, and nothing to show. The gateway runs
 its turns (see `openclaw`); prompting one sends the text with `chat.send`, the call OpenClaw's
 own chat clients make for what their user types. A command an OpenClaw session runs is "in"
 this front end, and `lemon start` from it opens a new session of the same agent.
 """
 
 import uuid
-import webbrowser
-from collections import abc
 
 from ..config import Config
 from ..inbox import db
-from ..log import get_logger
 from ..openclaw import gateway, sessions
 from . import interface
 
-_log = get_logger("front_end.chat")
-
 NAME = "openclaw-chat"
 _SEND_TIMEOUT_SECONDS = 60  # the gateway answers once it has started the turn
-
-
-def room_url(session_key: str) -> str:
-    """A link to the Matrix room a session key names, or "" for another kind of chat.
-
-    A key reads `agent:<agent>:<chat>:<kind>:<peer>`, and a Matrix room id itself holds a
-    colon (`!abc:server`).
-    """
-    parts = session_key.split(":", 4)
-    if len(parts) < 5 or parts[2] != "matrix" or not parts[4].startswith("!"):
-        return ""
-
-    return f"https://matrix.to/#/{parts[4]}"
-
-
-def show(
-    metadata: interface.Metadata | None,
-    config: Config,
-    on_resume: abc.Callable[[str], None] | None = None,
-) -> bool:
-    url = room_url(str((metadata or {}).get("session_key") or ""))
-    if not url:
-        return False
-
-    try:
-        return webbrowser.open(url)
-    except webbrowser.Error as error:
-        _log.warning("could not open %s: %s", url, error)
-        return False
 
 
 def send(session_key: str, text: str) -> str:
@@ -72,6 +38,6 @@ def terminal() -> interface.Terminal:
         name=NAME,
         workspace_key="",
         here=lambda: sessions.hosted_codex_home() is not None,  # a command the gateway runs
-        show=show,
+        show=lambda metadata, config, on_resume=None: False,
         exists=lambda tty, instance=None, not_after=None: None,
     )
