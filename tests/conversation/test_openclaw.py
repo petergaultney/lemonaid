@@ -6,6 +6,7 @@ import stat
 import pytest
 
 from lemonaid.conversation import entry, openclaw
+from lemonaid.openclaw import turns
 
 KEY = "agent:main:signal:direct:uuid:abc"
 
@@ -118,3 +119,26 @@ def test_a_spawned_session_starts_with_its_spawners_task(tmp_path):
 def test_read_raises_oserror_when_the_gateway_fails(tmp_path):
     with pytest.raises(OSError):
         openclaw.read(KEY, _cli(tmp_path, {}, code=1), 10, str)
+
+
+def test_a_failed_turn_shows_where_it_falls_in_the_conversation():
+    key = "agent:main:matrix:channel:!failing"
+    said = [
+        entry.Entry(entry.USER, "you didn't fix it", "2026-11-26T05:41:31.937000+00:00"),
+        entry.Entry(entry.LEMON, "fixed now", "2026-11-26T05:48:00+00:00"),
+    ]
+    for at_ms in (1795600000000, 1795671692929):  # before the conversation shown, then after "you"
+        turns.note(
+            {
+                "runId": str(at_ms),
+                "stream": "lifecycle",
+                "ts": at_ms,
+                "sessionKey": key,
+                "data": {"phase": "error", "error": "Auth profile unavailable"},
+            }
+        )
+
+    shown = openclaw.with_failures(said, key)
+
+    assert [each.role for each in shown] == [entry.USER, entry.FAILED, entry.LEMON]
+    assert shown[1].text == "Auth profile unavailable"

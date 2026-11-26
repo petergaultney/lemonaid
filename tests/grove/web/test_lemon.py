@@ -11,6 +11,7 @@ from lemonaid.front_end import interface, pick
 from lemonaid.grove.web import lemon
 from lemonaid.inbox import db
 from lemonaid.messages import tell_delivery
+from lemonaid.openclaw import turns
 
 CHANNEL = "claude:abc"
 
@@ -74,6 +75,26 @@ def test_talk_reads_a_conversation_again_only_once_it_changed(worker, monkeypatc
 
     assert len(reads) == 2
     assert [each["text"] for each in said["entries"]] == ["hi", "again"]
+
+
+def test_an_openclaw_turn_that_failed_changes_its_page(monkeypatch):
+    monkeypatch.setattr(turns, "_failed", {})
+    monkeypatch.setattr(lemon.conversation.openclaw, "mark", lambda *_args: "history")
+    with db.connect() as conn:
+        db.register_working(conn, "openclaw:agent:main:probe", "", name="probe")
+    before = lemon.mark("openclaw:agent:main:probe")
+
+    turns.note(
+        {
+            "stream": "lifecycle",
+            "sessionKey": "agent:main:probe",
+            "runId": "r1",
+            "ts": 1000,
+            "data": {"phase": "error", "error": "rate limited"},
+        }
+    )
+
+    assert lemon.mark("openclaw:agent:main:probe") != before
 
 
 def test_view_of_a_lemon_that_isnt_there():

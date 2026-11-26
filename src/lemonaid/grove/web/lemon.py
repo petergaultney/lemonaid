@@ -16,7 +16,7 @@ from ...config import Config
 from ...front_end import chat, interface, pick
 from ...inbox import db, pins
 from ...messages import tell_delivery
-from ...openclaw import sessions
+from ...openclaw import sessions, turns
 from . import brief_page
 
 LIMIT = 200  # messages a page shows, with the tool calls among them
@@ -50,7 +50,11 @@ def _mark(row: db.Notification) -> str:
     """What changes whenever the lemon's conversation does, much cheaper to learn than the
     conversation. Raises OSError when it can't be learned."""
     if row.channel.startswith(sessions.PREFIX):
-        return conversation.openclaw.mark(sessions.session_key(row.channel), sessions.cli())
+        key = sessions.session_key(row.channel)
+        failed = turns.failed(key)
+        return (
+            f"{conversation.openclaw.mark(key, sessions.cli())}:{failed[-1].at_ms if failed else 0}"
+        )
 
     found = _transcript(row).stat()
     return f"{found.st_mtime_ns}:{found.st_size}"
@@ -172,6 +176,10 @@ def talk(channel: str) -> dict:
 
     try:
         entries, problem = _unless_unchanged(row), ""
+        if row.channel.startswith(sessions.PREFIX):
+            entries = conversation.openclaw.with_failures(
+                entries, sessions.session_key(row.channel)
+            )
     except OSError as error:
         entries, problem = [], str(error)
     return {"entries": [entry._asdict() for entry in entries], "conversation_problem": problem}

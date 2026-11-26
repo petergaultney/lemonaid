@@ -36,6 +36,8 @@ header, form, nav.tabs { flex-shrink:0; }
 .day { color:#7c8696; font-size:11px; text-align:center; margin:14px 0 8px; border-top:1px solid #262c36; padding-top:4px; }
 .entry.user .body { background:#1f2a3a; border-left:3px solid #f2d94e; padding:4px 8px; }
 .entry.pending { opacity:0.55; }
+.entry.failed .who { color:#e5534b; }
+.entry.failed .body { border-left:3px solid #e5534b; padding:4px 8px; color:#f19990; }
 .entry.other .body { border-left:3px solid #3a4250; padding:4px 8px; color:#aab3c2; }
 .entry.tool { color:#7c8696; font-size:11px; font-family:var(--mono); margin:0 0 4px; }
 .entry.tool summary { cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -153,7 +155,7 @@ const byDay = items => {
     return heading + html;
   }).join("");
 };
-const who = e => ({user: "you", lemon: $("name").textContent, other: e.sender || "message"})[e.role] || e.role;
+const who = e => ({user: "you", lemon: $("name").textContent, other: e.sender || "message", failed: "turn failed"})[e.role] || e.role;
 // Each run of tool calls is one collapsed line; which ones you opened survive a refresh.
 const opened = new Set();
 const toolKey = e => `${e.at}|${e.text}`;

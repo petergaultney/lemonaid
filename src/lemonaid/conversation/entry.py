@@ -9,6 +9,7 @@ USER = "user"  # typed by the lemon's user
 LEMON = "lemon"
 TOOL = "tool"  # a tool the lemon ran, folded to one line
 OTHER = "other"  # input that is not the user's: mail, events, other sessions
+FAILED = "failed"  # a turn that ended in an error, with why
 
 _TAIL = 2 * 1024 * 1024
 
