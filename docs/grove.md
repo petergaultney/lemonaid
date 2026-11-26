@@ -140,6 +140,10 @@ With the `openclaw` extra installed (`uv tool install 'lemonaid-inbox[openclaw]'
 
 A browser on the server itself (`localhost`) switches the terminal instead, as the grove window does.
 
+#### Vault links on each device
+
+A brief's note links name the note's vault by its name on the server (`obsidian://open?vault=trove&file=...`), so they open on any device whose Obsidian has a vault of that name. A device that calls the vault something else, or doesn't have it, says so on the `/vaults` page (the `vaults` link on a phone's list of groups): a name there replaces the server's in every link that device's pages show, and "not here" shows the vault's links as plain text. The page lists the vaults in the server's `[brief] vaults`. Each browser keeps its own names, for that grove's address, as the grove window does. To set up a device in one step, open `/vaults?trove=My%20Trove&work=-` there, with each vault the device names otherwise; `-` means not here, and an empty name goes back to the server's.
+
 The pages have a prefix key of their own, backtick by default. Pressing it twice goes back to the grove from anywhere, a text box included (on a phone, to the list of groups, and from a group up to that list), and from the grove back to the lemon you last had open, as Backspace or Escape closing the grove does; the prefix and then `b` focus a lemon's brief (on a phone, its tab), so the arrow keys scroll it; the prefix and then `h` type a backtick. `[web]` in the config sets all four keys; see [config.md](config.md#web).
 
 To find out afterward why a page misbehaved, read `~/.local/state/lemonaid/logs/web-grove.jsonl` on the server: one JSON line per event each page reported (its screen size and browser, its errors, keys pressed outside text boxes, touches, jumps, the views it saved) and per call that failed, ran slow or changed something. What you type to a lemon is never written there. The server's own log is `/tmp/lemonaid.log` (`LEMONAID_LOG`).

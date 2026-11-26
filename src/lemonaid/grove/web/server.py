@@ -63,6 +63,9 @@ class _WebApi(api.Api):
     def say(self, channel: str, text: str) -> str:
         return lemon.say(channel, text, self._shared.config)
 
+    def vaults(self) -> list[str]:
+        return [root.name for root in self._shared.config.brief.vaults]
+
     def pins(self) -> list[str]:
         """The pinned lemons' channels, in the inbox's order."""
         with db.connect() as conn:
@@ -118,6 +121,7 @@ _CALLS = frozenset(
         "switch",
         "talk",
         "usage",
+        "vaults",
     }
 )
 
