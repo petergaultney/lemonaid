@@ -65,9 +65,9 @@ _CALLS = frozenset(name for name in (*vars(api.Api), *vars(_WebApi)) if not name
 
 
 def _handler(
-    calls: api.Api, served: abc.Mapping[str, bytes], seen: changes.Changes
+    calls: api.Api, served: abc.Mapping[str, tuple[bytes, str]], seen: changes.Changes
 ) -> type[http.server.BaseHTTPRequestHandler]:
-    """*served* is each page by its path (`pages.served`)."""
+    """*served* is each page and icon by its path, with its content type (`pages.served`)."""
 
     class Handler(http.server.BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"  # a page's calls share one connection, not one each
@@ -115,7 +115,7 @@ def _handler(
 
             found = served.get(path or "grove")
             if found:
-                self._page(found, "text/html; charset=utf-8")
+                self._page(*found)
             else:
                 self._send(404, b"not found", "text/plain")
 

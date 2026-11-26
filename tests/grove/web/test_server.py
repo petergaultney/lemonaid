@@ -48,9 +48,10 @@ def served(seen):
         server._handler(
             _Calls(),
             {
-                "grove": b"<html>page</html>",
-                "lemon": b"<html>lemon</html>",
-                "groups": b"<html>groups</html>",
+                "grove": (b"<html>page</html>", "text/html"),
+                "lemon": (b"<html>lemon</html>", "text/html"),
+                "groups": (b"<html>groups</html>", "text/html"),
+                "icon.svg": (b"<svg/>", "image/svg+xml"),
             },
             seen,
         ),
@@ -81,7 +82,7 @@ def test_the_page_is_served_at_the_root(served):
 
 
 def test_the_page_comes_compressed_and_a_browser_that_has_it_isnt_sent_it_again(seen):
-    big = server._handler(_Calls(), {"grove": b"<html>" + b"lemon " * 1000 + b"</html>"}, seen)
+    big = server._handler(_Calls(), {"grove": (b"<html>" + b"lemon " * 1000 + b"</html>", "text/html")}, seen)
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), big)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
@@ -109,6 +110,11 @@ def test_a_phone_is_sent_to_the_groups(served):
 
     with urllib.request.urlopen(served + "/grove") as response:
         assert response.read() == b"<html>page</html>"
+
+
+def test_the_icon_is_served_as_an_image(served):
+    with urllib.request.urlopen(served + "/icon.svg") as response:
+        assert (response.headers["Content-Type"], response.read()) == ("image/svg+xml", b"<svg/>")
 
 
 def test_api_calls_reach_the_window_api(served):

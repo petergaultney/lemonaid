@@ -11,8 +11,13 @@ from importlib import resources
 from ... import web_config
 from ..window import page
 
+_ICONS = {"icon.svg": "image/svg+xml", "apple-touch-icon.png": "image/png"}
+_LINKS = '<link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png">'
+
 
 def _first(scripts: str, into: str) -> str:
+    """*into* with *scripts* run before its own, and the grove's icon."""
+    into = into.replace("</head>", f"{_LINKS}</head>", 1)
     at = into.index("<script")
     return f"{into[:at]}<script>\n{scripts}</script>\n{into[at:]}"
 
@@ -41,12 +46,14 @@ def groups(keys: web_config.WebConfig) -> str:
     return _first(_keys(keys), resources.files(__package__).joinpath("groups.html").read_text())
 
 
-def served(keys: web_config.WebConfig) -> dict[str, bytes]:
-    """Each page by its path."""
+def served(keys: web_config.WebConfig) -> dict[str, tuple[bytes, str]]:
+    """Each page and icon by its path, with its content type."""
+    here, html = resources.files(__package__), "text/html; charset=utf-8"
     return {
-        "grove": grove(keys).encode(),
-        "lemon": lemon(keys).encode(),
-        "groups": groups(keys).encode(),
+        "grove": (grove(keys).encode(), html),
+        "lemon": (lemon(keys).encode(), html),
+        "groups": (groups(keys).encode(), html),
+        **{name: (here.joinpath(name).read_bytes(), kind) for name, kind in _ICONS.items()},
     }
 
 
