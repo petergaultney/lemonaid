@@ -1,5 +1,5 @@
-"""A chat room as a front end: showing a lemon opens its room, and prompting it sends the text
-through the gateway's `chat.send`; nothing starts one."""
+"""A chat room as a front end: showing a lemon does nothing, and prompting it sends the text
+through the gateway's `chat.send`."""
 
 import json
 import stat
@@ -12,32 +12,8 @@ from lemonaid.openclaw import sessions
 KEY = "agent:garden:matrix:channel:!g4rd3n:grove.example"
 
 
-def test_room_url_names_the_matrix_room():
-    assert chat.room_url(KEY) == "https://matrix.to/#/!g4rd3n:grove.example"
-
-
-def test_room_url_is_empty_for_other_chats():
-    assert chat.room_url("agent:main:signal:direct:uuid:1234") == ""
-    assert chat.room_url("agent:main:cron:abc") == ""
-    assert chat.room_url("") == ""
-
-
-def test_show_opens_the_room(monkeypatch):
-    opened = []
-    monkeypatch.setattr(chat.webbrowser, "open", lambda url: opened.append(url) or True)
-
-    assert chat.show({"session_key": KEY}, Config()) is True
-    assert opened == ["https://matrix.to/#/!g4rd3n:grove.example"]
-
-
-def test_show_without_a_room_does_nothing(monkeypatch):
-    def opened(url):
-        raise AssertionError(f"opened {url}")
-
-    monkeypatch.setattr(chat.webbrowser, "open", opened)
-
-    assert chat.show({"session_key": "agent:main:cron:abc"}, Config()) is False
-    assert chat.show(None, Config()) is False
+def test_showing_a_chat_lemon_does_nothing():
+    assert chat.terminal().show({"session_key": KEY}, Config(), None) is False
 
 
 def test_the_chat_front_end_prompts_but_never_starts():

@@ -83,7 +83,7 @@ form button { font:inherit; background:#f2d94e; color:#0b0e13; border:0; padding
   body.chat-tab #brief, body.brief-tab #chat { display:none; }
 }
 </style></head><body class="chat-tab">
-<header><a class="home" href="./" onclick="event.preventDefault(); window.groveHome()">grove</a><span id="dot" title="mid-turn" hidden></span><span class="chip" id="name"></span><span class="status" id="status"></span><span class="bid" id="bid"></span><a id="room" target="_blank" rel="noopener"></a><button id="edit" type="button" hidden>edit</button></header>
+<header><a class="home" href="./" onclick="event.preventDefault(); window.groveHome()">grove</a><span id="dot" title="mid-turn" hidden></span><span class="chip" id="name"></span><span class="status" id="status"></span><span class="bid" id="bid"></span><button id="edit" type="button" hidden>edit</button></header>
 <main>
 <section id="brief" tabindex="-1"></section>
 <div id="divider" title="drag to size the brief"></div>
@@ -250,7 +250,6 @@ const showView = v => {
   $("status").style.color = {alert: "#e5534b", blocked: "#f2c14e", merge: "#5fbf6a", approve: "#c58af9", review: "#a8794f", running: "#39b5a8", done: "#5a8dee"}[v.status] || "";
   $("bid").textContent = v.brief_id || "";
   shownView = v; $("edit").hidden = false;
-  if (v.room) { $("room").href = v.room; $("room").textContent = "room"; }
   $("how").textContent = v.how_text;
   $("dot").hidden = !v.working;
   if (Boolean(v.working) !== working) { working = Boolean(v.working); if (lastTalk) showTalk(lastTalk); }

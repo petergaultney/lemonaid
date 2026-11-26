@@ -13,7 +13,7 @@ from pathlib import Path
 from ... import conversation, front_end, openclaw
 from ...brief import attached, family, identity, pr, render, target
 from ...config import Config
-from ...front_end import chat, interface, pick
+from ...front_end import interface, pick
 from ...inbox import db, pins, turns
 from ...messages import tell_delivery
 from ...openclaw import sessions
@@ -125,7 +125,6 @@ def view(channel: str, config: Config, prs: pr.Lookup, width: int = brief_page.W
         "brief": brief,
         "how": how,
         "how_text": _HOW.get(how, f"Types into its {how} terminal as you."),
-        "room": chat.room_url(str(row.metadata.get("session_key") or "")),
     }
 
 
