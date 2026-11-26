@@ -1,7 +1,8 @@
 """A lemon follows its OpenClaw session, as a Claude or Codex lemon follows its harness:
 archiving the session archives the lemon; restoring it, by hand or by a new message in its
 room, brings the lemon back; and so does a new message in a session whose lemon was archived
-in lemonaid, from the grove or the inbox.
+in lemonaid, from the grove or the inbox. Its time is its conversation's last message, either
+way, as a Claude lemon's is the end of its last turn.
 """
 
 import sqlite3
@@ -72,3 +73,29 @@ def follow(
     ]
     conn.commit()
     return gone, back
+
+
+def reported(
+    conn: sqlite3.Connection, found: abc.Iterable[sessions.Session], added: abc.Set[str]
+) -> list[str]:
+    """Move each lemon's time (`created_at`) up to its session's last message, or set it there for
+    the *added* channels, whose time is when they were added; leaving status alone. Returns the
+    channels changed."""
+    moved = [
+        sessions.channel(each.key)
+        for each in found
+        if each.interacted_ms
+        and conn.execute(
+            "UPDATE notifications SET created_at = ?"
+            " WHERE id = (SELECT MAX(id) FROM notifications WHERE channel = ?)"
+            " AND (created_at < ? OR ?)",
+            (
+                each.interacted_ms / 1000,
+                sessions.channel(each.key),
+                each.interacted_ms / 1000,
+                sessions.channel(each.key) in added,
+            ),
+        ).rowcount
+    ]
+    conn.commit()
+    return moved

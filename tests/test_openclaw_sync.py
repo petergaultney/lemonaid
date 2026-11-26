@@ -2,6 +2,7 @@
 the rows this adds are archived."""
 
 import sqlite3
+import time
 
 from lemonaid.brief import attached
 from lemonaid.brief import store as brief_store
@@ -100,6 +101,20 @@ def test_a_conversation_that_wakes_again_comes_back():
 
     assert added == [sessions.channel(SIGNAL)]
     assert not _rows()[sessions.channel(SIGNAL)].is_archived
+
+
+def test_a_conversations_lemon_is_dated_by_its_last_message():
+    an_hour_ago = int(time.time() * 1000) - 3_600_000
+    spoke = _session(SIGNAL)._replace(interacted_ms=an_hour_ago)
+    with db.connect() as conn:
+        sync.sync(conn, [spoke], AGENTS, chat.NAME, {}, {SIGNAL: spoke})
+        added = _rows()[sessions.channel(SIGNAL)].created_at
+        sync.sync(conn, [spoke], AGENTS, chat.NAME, {}, {SIGNAL: spoke._replace(interacted_ms=NOW)})
+        sync.sync(conn, [spoke], AGENTS, chat.NAME, {}, {SIGNAL: spoke})
+
+    row = _rows()[sessions.channel(SIGNAL)]
+    assert added == an_hour_ago / 1000
+    assert (row.created_at, row.status) == (NOW / 1000, "read")  # never back, status as added
 
 
 def test_a_thread_the_sync_added_is_archived_and_its_messages_bring_it_back_no_more():

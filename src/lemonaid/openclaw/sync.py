@@ -164,8 +164,9 @@ def sync(
     found: abc.Mapping[str, sessions.Session],
 ) -> tuple[list[str], list[str]]:
     """Follow the *found* sessions but threads (`archived.follow`; *shelved* maps the archived
-    ones to OpenClaw's reason), add a row for each session in *keep* that has none, and archive
-    the rows this added whose session is no longer kept. Returns (added, archived) channels."""
+    ones to OpenClaw's reason), add a row for each session in *keep* that has none, date each
+    row by its session's last message (`archived.reported`), and archive the rows this added
+    whose session is no longer kept. Returns (added, archived) channels."""
     chats = {key: each for key, each in found.items() if not _thread(key)}  # no thread comes back
     gone, restored = archived.follow(conn, shelved, chats)
     keep = [each for each in keep if each.key not in shelved]
@@ -174,6 +175,7 @@ def sync(
         for each in keep
         if each.agent_id in by_id and _add(conn, each, by_id[each.agent_id], front_end)
     ]
+    archived.reported(conn, chats.values(), set(added))
     quiet = _archive_quiet(conn, {each.key for each in keep})
     _log.info(
         "synced OpenClaw sessions: %d added, %d restored, %d archived in OpenClaw, %d quiet",
