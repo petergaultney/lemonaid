@@ -2,7 +2,9 @@
 // prefix again, by default) go back to the grove from anywhere, a text box included; the prefix and
 // then the literal key type the prefix; the prefix and then the brief key focus a lemon's brief, on
 // a page that has one. Any other key after the prefix is dropped. On the grove itself, the home key
-// goes back to the lemon last shown, as closing the grove window does.
+// goes back to the lemon last shown, as closing the grove window does. A phone's list of groups
+// is the grove: a group's list goes up to the groups, and the groups to the last lemon. A phone's
+// home button (the lemonaid icon) does what the keys do.
 (() => {
   // The lemon page last shown in this browser, for the grove to go back to.
   const lastKey = "lemonaid-last-lemon";
@@ -24,6 +26,15 @@
     let last = null;
     try { last = localStorage.getItem(lastKey); } catch {}
     if (last) location.href = new URL(`lemon${last}`, location.href).href;
+  };
+  // What the home keys do here. A lemon's page asks a phone's list for its groups, not the group
+  // the lemon was opened from (`groveUp` on that list reads it).
+  window.groveKey = () => {
+    if (onLemon) {
+      try { sessionStorage.setItem("lemonaid-up", "1"); } catch {}
+      window.groveHome();
+    }
+    else if (!(window.groveUp && window.groveUp())) window.groveBack();
   };
 
   const {prefix, home, literal, brief} = window.groveKeys || {};
@@ -54,10 +65,7 @@
 
     armed = false;
     if (window.groveNote) window.groveNote("prefix", {then: event.key});
-    if (is(event, back)) {
-      if (onLemon) window.groveHome();
-      else window.groveBack();
-    }
+    if (is(event, back)) window.groveKey();
     else if (is(event, typed) && !p.ctrl) typeIn(prefix);
     else if (is(event, toBrief)) document.dispatchEvent(new CustomEvent("grove-brief"));
   }, true);

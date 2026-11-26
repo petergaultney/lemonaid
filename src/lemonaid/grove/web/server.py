@@ -21,7 +21,7 @@ from collections import abc
 
 from ...brief import pr
 from ...config import Config
-from ...inbox import db
+from ...inbox import db, pins
 from ...log import get_logger
 from ...openclaw import gateway
 from ..window import api, data
@@ -62,6 +62,19 @@ class _WebApi(api.Api):
 
     def say(self, channel: str, text: str) -> str:
         return lemon.say(channel, text, self._shared.config)
+
+    def pins(self) -> list[str]:
+        """The pinned lemons' channels, in the inbox's order."""
+        with db.connect() as conn:
+            at = pins.pinned_positions(conn)
+        return sorted(at, key=at.__getitem__)
+
+    def pin(self, channel: str) -> bool:
+        """Pin the lemon on *channel* below the other pins, or unpin it; whether it is pinned now."""
+        with db.connect() as conn:
+            pinned = pins.toggle(conn, channel)
+        self._refresh()
+        return pinned
 
 
 _CALLS = frozenset(name for name in (*vars(api.Api), *vars(_WebApi)) if not name.startswith("_"))

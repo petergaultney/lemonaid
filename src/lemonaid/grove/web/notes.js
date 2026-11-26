@@ -19,10 +19,22 @@
   };
   window.groveNote = note;
 
-  const screenNow = () => ({w: innerWidth, h: innerHeight, dpr: devicePixelRatio, touch: navigator.maxTouchPoints > 0});
+  // With what the screen shows of the page (the visual viewport) and where the page's bottom bar is,
+  // when it has one, to explain a bar that ends up off the screen.
+  const screenNow = () => {
+    const shown = window.visualViewport, bar = document.querySelector("nav");
+    const box = bar && bar.getBoundingClientRect();
+    return {
+      w: innerWidth, h: innerHeight, dpr: devicePixelRatio, touch: navigator.maxTouchPoints > 0,
+      ...(shown ? {shown: [Math.round(shown.height), Math.round(shown.offsetTop)]} : {}),
+      ...(box ? {bar: [Math.round(box.top), Math.round(box.bottom)]} : {}),
+    };
+  };
   note("load", {...screenNow(), url: location.pathname + location.search, ua: navigator.userAgent});
   let resized = null;
   addEventListener("resize", () => { clearTimeout(resized); resized = setTimeout(() => note("resize", screenNow()), 500); });
+  if (window.visualViewport) visualViewport.addEventListener("resize", () => { clearTimeout(resized); resized = setTimeout(() => note("resize", screenNow()), 500); });
+  addEventListener("pageshow", e => { if (e.persisted) setTimeout(() => note("shown", {...screenNow(), back: true}), 500); });
   addEventListener("error", e => note("error", {message: String(e.message), at: `${e.filename}:${e.lineno}:${e.colno}`}));
   addEventListener("unhandledrejection", e => note("rejected", {message: String((e.reason && e.reason.stack) || e.reason)}));
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
