@@ -14,11 +14,20 @@
     changes.onopen = fetchGrove;  // whatever changed while it was closed
     setInterval(() => { if (changes.readyState !== EventSource.OPEN) fetchGrove(); }, 3000);
   };
-  const call = async (name, args) => {
-    if (name === "data" && !changes) listen();
+  const post = async (name, args) => {
     const r = await fetch(`api/${name}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(args)});
     if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
     return r.json();
+  };
+  // The grove page asks for these one after another as it starts. Asking for them all with the first
+  // saves the round trips between, which a distant browser waits on before it sees the grove.
+  const STARTUP = ["look", "settings", "data"], early = {};
+  const call = (name, args) => {
+    if (name === "data" && !changes) listen();
+    if (name === STARTUP[0] && !(name in early)) for (const each of STARTUP) early[each] = post(each, []);
+    const asked = early[name];
+    if (asked) { early[name] = null; return asked; }
+    return post(name, args);
   };
   const open = url => { if (/^https?:\/\//.test(url)) window.open(url, "_blank", "noopener"); };
   const here = {

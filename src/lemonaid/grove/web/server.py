@@ -7,6 +7,8 @@ when the grove changed over its own open stream (`changes.py`), where the window
 """
 
 import functools
+import gzip
+import hashlib
 import http.server
 import json
 import select
@@ -26,6 +28,7 @@ from . import changes
 _log = get_logger("grove.web")
 
 REFRESH_SECONDS = 3.0
+_ZIP_ABOVE = 1024  # bytes; a smaller answer goes as it is
 _CALLS = frozenset(name for name in vars(api.Api) if not name.startswith("_"))
 
 
@@ -63,17 +66,37 @@ def _handler(
     class Handler(http.server.BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"  # a page's calls share one connection, not one each
 
-        def _send(self, status: int, content: bytes, kind: str) -> None:
+        def _send(
+            self, status: int, content: bytes, kind: str, cache: str = "no-store", tag: str = ""
+        ) -> None:
+            zipped = len(content) > _ZIP_ABOVE and "gzip" in self.headers.get("Accept-Encoding", "")
+            sent = gzip.compress(content, compresslevel=5) if zipped else content
             self.send_response(status)
             self.send_header("Content-Type", kind)
-            self.send_header("Content-Length", str(len(content)))
-            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(sent)))
+            self.send_header("Cache-Control", cache)
+            self.send_header("Vary", "Accept-Encoding")
+            if zipped:
+                self.send_header("Content-Encoding", "gzip")
+            if tag:
+                self.send_header("ETag", tag)
             self.end_headers()
-            self.wfile.write(content)
+            self.wfile.write(sent)
+
+        def _page(self, content: bytes, kind: str) -> None:
+            """A page the browser keeps, and fetches again only once it has changed."""
+            tag = f'"{hashlib.blake2b(content, digest_size=8).hexdigest()}"'
+            if self.headers.get("If-None-Match") == tag:
+                self.send_response(304)
+                self.send_header("ETag", tag)
+                self.end_headers()
+                return
+
+            self._send(200, content, kind, cache="no-cache", tag=tag)
 
         def do_GET(self) -> None:
             if self.path in ("/", "/index.html"):
-                self._send(200, body, "text/html; charset=utf-8")
+                self._page(body, "text/html; charset=utf-8")
             elif self.path == "/api/changes":
                 self._changes()
             else:

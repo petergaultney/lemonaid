@@ -46,3 +46,17 @@ test("the stream of changes waits for the page's own first call for the grove", 
   streams[0].onmessage();
   assert.equal(fetched.length, 1);
 });
+
+test("the grove page's first call asks for everything it starts with at once", async () => {
+  const {api, asked} = browser();
+
+  const look = api.look();
+  assert.deepEqual(asked, ["api/look", "api/settings", "api/data"]);
+  await look;
+  await api.settings();
+  await api.data();
+  assert.equal(asked.length, 3);
+
+  await api.data();
+  assert.deepEqual(asked.slice(3), ["api/data"]);
+});
