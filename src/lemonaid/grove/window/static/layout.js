@@ -76,9 +76,12 @@ function tagParts(b, t, zoomed, full, most) {
 const listPad = rh => Math.round(rh * 0.3);  // room inside a list's border above and below its rows
 // Its fill reaches as far past the border below as at the sides, half a column (about a quarter row).
 const listHeight = (t, rh) => (t.lemons.length + 1) * rh + 2 * listPad(rh) + Math.round(rh / 4);
+// A list's title names its tree's key, unless the key is one of its lemons' channels: a chat lemon's
+// tree is its conversation, keyed by a long session id that the tree's card shows instead.
+const shownKey = t => (t.lemons.some(l => l.channel === t.key) ? "" : t.key);
 // As wide as its title or its longest row needs, up to *most*: a narrow list covers less of its block.
 function listWidth(t, parts, most, cw) {  // in unscaled label pixels
-  const title = parts.key.length + parts.body.length + t.key.length + 4;
+  const title = parts.key.length + parts.body.length + shownKey(t).length + 4;
   const rows = Math.max(...t.lemons.map(l => (l.name || l.session).length)) + 36;
   return Math.min(Math.floor(most / cw), Math.max(title, rows)) * cw;  // whole columns, so its right side matches its left
 }
@@ -174,4 +177,4 @@ function layOut(blocks, zoomed, screen, ls) {
   return out;
 }
 
-if (typeof module !== "undefined") module.exports = {carriedView, crownShape, homeView, layOut, treeBox, treeScale};
+if (typeof module !== "undefined") module.exports = {carriedView, crownShape, homeView, layOut, shownKey, treeBox, treeScale};

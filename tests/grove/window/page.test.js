@@ -8,6 +8,7 @@ const vm = require("node:vm");
 
 const page = fs.readFileSync(path.join(__dirname, "../../../src/lemonaid/grove/window/static/page.html"), "utf8");
 const keys = fs.readFileSync(path.join(__dirname, "../../../src/lemonaid/grove/window/static/keys.js"), "utf8");
+const {shownKey} = require("../../../src/lemonaid/grove/window/static/layout.js");
 const source = name => page.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0];
 
 function searching() {
@@ -230,21 +231,37 @@ test("a jump that works goes back to the whole grove; one that fails stays to sa
   assert.equal(msg.textContent, "Can't jump");
 });
 
-test("each lemon's key in a tree's list takes its status's color, as the terminal grove's does", () => {
+function listing() {
   const painted = [];
   const context = {
     CW: 8, RH: 16, BG: "#0d1117", TEXT: "#e6ebf2", STATUS: {done: "#6f9fe0"}, ASKS: [], flipped: false, listMarks: [],
     ctx: {fillRect: () => {}}, listHeight: () => 52, listPad: () => 2, mix: a => a, frame: () => {}, drawTag: () => {},
-    txt: (text, _x, _y, color) => painted.push([text, color]),
+    shownKey, txt: (text, _x, _y, color) => painted.push([text, color]),
   };
   vm.createContext(context);
   vm.runInContext(source("drawList"), context);
+  return {draw: (t, w = 480) => context.drawList({color: ""}, t, 0, 0, w, {key: ` ${t.letter} `, body: ""}), painted};
+}
+
+test("each lemon's key in a tree's list takes its status's color, as the terminal grove's does", () => {
+  const {draw, painted} = listing();
   const lemons = [{status: "", age: "8m", name: "browser grove"}, {status: "done", age: "22h", name: "Review"}];
 
-  context.drawList({color: ""}, {key: "grove/richer-rendering", letter: "r", lemons}, 0, 0, 480, {key: " r ", body: ""});
+  draw({key: "grove/richer-rendering", letter: "r", lemons});
   const color = key => painted.find(([text]) => text === key)[1];
   assert.equal(color(".r1"), "#6f9fe0");
   assert.equal(color("r"), "#c9d1d9");
+});
+
+test("a list names its tree's key, unless it is its chat lemon's channel", () => {
+  const room = "openclaw:agent:main:matrix:channel:!r00mA1b2:grove.example";
+  const {draw, painted} = listing();
+
+  draw({key: "grove/richer-rendering", letter: "r", lemons: [{status: "", age: "8m", name: "browser grove"}]});
+  draw({key: room, letter: "g", lemons: [{status: "", age: "8m", name: "garden", channel: room}]}, 4000);
+  const texts = painted.map(([text]) => text.trim());
+  assert.ok(texts.includes("grove/richer-rendering"));
+  assert.ok(!texts.some(text => text.includes("openclaw:")));
 });
 
 test("esc and backspace back out of a block, then go back to the terminal rather than closing", () => {
