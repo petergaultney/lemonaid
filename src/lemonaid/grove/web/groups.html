@@ -23,6 +23,7 @@ nav > a.home { flex:0 0 52px; background:none; border:2px solid #2d3442; }
 nav > a.home img { width:30px; height:30px; }
 nav > a.home.none { opacity:0.4; }
 nav .lemon { font-size:12px; line-height:1.25; text-align:center; border-bottom:3px solid transparent; }
+nav .lemon .busy { display:inline-block; width:7px; height:7px; margin:0 4px 1px 0; border-radius:50%; background:#e6ebf2; animation:pulse 1.6s ease-in-out infinite; }
 nav .label { min-width:0; padding:0 6px; overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow-wrap:anywhere; }
 .chips { flex:0 0 auto; display:flex; gap:4px; }
 .chips span { display:flex; align-items:center; gap:4px; padding:1px 7px; border-radius:10px; font-size:13px; font-weight:700; }
@@ -130,7 +131,7 @@ function bar(b) {
   const count = Math.max(2, Math.min(7, Math.floor((innerWidth - 80) / SLOT)));
   inBar = barLemons(count);
   const lemons = inBar.map(l => !l ? "<span></span>"
-    : `<a class="lemon" href="lemon?channel=${encodeURIComponent(l.channel)}" data-channel="${esc(l.channel)}" data-hold style="border-bottom-color:${STATUS[l.status] || "transparent"}"><span class="label">${l.unread ? '<span class="unread">●</span>' : ""}${esc(l.emoji)}${esc(l.name)}</span></a>`);
+    : `<a class="lemon" href="lemon?channel=${encodeURIComponent(l.channel)}" data-channel="${esc(l.channel)}" data-hold style="border-bottom-color:${STATUS[l.status] || "transparent"}"><span class="label">${l.working ? '<i class="busy" title="mid-turn"></i>' : ""}${l.unread ? '<span class="unread">●</span>' : ""}${esc(l.emoji)}${esc(l.name)}</span></a>`);
   let last = null;
   try { last = localStorage.getItem("lemonaid-last-lemon"); } catch {}
   const home = `<a class="home${b || last ? "" : " none"}" href="#" title="${b ? "the groups" : "the last lemon"}" onclick="event.preventDefault(); window.groveKey()"><img src="icon.svg" alt="lemonaid"></a>`;

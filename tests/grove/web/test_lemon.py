@@ -1,6 +1,7 @@
 """A lemon's page in the web grove: what it shows, and which way typed text goes in."""
 
 import json
+import time
 
 import pytest
 
@@ -46,6 +47,17 @@ def test_view_shows_the_brief_and_how_text_goes_in(worker):
     assert "Worker" in shown["brief"]["sections"][0]["card"]  # drawn as the inbox's brief pane
     assert "<span style=" in shown["brief"]["sections"][0]["card"]
     assert shown["pinned"] is False
+
+
+def test_the_page_shows_and_is_told_when_its_lemon_is_mid_turn(worker):
+    before = lemon.mark(CHANNEL)
+    assert lemon.view(CHANNEL, Config(), pr.no_state)["working"] is False
+
+    with db.connect() as conn:
+        db.record_turn(conn, CHANNEL, time.time())
+
+    assert lemon.view(CHANNEL, Config(), pr.no_state)["working"] is True
+    assert lemon.mark(CHANNEL) != before
 
 
 def test_talk_reads_the_conversation(worker):
@@ -114,8 +126,13 @@ def test_say_types_through_the_front_end(worker, monkeypatch):
         lambda name: interface.FrontEnd(found.terminal, found.open_beside, None, prompt),
     )
 
+    with db.connect() as conn:
+        db.mark_unread_for_channel(conn, CHANNEL)
+
     assert lemon.say(CHANNEL, "go on", Config()) == ""
     assert typed == [(CHANNEL, "go on")]
+    with db.connect() as conn:
+        assert not db.get_by_channel(conn, CHANNEL, unread_only=False).is_unread
 
 
 def test_say_sends_mail_when_the_front_end_cant_type(worker, monkeypatch):

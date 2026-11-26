@@ -10,13 +10,13 @@ import os
 import time
 from pathlib import Path
 
-from ... import conversation, front_end
+from ... import conversation, front_end, openclaw
 from ...brief import attached, family, identity, pr, render, target
 from ...config import Config
 from ...front_end import chat, interface, pick
-from ...inbox import db, pins
+from ...inbox import db, pins, turns
 from ...messages import tell_delivery
-from ...openclaw import sessions, turns
+from ...openclaw import sessions
 from . import brief_page
 
 LIMIT = 200  # messages a page shows, with the tool calls among them
@@ -51,7 +51,7 @@ def _mark(row: db.Notification) -> str:
     conversation. Raises OSError when it can't be learned."""
     if row.channel.startswith(sessions.PREFIX):
         key = sessions.session_key(row.channel)
-        failed = turns.failed(key)
+        failed = openclaw.turns.failed(key)
         return (
             f"{conversation.openclaw.mark(key, sessions.cli())}:{failed[-1].at_ms if failed else 0}"
         )
@@ -121,6 +121,7 @@ def view(channel: str, config: Config, prs: pr.Lookup, width: int = brief_page.W
         "status": own.state if own else "",
         "brief_id": identity.brief_name(own.lemon_id) if own and own.lemon_id else "",
         "pinned": pinned,
+        "working": turns.mid_turn(row, time.time()),
         "brief": brief,
         "how": how,
         "how_text": _HOW.get(how, f"Types into its {how} terminal as you."),
@@ -129,7 +130,8 @@ def view(channel: str, config: Config, prs: pr.Lookup, width: int = brief_page.W
 
 
 def mark(channel: str) -> str:
-    """What changes whenever the lemon's page would: its conversation, or its brief's file."""
+    """What changes whenever the lemon's page would: its conversation, its brief's file, or
+    whether it is mid-turn."""
     with db.connect() as conn:
         row = db.get_by_channel(conn, channel, unread_only=False)
         brief = attached.by_channel(conn, [channel]).get(channel)
@@ -144,7 +146,7 @@ def mark(channel: str) -> str:
         written = brief.stat().st_mtime_ns if brief else 0
     except OSError:
         written = 0
-    return f"{talked}|{written}"
+    return f"{talked}|{written}|{turns.mid_turn(row, time.time())}"
 
 
 _read: dict[str, tuple[str, list[conversation.entry.Entry]]] = {}  # by channel, with its mark
@@ -212,4 +214,8 @@ def say(channel: str, text: str, config: Config) -> str:
     if not (found and found.prompt):
         return _mail(channel, text)
 
-    return found.prompt(row, config, text)
+    problem = found.prompt(row, config, text)
+    if not problem:  # answering it read it, and an unread lemon never shows mid-turn
+        with db.connect() as conn:
+            db.mark_all_read_for_channel(conn, channel)
+    return problem
