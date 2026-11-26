@@ -103,9 +103,11 @@ def test_a_form_style_post_is_refused(served):
     assert _post(served + "/api/data", [], {"Content-Type": "text/plain"})[0] == 403
 
 
-def test_only_the_window_apis_calls_are_served(served):
+def test_only_the_calls_named_for_browsers_are_served(served):
     assert _post(served + "/api/__init__", [])[0] == 404
     assert _post(served + "/api/nothing", [])[0] == 404
+    assert _post(served + "/api/open_link", ["https://example.com"])[0] == 404
+    assert _post(served + "/api/drag", [])[0] == 404
 
 
 def test_the_page_gets_the_shim_before_its_own_scripts():

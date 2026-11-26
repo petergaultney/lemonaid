@@ -29,7 +29,29 @@ _log = get_logger("grove.web")
 
 REFRESH_SECONDS = 3.0
 _ZIP_ABOVE = 1024  # bytes; a smaller answer goes as it is
-_CALLS = frozenset(name for name in vars(api.Api) if not name.startswith("_"))
+# What a browser may call, named one by one so a method added to the native window isn't served
+# by accident. The window's own placing (dismiss, drag, stick, to_terminal) and open_link are the
+# browser's to do (shim.js) and aren't here.
+_CALLS = frozenset(
+    {
+        "block_refusal",
+        "data",
+        "edit",
+        "edit_info",
+        "jump",
+        "keep",
+        "log",
+        "look",
+        "plant",
+        "reframe",
+        "refusal",
+        "search",
+        "settings",
+        "stump_drop",
+        "stump_refusal",
+        "usage",
+    }
+)
 
 
 def _jump(channel: str) -> str | dict[str, str]:
