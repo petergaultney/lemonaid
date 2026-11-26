@@ -19,7 +19,8 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
     if not args.target and beside is None:
         return (
             {},
-            "Not in tmux, WezTerm or cmux, so there is nowhere beside you: name SESSION:WINDOW",
+            "Not in tmux, WezTerm, cmux or an OpenClaw session, so there is nowhere beside you:"
+            " name SESSION:WINDOW",
         )
 
     own = window.own_session() if args.target and not session else ""
@@ -28,7 +29,7 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
 
     config = load_config()
     try:
-        if options.preview(args, config.tmux_session):
+        if (beside is None or beside.previews) and options.preview(args, config.tmux_session):
             return {"preview": True}, ""
     except ValueError as error:
         return {}, str(error)
@@ -66,7 +67,8 @@ def add_parser(lemon_subparsers: argparse._SubParsersAction) -> None:
         "session's name. The window is made if it doesn't exist and respawned "
         "if its panes are dead; anything running there is refused. With no target, it starts "
         "beside you in the current directory: a new window of your own tmux session, a new "
-        "tab in WezTerm, or a new workspace in cmux, and says where. Codex is "
+        "tab in WezTerm, or a new workspace in cmux, and says where. Run from an OpenClaw "
+        "session, it starts a new, ordinary session of the same agent. Codex is "
         "started with its folder-trust and update prompts turned off, so the prompt reaches it.",
     )
     start.add_argument(

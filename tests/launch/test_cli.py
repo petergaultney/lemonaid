@@ -283,7 +283,7 @@ def test_no_target_outside_tmux_wezterm_and_cmux_is_an_error(capsys, monkeypatch
     for variable in ("TMUX_PANE", "WEZTERM_PANE", "CMUX_SURFACE_ID"):
         monkeypatch.delenv(variable, raising=False)
 
-    assert "Not in tmux, WezTerm or cmux" in _start(capsys)["error"]
+    assert "Not in tmux, WezTerm, cmux or an OpenClaw session" in _start(capsys)["error"]
 
 
 def test_no_target_in_cmux_opens_a_workspace_that_waits_on_its_token(capsys, monkeypatch, tmp_path):

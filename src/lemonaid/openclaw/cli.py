@@ -48,12 +48,17 @@ def _register_key(key: str, claim: bool) -> int:
     with db.connect() as conn:
         holder = lemons.by_thread(conn, thread) if thread else ""
         lent = holder not in ("", channel) and not claim  # the caller registers it for it
-        if lent:
-            kept = db.get_by_channel(conn, channel, unread_only=False)
-            bound = str(kept.metadata.get("codex_thread") or "") if kept else ""
-        else:
-            bound = thread
-        lemons.register(conn, found, bound, sessions.hosted_codex_home(), os.getcwd(), chat.NAME)
+        kept = db.get_by_channel(conn, channel, unread_only=False)
+        held = str(kept.metadata.get("codex_thread") or "") if kept else ""
+        lemons.register(
+            conn,
+            found,
+            held if lent else thread,
+            sessions.hosted_codex_home(),
+            os.getcwd(),
+            chat.NAME,
+            kept.name or "" if kept else "",
+        )
 
     if lent:
         print(

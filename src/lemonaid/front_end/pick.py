@@ -4,7 +4,7 @@ import argparse
 
 from .. import wezterm
 from ..config import Config
-from ..launch import where, window
+from ..launch import openclaw_session, where, window
 from ..messages import autoresume_cmux, autoresume_tmux, autoresume_wezterm
 from . import chat, interface, terminals, tmux
 
@@ -15,10 +15,6 @@ def _beside_tmux(args: argparse.Namespace, config: Config) -> tuple[dict, str]:
 
 def _beside_wezterm(args: argparse.Namespace, config: Config) -> tuple[dict, str]:
     return where.in_new_tab(args, config, *wezterm.spawn.own_pane())
-
-
-def _beside_chat(args: argparse.Namespace, config: Config) -> tuple[dict, str]:
-    return {}, "a chat room has nothing to start a lemon beside"
 
 
 def _front_end(terminal: interface.Terminal) -> interface.FrontEnd | None:
@@ -42,8 +38,14 @@ def _front_end(terminal: interface.Terminal) -> interface.FrontEnd | None:
             return interface.FrontEnd(
                 terminal, where.in_new_cmux_workspace, autoresume_cmux.start, None
             )
-        case chat.NAME:  # the gateway runs its turns, so lemonaid never starts one
-            return interface.FrontEnd(terminal, _beside_chat, None, chat.prompt)
+        case chat.NAME:  # the gateway runs its turns, so lemonaid never resumes one
+            return interface.FrontEnd(
+                terminal,
+                lambda args, config: openclaw_session.beside(args),
+                None,
+                chat.prompt,
+                previews=False,
+            )
         case _:
             return None
 

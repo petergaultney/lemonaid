@@ -66,6 +66,13 @@ def hosted_codex_home() -> Path | None:
     return path if path.is_relative_to(agents) else None
 
 
+def hosted_agent() -> str:
+    """The id of the OpenClaw agent running this process, or "" outside OpenClaw."""
+    home = hosted_codex_home()
+    parts = home.relative_to(Path.home() / ".openclaw" / "agents").parts if home else ()
+    return parts[0] if parts else ""
+
+
 def _session(entry: dict[str, ty.Any]) -> Session | None:
     key = entry.get("key")
     if not isinstance(key, str) or not key:

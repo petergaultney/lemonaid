@@ -395,7 +395,10 @@ lemon whose window died), use `lemon start` rather than typing a launch line int
 session is renamed; `<session>:4` names another session.
 With no window at all, it starts beside you, in the current directory: a new window of your
 own tmux session in tmux, a new tab beside your pane in WezTerm, or a new unfocused workspace
-in cmux, named for `--name` or the directory. It says where.
+in cmux, named for `--name` or the directory. It says where. Run from an OpenClaw session, it
+opens a new, ordinary session of the same agent instead (see
+[openclaw.md](openclaw.md#starting-a-lemon-from-a-session)); never use OpenClaw's
+`sessions_spawn` for a lemon.
 
 ```bash
 lemonaid lemon start :4 --preset codex --prompt 'REVIEW #12. Instructions are in <file>; follow them.' \
@@ -413,7 +416,8 @@ never takes up the brief, or goes idle without touching it, is reported to whoev
 (see [watch](watch.md#watching-other-lemons)). `--json` returns `{"front_end", "where", "dir", "harness", "brief",
 "lemon_id", "parent", "name", "error"}`, where `front_end` is `tmux` or `wezterm` and `where` is
 a phrase like `tmux window work:5`, plus the front end's own keys: `session`, `window` and
-`window_id` for tmux, `wezterm_pane` and `wezterm_workspace` for WezTerm, `cmux_workspace` for cmux.
+`window_id` for tmux, `wezterm_pane` and `wezterm_workspace` for WezTerm, `cmux_workspace` for cmux,
+`session_key` and `channel` for `openclaw-chat`.
 
 `brief handoff --to NAME` accepts a named lemon running Claude or Codex, as well as the original backend names. It keeps the preset name for command selection and the resolved backend for session identity and acceptance.
 

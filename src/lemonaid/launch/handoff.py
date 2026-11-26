@@ -10,6 +10,7 @@ taken then too, so a lemon that starts quickly still counts as new.
 
 import dataclasses
 import re
+import sqlite3
 from pathlib import Path
 
 from .. import brief, docs, groups, lineage
@@ -143,6 +144,28 @@ def _announce(handoff: Handoff) -> None:
         _log.warning("Could not tell %s about its new child %s: %s", parent, child, error)
 
 
+def _record(conn: sqlite3.Connection, handoff: Handoff) -> str:
+    """Record the parent link and groups; a warning when the lemon's name is another's too."""
+    if handoff.link:
+        lineage.links.set_parent(conn, *handoff.link)
+        if handoff.announce:
+            _announce(handoff)
+    for group in handoff.groups:
+        try:
+            groups.store.add(conn, groups.store.find(conn, group), [handoff.lemon_id])
+        except LookupError as error:
+            _log.warning("Not adding %s to a group: %s", handoff.lemon_id, error)
+    if handoff.groups:
+        groups.sync.write_lines(conn, [handoff.lemon_id])
+    try:
+        lemon_id = handoff.lemon_id or brief.identity.ensure(conn, handoff.brief)
+    except (ValueError, brief.store.ChangedUnderneath) as error:
+        _log.warning("Not checking %s for a shared name: %s", handoff.brief, error)
+        return ""
+
+    return brief.name_clash.warn(conn, lemon_id)
+
+
 def complete(handoff: Handoff, session: str, index: str, window_id: str, token: str = "") -> str:
     """Wait for the lemon by its launch *token* or its tmux window, and record the parent
     link and groups now.
@@ -163,21 +186,14 @@ def complete(handoff: Handoff, session: str, index: str, window_id: str, token: 
             handoff.name,
             token,
         )
-        if handoff.link:
-            lineage.links.set_parent(conn, *handoff.link)
-            if handoff.announce:
-                _announce(handoff)
-        for group in handoff.groups:
-            try:
-                groups.store.add(conn, groups.store.find(conn, group), [handoff.lemon_id])
-            except LookupError as error:
-                _log.warning("Not adding %s to a group: %s", handoff.lemon_id, error)
-        if handoff.groups:
-            groups.sync.write_lines(conn, [handoff.lemon_id])
-        try:
-            lemon_id = handoff.lemon_id or brief.identity.ensure(conn, handoff.brief)
-        except (ValueError, brief.store.ChangedUnderneath) as error:
-            _log.warning("Not checking %s for a shared name: %s", handoff.brief, error)
-            return ""
+        return _record(conn, handoff)
 
-        return brief.name_clash.warn(conn, lemon_id)
+
+def complete_on(handoff: Handoff, channel: str) -> str:
+    """`complete` for a lemon whose channel is known before it starts: attach its brief now."""
+    if handoff.brief is None:
+        return ""
+
+    with db.connect() as conn:
+        brief.attached.attach(conn, channel, handoff.brief)
+        return _record(conn, handoff)
