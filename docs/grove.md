@@ -125,6 +125,8 @@ The layout is saved in `grove.json` in lemonaid's state directory (`~/.local/sta
 
 `lemonaid grove serve` serves the grove window's page over HTTP, for a machine you reach over a network rather than sit at, such as one running an OpenClaw gateway. By default it listens on the machine's Tailscale address (`tailscale ip -4`), port 8770, so only your tailnet reaches it; `--host` and `--port` choose another. Open `http://<machine>:8770/` in any browser.
 
+Plain HTTP is enough to use it. For an HTTPS address as well, which a phone needs to install a site as an app, put Tailscale's own proxy in front of it: `tailscale serve --bg --https=8443 http://<tailscale address>:8770` serves it at `https://<machine>.<tailnet>.ts.net:8443/`, with a certificate, to your tailnet only, and keeps the plain address working beside it. Tailscale documents only `127.0.0.1` as a proxy target, though 1.104 proxies to the tailscale address too; if yours refuses it, run `lemonaid grove serve --host 127.0.0.1` with `http://127.0.0.1:8770` as the target, which leaves only the HTTPS address. Behind that proxy the server tells browsers apart by the address it forwards.
+
 > [!WARNING]
 > **The web grove has no security of its own.** There is no login, no encryption (plain HTTP) and no per-user access: anyone who can reach its address can do everything the page can, on every lemon. Its only protection is the network it listens on. To use it from anywhere but the machine itself, put both ends on a private network you control, such as a [Tailscale](https://tailscale.com) tailnet, and never bind it to a public, shared or LAN-wide address. On the machine itself, `--host 127.0.0.1` keeps it to local browsers.
 

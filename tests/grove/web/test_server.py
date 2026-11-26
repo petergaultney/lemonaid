@@ -160,6 +160,21 @@ def test_streams_past_a_clients_few_are_turned_away_and_its_calls_still_answer(s
             stream.close()
 
 
+def test_each_browser_behind_a_proxy_on_this_machine_gets_its_own_streams(served):
+    def stream(browser: str) -> http.client.HTTPResponse:
+        request = urllib.request.Request(
+            served + "/api/changes", headers={"X-Forwarded-For": browser}
+        )
+        return urllib.request.urlopen(request, timeout=5)
+
+    streams = [stream(browser) for browser in ("100.64.0.1",) * 3 + ("100.64.0.2",)]
+    try:
+        assert [each.status for each in streams] == [200, 200, 204, 200]
+    finally:
+        for each in streams:
+            each.close()
+
+
 def test_a_stream_a_page_closes_frees_its_place(served):
     kept = urllib.request.urlopen(served + "/api/changes", timeout=5)
     urllib.request.urlopen(served + "/api/changes", timeout=5).close()

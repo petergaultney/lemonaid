@@ -102,8 +102,16 @@ def _handler(
             else:
                 self._send(404, b"not found", "text/plain")
 
+        def _client(self) -> str:
+            """The browser's address, also behind a proxy on this machine, such as `tailscale
+            serve`, which connects from here and names the browser in X-Forwarded-For."""
+            peer = self.client_address[0]
+            here = peer.startswith("127.") or peer in ("::1", self.server.server_address[0])
+            forwarded = self.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+            return forwarded if here and forwarded else peer
+
         def _changes(self) -> None:
-            with seen.admitted(self.client_address[0]) as ok:
+            with seen.admitted(self._client()) as ok:
                 if not ok:
                     self._send(204, b"", "text/plain")  # EventSource stops on 204; the page polls
                     return
