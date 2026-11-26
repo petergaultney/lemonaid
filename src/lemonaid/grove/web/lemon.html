@@ -258,6 +258,7 @@ const send = async () => {
     $("said").textContent = problem || "sent";
     if (!problem) {
       $("text").value = "";
+      keepDraft();
       pending = [...pending, {text, at: Date.now(), seen}];
       savePending(pending);
       shownLog = null;
@@ -266,12 +267,25 @@ const send = async () => {
   } catch (error) {  // the request may have reached the server, so resending could say it twice
     $("said").textContent = `${error}; check the conversation before sending again`;
     $("text").value = "";
+    keepDraft();
     pending = [...pending, {text, at: Date.now(), seen, unsure: true}];
     savePending(pending);
     shownLog = null;
   }
   refresh();
 };
+// What you typed and haven't sent, kept in this browser for each lemon, so leaving the page or
+// reloading it doesn't lose it.
+const draftKey = `lemonaid-draft:${channel}`;
+const keepDraft = () => {
+  try { if ($("text").value) localStorage.setItem(draftKey, $("text").value); else localStorage.removeItem(draftKey); } catch {}
+};
+try { $("text").value = localStorage.getItem(draftKey) || ""; } catch {}
+$("text").addEventListener("input", keepDraft);
+// Arriving at a lemon, by a jump, a reload or going back, puts you in its box, after any draft.
+const toBox = () => { const box = $("text"); box.focus(); box.setSelectionRange(box.value.length, box.value.length); };
+toBox();
+addEventListener("pageshow", toBox);
 $("say").addEventListener("submit", event => { event.preventDefault(); send(); });
 $("text").addEventListener("keydown", event => {
   if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); send(); }
@@ -280,7 +294,7 @@ const showTab = tab => {
   document.body.className = `${tab}-tab`;
   for (const each of document.querySelectorAll(".tabs button")) each.classList.toggle("on", each.dataset.tab === tab);
 };
-for (const button of document.querySelectorAll(".tabs button")) button.addEventListener("click", () => showTab(button.dataset.tab));
+for (const button of document.querySelectorAll(".tabs button")) button.addEventListener("click", () => { showTab(button.dataset.tab); if (button.dataset.tab === "chat") toBox(); });
 // The prefix key's brief key (prefix.js): the brief, focused so the arrow keys scroll it.
 document.addEventListener("grove-brief", () => { showTab("brief"); $("brief").focus(); });
 // The brief's share of the width, dragged on the divider and kept in this browser.
