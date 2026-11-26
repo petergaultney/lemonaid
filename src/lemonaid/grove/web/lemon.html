@@ -268,13 +268,37 @@ const showTalk = c => {
 };
 // The brief is local and quick; the conversation may come from another process, so each
 // shows as soon as it arrives.
+// The first refresh notes when each part arrived and the conversation was drawn, in ms since the
+// page was asked for, to tell the network from the server from drawing when a page opens slowly.
+let timed = false;
+let stale = "";  // what a failed refresh put in the message line, cleared by the next to succeed
 const refresh = async () => {
   if (busy) return;
   busy = true;
-  const shown = [call("lemon", [channel, briefColumns()]).then(showView), call("talk", [channel]).then(showTalk)];
-  for (const result of await Promise.allSettled(shown))
-    if (result.status === "rejected") $("said").textContent = String(result.reason);
+  const at = {};
+  const shown = [
+    call("lemon", [channel, briefColumns()]).then(v => { at.view = performance.now(); showView(v); }),
+    call("talk", [channel]).then(c => { at.talk = performance.now(); showTalk(c); at.drawn = performance.now(); }),
+  ];
+  const failed = (await Promise.allSettled(shown)).find(result => result.status === "rejected");
   busy = false;
+  if (failed) {
+    stale = failed.reason instanceof TypeError  // the browser's word for a request nothing answered
+      ? "Can't reach the grove; trying again"
+      : String(failed.reason);
+    $("said").textContent = stale;
+    if (window.groveNote) window.groveNote("problem", {message: String(failed.reason)});
+  } else if (stale && $("said").textContent === stale) {  // a later message (a send's) stays
+    $("said").textContent = "";
+    stale = "";
+  }
+  if (timed || !window.groveNote) return;
+
+  timed = true;
+  const page = performance.getEntriesByType("navigation")[0] || {};
+  window.groveNote("timing", Object.fromEntries(Object.entries({
+    asked: page.requestStart, html: page.responseEnd, scripts: page.domContentLoadedEventEnd, ...at,
+  }).map(([k, v]) => [k, Math.round(v || 0)])));
 };
 
 const send = async () => {
