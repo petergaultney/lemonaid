@@ -140,6 +140,8 @@ A browser on the server itself (`localhost`) switches the terminal instead, as t
 
 The pages have a prefix key of their own, backtick by default. Pressing it twice goes back to the grove from anywhere, a text box included, and from the grove back to the lemon you last had open, as Backspace or Escape closing the grove does; the prefix and then `b` focus a lemon's brief (on a phone, its tab), so the arrow keys scroll it; the prefix and then `h` type a backtick. `[web]` in the config sets all four keys; see [config.md](config.md#web).
 
+To find out afterward why a page misbehaved, read `~/.local/state/lemonaid/logs/web-grove.jsonl` on the server: one JSON line per event each page reported (its screen size and browser, its errors, keys pressed outside text boxes, touches, jumps, the views it saved) and per call that failed, ran slow or changed something. What you type to a lemon is never written there. The server's own log is `/tmp/lemonaid.log` (`LEMONAID_LOG`).
+
 Keep it running as a systemd user service, or for a try, `systemd-run --user lemonaid grove serve`.
 
 ## The grove window (beta, macOS)
