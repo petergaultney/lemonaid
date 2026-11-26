@@ -13,6 +13,7 @@ from .. import attached, lemon
 from . import coordinator as handoff_coordinator
 from . import harnesses, request
 from . import pane as handoff_tmux
+from . import report as handoff_report
 from . import shell as handoff_shell
 from . import state as handoff_state
 
@@ -125,7 +126,12 @@ def _cmd(args: argparse.Namespace) -> None:
 
                 handoff_state.acknowledge(conn, token, channel, args.action)
 
-            report = handoff_coordinator.advance(conn, token)
+            row = handoff_state.get(conn, token)
+            if args.action == "ready" and harnesses.named(row["harness"]).start is not None:
+                # The sender's own command can't stop the sender, so the watcher does.
+                report = handoff_report.build(row)
+            else:
+                report = handoff_coordinator.advance(conn, token)
             if report["phase"] != "complete":
                 request.watch(token, source_job)
 

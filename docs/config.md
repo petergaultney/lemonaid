@@ -191,9 +191,9 @@ harness = "claude-patched"
 args = ["--remote-control", "--thinking-display", "summarized"]
 ```
 
-A wrapper has two costs. `brief handoff --to NAME` recognizes a preset only when its `harness` has the basename `claude` or `codex`, so a handoff to a preset that uses `claude-patched` fails. Lemonaid also adds Claude's `--name` flag only to a launch whose executable is `claude`, so a wrapped launch is not named from its title. Use the wrapper only for presets you don't hand off to, and add `--name` in `args` if you want one.
+A wrapper has two costs. `brief handoff --to NAME` recognizes a preset only when its `harness` has the basename `claude`, `codex` or `openclaw`, so a handoff to a preset that uses `claude-patched` fails. Lemonaid also adds Claude's `--name` flag only to a launch whose executable is `claude`, so a wrapped launch is not named from its title. Use the wrapper only for presets you don't hand off to, and add `--name` in `args` if you want one.
 
-Existing configuration and `--harness` names keep working. No configuration migrates automatically: add independent shapes and presets when desired, and keep old entries for callers that still use them. `lemon presets` includes legacy entries with `legacy: true`. Resume still uses the backend's `resume_command` to reopen its recorded session; `brief handoff --to NAME` can select a preset that runs Claude or Codex. The handoff records the named lemon separately from its backend so the replacement can claim and accept the brief.
+Existing configuration and `--harness` names keep working. No configuration migrates automatically: add independent shapes and presets when desired, and keep old entries for callers that still use them. `lemon presets` includes legacy entries with `legacy: true`. Resume still uses the backend's `resume_command` to reopen its recorded session; `brief handoff --to NAME` can select a preset that runs Claude, Codex or OpenClaw. The handoff records the named lemon separately from its backend so the replacement can claim and accept the brief.
 
 ### `[tmux-session.templates]`
 

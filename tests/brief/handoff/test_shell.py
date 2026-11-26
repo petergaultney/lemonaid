@@ -6,11 +6,13 @@ import subprocess
 import sys
 import time
 from contextlib import nullcontext
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 
 from lemonaid.brief.handoff import cli as handoff_cli
+from lemonaid.brief.handoff import harnesses
 from lemonaid.brief.handoff import shell as handoff_shell
 from lemonaid.brief.handoff import state as handoff_state
 
@@ -132,13 +134,15 @@ def test_live_same_terminal_request_remains_pending(setup):
 
 
 def test_codex_handoff_request_mentions_escalated_permissions():
-    message = handoff_cli.request._request_message("codex:old", "token", True)
+    note = harnesses.of("codex:old").request_note("codex:old", Path("brief.md"))
+    message = handoff_cli.request._request_message(note, "token", True)
     assert "escalated permissions" in message
     assert "exit this harness normally" in message
 
 
 def test_claude_handoff_request_omits_codex_permissions():
-    message = handoff_cli.request._request_message("claude:old", "token", False)
+    note = harnesses.of("claude:old").request_note("claude:old", Path("brief.md"))
+    message = handoff_cli.request._request_message(note, "token", False)
     assert "escalated permissions" not in message
     assert "exit this harness normally" not in message
 
