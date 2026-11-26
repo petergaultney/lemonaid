@@ -42,6 +42,20 @@ def _named(session_key: str) -> str:
     return (row.name if row else "") or "the session that started it"
 
 
+def _transcript(row: db.Notification) -> Path:
+    return Path(str(row.metadata.get("transcript_path") or row.metadata.get("session_path") or ""))
+
+
+def _mark(row: db.Notification) -> str:
+    """What changes whenever the lemon's conversation does, much cheaper to learn than the
+    conversation. Raises OSError when it can't be learned."""
+    if row.channel.startswith(sessions.PREFIX):
+        return conversation.openclaw.mark(sessions.session_key(row.channel), sessions.cli())
+
+    found = _transcript(row).stat()
+    return f"{found.st_mtime_ns}:{found.st_size}"
+
+
 def _conversation(row: db.Notification) -> list[conversation.entry.Entry]:
     """Raises OSError when the harness's record can't be read."""
     if row.channel.startswith(sessions.PREFIX):
@@ -103,6 +117,26 @@ def view(channel: str, config: Config, prs: pr.Lookup, width: int = brief_page.W
     }
 
 
+_read: dict[str, tuple[str, list[conversation.entry.Entry]]] = {}  # by channel, with its mark
+
+
+def _unless_unchanged(row: db.Notification) -> list[conversation.entry.Entry]:
+    """The conversation as last read while its mark is the same: a page asks every few seconds,
+    and a busy OpenClaw session's conversation is megabytes to read back."""
+    try:
+        now = _mark(row)
+    except OSError:
+        return _conversation(row)
+
+    kept = _read.get(row.channel)
+    if kept and kept[0] == now:
+        return kept[1]
+
+    entries = _conversation(row)
+    _read[row.channel] = (now, entries)
+    return entries
+
+
 def talk(channel: str) -> dict:
     """The lemon's conversation, or why it can't be read."""
     with db.connect() as conn:
@@ -111,7 +145,7 @@ def talk(channel: str) -> dict:
         return {"error": f"No live lemon on {channel}"}
 
     try:
-        entries, problem = _conversation(row), ""
+        entries, problem = _unless_unchanged(row), ""
     except OSError as error:
         entries, problem = [], str(error)
     return {"entries": [entry._asdict() for entry in entries], "conversation_problem": problem}

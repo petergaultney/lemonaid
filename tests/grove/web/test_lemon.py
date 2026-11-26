@@ -54,6 +54,27 @@ def test_talk_reads_the_conversation(worker):
     assert lemon.talk("claude:gone") == {"error": "No live lemon on claude:gone"}
 
 
+def test_talk_reads_a_conversation_again_only_once_it_changed(worker, monkeypatch, tmp_path):
+    reads = []
+    real = lemon.conversation.claude.read
+    monkeypatch.setattr(lemon.conversation.claude, "read", lambda *a: reads.append(1) or real(*a))
+    transcript = tmp_path / "abc.jsonl"
+
+    lemon.talk(CHANNEL)
+    lemon.talk(CHANNEL)
+    with transcript.open("a") as f:
+        f.write(
+            json.dumps(
+                {"type": "user", "origin": {"kind": "human"}, "message": {"content": "again"}}
+            )
+            + "\n"
+        )
+    said = lemon.talk(CHANNEL)
+
+    assert len(reads) == 2
+    assert [each["text"] for each in said["entries"]] == ["hi", "again"]
+
+
 def test_view_of_a_lemon_that_isnt_there():
     assert lemon.view("claude:gone", Config(), pr.no_state) == {
         "error": "No live lemon on claude:gone"

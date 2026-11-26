@@ -7,6 +7,7 @@ session spawned starts with that session's task for it, which the gateway doesn'
 """
 
 import datetime
+import json
 from collections import abc
 
 from ..openclaw import gateway
@@ -85,6 +86,22 @@ def _page(
         if isinstance(message, dict)
         for each in _entries(message, spawner)
     ], bool(found.get("hasMore"))
+
+
+def mark(session_key: str, cli: str) -> str:
+    """What changes whenever the session's conversation does, from its newest message alone.
+    Raises OSError when the gateway can't answer."""
+    found = gateway.call(
+        cli, "chat.history", {"sessionKey": session_key, "limit": 1}, _TIMEOUT_SECONDS
+    )
+    newest = (found.get("messages") or [{}])[-1]
+    return json.dumps(
+        [
+            found.get("sessionId"),
+            found.get("totalMessages"),
+            (newest.get("__openclaw") or {}).get("id"),
+        ]
+    )
 
 
 def read(
