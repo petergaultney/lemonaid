@@ -10,7 +10,7 @@ import datetime
 import json
 from collections import abc
 
-from ..openclaw import gateway
+from ..openclaw import gateway, turns
 from . import entry
 
 _TIMEOUT_SECONDS = 30
@@ -120,3 +120,26 @@ def read(
             break
 
     return entry.newest(found, limit)
+
+
+def with_failures(entries: abc.Iterable[entry.Entry], session_key: str) -> list[entry.Entry]:
+    """*entries* with each turn on *session_key* that failed since this process started, by its
+    time among them; one from before the oldest entry is left out."""
+    found, times, last = list(entries), [], None
+    for each in found:
+        last = datetime.datetime.fromisoformat(each.at) if each.at else last
+        times.append(last)
+    oldest = next((at for at in times if at), None)
+    if oldest is None:
+        return found
+
+    failed = [
+        (when, entry.Entry(entry.FAILED, failure.why or "the turn failed", _at(failure.at_ms)))
+        for failure in turns.failed(session_key)
+        if (when := datetime.datetime.fromtimestamp(failure.at_ms / 1000, datetime.UTC)) >= oldest
+    ]
+    merged = [
+        (at or oldest, 0, i, each) for i, (at, each) in enumerate(zip(times, found, strict=False))
+    ]
+    merged += [(when, 1, i, each) for i, (when, each) in enumerate(failed)]
+    return [each for *_, each in sorted(merged, key=lambda m: m[:3])]

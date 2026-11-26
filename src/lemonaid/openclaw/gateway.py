@@ -22,6 +22,7 @@ import uuid
 from pathlib import Path
 
 from ..log import get_logger
+from . import turns
 
 try:  # the `openclaw` extra
     from cryptography.hazmat.primitives import serialization
@@ -152,7 +153,8 @@ def _connect() -> ty.Any:
 
 class _Held:
     """One connection, opened on first use and again after it drops. A reader thread takes every
-    frame as it comes, handing each answer to the call waiting on it and dropping events: a
+    frame as it comes, handing each answer to the call waiting on it and a failed turn to
+    `turns`, and dropping the other events: a
     connection nothing reads stops answering its keepalive pings, and the gateway's events (a tick
     every 15 s, and more) would back up until it does."""
 
@@ -169,6 +171,8 @@ class _Held:
                 frame = json.loads(text)
                 if frame.get("type") == "res" and (waiting := self._waiting.get(frame.get("id"))):
                     waiting[1].put(frame)
+                elif frame.get("type") == "event" and frame.get("event") == "agent":
+                    turns.note(frame.get("payload") or {})
         except (websocket_errors.ConnectionClosed, ValueError) as error:
             _log.info("gateway connection closed: %s", error)
         with self._lock:
