@@ -4,6 +4,7 @@ Obsidian names a vault after its folder, so a root's basename is its vault name.
 """
 
 import urllib.parse
+import urllib.request
 from collections import abc
 from pathlib import Path
 
@@ -43,3 +44,36 @@ def obsidian_url(path: Path, vaults: abc.Iterable[Path]) -> str:
             return url(root.name, path.relative_to(root).as_posix())
 
     return ""
+
+
+def _local_path(link: str) -> Path | None:
+    try:
+        parsed = urllib.parse.urlsplit(link)
+    except ValueError:
+        return None
+
+    if parsed.scheme == "file":
+        path = Path(urllib.request.url2pathname(parsed.path))
+        return path if path.suffix == ".md" else None
+
+    if parsed.scheme == "obsidian" and parsed.netloc == "open":
+        path = urllib.parse.parse_qs(parsed.query).get("path", [""])[0]
+        return Path(path) if path else None
+
+    return None
+
+
+def by_vault(link: str, vaults: abc.Collection[Path]) -> str:
+    """*link* as an `obsidian://open?vault=` URL when it names a note under one of the expanded
+    *vaults* by its path on this machine, and unchanged otherwise.
+
+    A link by path opens only on the machine that wrote it; one by vault opens on any machine with
+    a vault of that name.
+    """
+    path = _local_path(link)
+    found = obsidian_url(path, vaults) if path is not None and path.is_absolute() else ""
+    if not found:
+        return link
+
+    heading = urllib.parse.urlsplit(link).fragment
+    return f"{found}#{heading}" if heading else found

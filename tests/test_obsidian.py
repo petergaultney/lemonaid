@@ -22,3 +22,27 @@ def test_anything_but_a_md_file_under_a_root_has_no_link(tmp_path):
 
 def test_a_root_under_home_is_spelled_from_tilde_and_in_full():
     assert obsidian.spellings(Path.home() / "trove") == ["~/trove", f"{Path.home()}/trove"]
+
+
+def test_a_link_by_path_under_a_root_opens_by_vault_name_keeping_its_heading(tmp_path):
+    roots = [tmp_path / "trove"]
+    note = (tmp_path / "trove" / "94 System" / "a.md").as_uri()
+
+    assert obsidian.by_vault(f"{note}#Open question", roots) == (
+        "obsidian://open?vault=trove&file=94%20System%2Fa#Open question"
+    )
+    assert obsidian.by_vault(f"obsidian://open?path={tmp_path}/trove/b.md", roots) == (
+        "obsidian://open?vault=trove&file=b"
+    )
+
+
+def test_a_link_outside_every_root_or_not_by_path_stays_as_written(tmp_path):
+    roots = [tmp_path / "trove"]
+
+    for link in (
+        (tmp_path / "other" / "a.md").as_uri(),
+        (tmp_path / "trove" / "a.py").as_uri(),
+        "obsidian://open?vault=trove&file=a",
+        "https://example.com/a.md",
+    ):
+        assert obsidian.by_vault(link, roots) == link
