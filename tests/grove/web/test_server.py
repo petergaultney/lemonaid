@@ -1,6 +1,7 @@
 """The grove window's page, served over HTTP: its calls reach the window's `Api`, and a chat
 lemon's jump opens its room in the browser."""
 
+import gzip
 import http.client
 import http.server
 import json
@@ -59,6 +60,26 @@ def _post(url: str, args: list, headers: dict[str, str] | None = None) -> tuple[
 def test_the_page_is_served_at_the_root(served):
     with urllib.request.urlopen(served + "/") as response:
         assert response.read() == b"<html>page</html>"
+
+
+def test_the_page_comes_compressed_and_a_browser_that_has_it_isnt_sent_it_again(seen):
+    big = server._handler(_Calls(), b"<html>" + b"lemon " * 1000 + b"</html>", seen)
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), big)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        connection = http.client.HTTPConnection("127.0.0.1", httpd.server_address[1])
+        connection.request("GET", "/", headers={"Accept-Encoding": "gzip"})
+        first = connection.getresponse()
+        page = gzip.decompress(first.read())
+        connection.request("GET", "/", headers={"If-None-Match": first.getheader("ETag")})
+        again = connection.getresponse()
+        again.read()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert first.getheader("Content-Encoding") == "gzip" and page.startswith(b"<html>lemon")
+    assert again.status == 304
 
 
 def test_api_calls_reach_the_window_api(served):
