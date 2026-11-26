@@ -253,6 +253,17 @@ def scout_failure(lemon_id: str) -> str:
     return scout_failures.describe(failure) if failure else ""
 
 
+def _scout_listening(lemon_id: str) -> bool:
+    """Whether the scout host serves *lemon_id*'s scout, including while the host restarts.
+
+    A restarting host releases every scout's lock for a few seconds, so the lock alone
+    would call a lemon with a registered scout deaf.
+    """
+    return scout_roster.read(lemon_id) is not None and bool(
+        scout_roster.host_pid() or scout_roster.restarting()
+    )
+
+
 def probe(channel: str, row: db.Notification | None, mailbox: Path) -> State:
     if not channel:
         return classify(channel, row, None, False, time.time())
@@ -261,7 +272,7 @@ def probe(channel: str, row: db.Notification | None, mailbox: Path) -> State:
         channel,
         row,
         harness_alive(row) if row is not None else False,
-        waiter.is_armed(mailbox),
+        waiter.is_armed(mailbox) or _scout_listening(mailbox.name),
         time.time(),
         parked_jobs().get(channel, "") if channel.startswith("claude:") else "",
         unrun_codex().get(channel, "") if channel.startswith("codex:") else "",
