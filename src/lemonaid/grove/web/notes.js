@@ -3,7 +3,7 @@
 // Keys pressed in a text box are never noted. `window.groveNote` lets the other scripts add theirs.
 (() => {
   const tab = Math.random().toString(36).slice(2, 8);  // one page load, to tell interleaved tabs apart
-  const page = location.pathname.endsWith("/lemon") ? "lemon" : "grove";
+  const page = location.pathname.split("/").pop() || "grove";
   let queue = [], timer = null;
   const flush = () => {
     timer = null;

@@ -1,0 +1,124 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lemon grove</title>
+<style>
+html,body { margin:0; background:#0b0e13; color:#e6ebf2; }
+body { font:15px/1.4 "SF Mono", Menlo, monospace; }
+a { color:inherit; text-decoration:none; }
+header { position:sticky; top:0; display:flex; gap:12px; align-items:center; padding:8px 14px; background:#161b24; z-index:1; }
+header .chip { background:#f2d94e; color:#0b0e13; padding:1px 8px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header .back { color:#8ab4f8; white-space:nowrap; }
+header .canvas { margin-left:auto; color:#8ab4f8; }
+#sum { color:#7c8696; font-size:13px; padding:6px 14px; }
+.row { display:flex; gap:12px; align-items:center; min-height:52px; padding:8px 14px; border-bottom:1px solid #1d232e; }
+.row:active { background:#161b24; }
+.swatch { flex:0 0 6px; align-self:stretch; border-radius:3px; }
+.dot { flex:0 0 12px; height:12px; border-radius:50%; }
+.dot.working { animation:pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity:0.35; } }
+.main { flex:1; min-width:0; display:flex; flex-direction:column; }
+.name { font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sub { color:#7c8696; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sub span + span::before { content:"  "; white-space:pre; }
+.count, .age { color:#7c8696; font-size:13px; white-space:nowrap; }
+.unread { color:#f2d94e; }
+.problem { color:#e5534b; padding:14px; }
+</style>
+</head><body>
+<header id="head"></header>
+<div id="sum"></div>
+<main id="list"></main>
+<script>
+// A phone's grove: the groups, then the lemons of one, each opening its lemon's page. The group shown
+// is in the address, so the browser's back button leaves it, and coming back from a lemon's page by
+// its "grove" link shows the group that lemon was opened from.
+const STATUS = {alert:"#e5534b", blocked:"#f2c14e", merge:"#5fbf6a", approve:"#c58af9", review:"#a8794f", running:"#39b5a8", done:"#5a8dee"};
+const RANK = ["alert", "blocked", "merge", "approve", "review", "running", "done"];
+const OPEN = "lemonaid-group";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"})[c]);
+const named = b => b.group || b.home || "packhouse";  // block 0 is the home group's when one is set
+const lemonsOf = b => b.trees.flatMap(t => t.lemons);
+const ORDER = [...RANK.filter(s => s !== "done"), "", "done"];  // what a lemon asks for first, done last
+const rank = l => ORDER.indexOf(STATUS[l.status] ? l.status : "");
+const remember = name => { try { name === null ? sessionStorage.removeItem(OPEN) : sessionStorage.setItem(OPEN, name); } catch {} };
+const remembered = () => { try { return sessionStorage.getItem(OPEN); } catch { return null; } };
+let DATA = null, drawn = "";
+
+function opened() {
+  const name = new URLSearchParams(location.hash.slice(1)).get("group");
+  return name === null ? null : DATA.blocks.find(b => named(b) === name) || null;
+}
+
+function tally(lemons) {
+  const asks = RANK.filter(s => s !== "done").map(s => [s, lemons.filter(l => l.status === s).length]).filter(([, n]) => n);
+  const working = lemons.filter(l => l.working).length;
+  return [
+    ...asks.map(([s, n]) => `<span style="color:${STATUS[s]}">● ${n} ${s}</span>`),
+    ...(working ? [`<span>${working} mid-turn</span>`] : []),
+  ].join("") || "<span>idle</span>";
+}
+
+function groupRows() {
+  return DATA.blocks.map(b => `<a class="row" href="#group=${encodeURIComponent(named(b))}">
+    <span class="swatch" style="background:${esc(b.color)}"></span>
+    <span class="main"><span class="name">${esc(named(b))}</span><span class="sub">${tally(lemonsOf(b))}</span></span>
+    <span class="count">${lemonsOf(b).length}</span></a>`).join("");
+}
+
+function lemonRows(b) {
+  const lemons = lemonsOf(b).sort((x, y) => rank(x) - rank(y) || y.working - x.working || y.updated - x.updated);
+  return lemons.map(l => {
+    const color = STATUS[l.status] || "#9aa3ad";
+    const sub = [
+      l.status ? `<span style="color:${color}">${esc(l.status)}</span>` : "",
+      l.brief_id ? `<span>${esc(l.brief_id)}</span>` : "",
+      ...(l.prs || []).map(([number]) => `<span>#${esc(number)}</span>`),
+    ].join("");
+    return `<a class="row" href="lemon?channel=${encodeURIComponent(l.channel)}" data-channel="${esc(l.channel)}">
+      <span class="dot${l.working ? " working" : ""}" style="background:${color}"></span>
+      <span class="main"><span class="name">${l.unread ? '<span class="unread">● </span>' : ""}${esc(l.emoji)}${l.emoji ? " " : ""}${esc(l.name)}</span><span class="sub">${sub || "<span>idle</span>"}</span></span>
+      <span class="age">${esc(l.age)}</span></a>`;
+  }).join("");
+}
+
+function draw() {
+  if (!DATA) return;
+  const b = opened();
+  remember(b ? named(b) : null);
+  const head = b
+    ? `<a class="back" href="#" id="groups">‹ groups</a><span class="chip">${esc(named(b))}</span>`
+    : `<span class="chip">lemon grove</span>`;
+  const body = DATA.error ? `<div class="problem">${esc(DATA.error)}</div>` : b ? lemonRows(b) : groupRows();
+  const page = `${head}<a class="canvas" href="grove">canvas</a>` + "\u0000" + body + "\u0000" + (DATA.summary || "");
+  if (page === drawn) return;
+  drawn = page;
+  const [h, list, sum] = page.split("\u0000");
+  document.getElementById("head").innerHTML = h;
+  document.getElementById("list").innerHTML = list;
+  document.getElementById("sum").textContent = sum;
+}
+
+async function refresh() {
+  try {
+    const r = await fetch("api/data", {method: "POST", headers: {"Content-Type": "application/json"}, body: "[]"});
+    if (r.ok) DATA = await r.json();
+  } catch (e) {
+    if (window.groveNote) window.groveNote("problem", {message: String(e)});
+  }
+  if (DATA && !location.hash && remembered() !== null && DATA.blocks.some(b => named(b) === remembered())) {
+    history.replaceState(null, "", `#group=${encodeURIComponent(remembered())}`);
+  }
+  draw();
+}
+
+addEventListener("hashchange", () => { draw(); scrollTo(0, 0); });
+document.addEventListener("click", e => {
+  const row = e.target.closest("[data-channel]");
+  if (row && window.groveNote) window.groveNote("jump", {channel: row.dataset.channel});
+});
+const changes = new EventSource("api/changes");  // the server says when the grove changed (changes.py)
+changes.onmessage = refresh;
+changes.onopen = refresh;
+setInterval(() => { if (changes.readyState !== EventSource.OPEN) refresh(); }, 3000);
+</script>
+</body></html>
