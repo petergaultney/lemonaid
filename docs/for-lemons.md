@@ -1117,9 +1117,13 @@ prints the path to pass as `--brief`:
 ```bash
 f=$(lemonaid brief new --child "Fix the thing")   # ~/.lemons/brief/<today>-fix-the-thing.md
 lemonaid place open feat/thing --brief "$f" --parent self --prompt "Fix the thing. Instructions are in $f; follow them."
-lemonaid brief new --child --template review --pr https://github.com/o/r/pull/12 \
-    --output-doc ~/notes/reviews/r-12.md --slug review-r-12 "Review r#12: the thing"
+lemonaid brief new --child --template review --task <your-task-id> --observe \
+    --pr https://github.com/o/r/pull/12 --output-doc ~/notes/reviews/r-12.md --slug review-r-12 "Review r#12: the thing"
 ```
+
+With `[tasks] enabled = true`, the review template refuses to run without `--task`, the ID of the task the PR
+belongs to; `--observe` leaves its holder alone. A teammate's PR that none of your tasks covers takes `--new-task`
+instead (see `tasks.md`). With tasks disabled, omit all three task options: they are refused.
 
 The file has frontmatter (see Frontmatter) with its own `brief-id`, `created`, and `parent: <your Lemon-ID>`, then the title and the template's sections. It has no `## Now`; the child
 writes that. `--parent` names a parent other than yourself (a Lemon-ID, channel, or brief), or `parent` for your own parent.
