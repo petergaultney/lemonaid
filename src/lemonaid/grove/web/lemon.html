@@ -60,21 +60,42 @@ ul { margin:4px 0; padding-left:20px; }
 blockquote { margin:8px 0; padding:2px 12px; border-left:3px solid #f2c14e; background:#161b24; }
 p { margin:6px 0; }
 table { border-collapse:collapse; margin:4px 0; } td { border:1px solid #3a4250; padding:1px 6px; }
-form { display:flex; flex-direction:column; gap:4px; padding:6px 10px; background:#161b24; }
-textarea { font:inherit; background:#0b0e13; color:#e6ebf2; border:1px solid #3a4250; padding:6px; resize:vertical; min-height:3em; }
-form .row { display:flex; gap:8px; align-items:center; }
-form .how { color:#7c8696; flex:1; }
-form button { font:inherit; background:#f2d94e; color:#0b0e13; border:0; padding:3px 12px; font-weight:700; }
-#said { color:#f2c14e; }
-form button.attach { background:#2d3442; color:#e6ebf2; }
-form.dropping { outline:2px dashed #f2d94e; outline-offset:-2px; }
-#attached { display:flex; flex-wrap:wrap; gap:6px; }
-#attached .chip { display:inline-flex; align-items:center; gap:6px; max-width:100%; background:#2d3442; border-radius:6px; padding:2px 4px 2px 8px; }
-#attached .chip.uploading { opacity:0.6; padding-right:8px; }
-#attached .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-#attached .size { color:#7c8696; white-space:nowrap; }
-#attached button { font:inherit; font-size:16px; line-height:1; background:none; color:#e6ebf2; border:0; padding:2px 6px; min-width:28px; min-height:28px; }
-.entry .files { color:#7c8696; font-size:11px; }
+/* The composer, as chat apps draw one: what's attached above a rounded box that grows with what you
+   type, a paperclip at its left and a round send at its right. */
+form { display:flex; flex-direction:column; gap:6px; padding:8px 10px; background:#161b24; border-top:1px solid #222936; }
+#said:empty, #how:empty { display:none; }
+#said { color:#f2c14e; font-size:12px; padding:0 6px; }
+#how { color:#7c8696; font-size:12px; padding:0 6px; }
+.compose { display:flex; align-items:flex-end; gap:6px; background:#0b0e13; border:1px solid #2d3442; border-radius:20px; padding:4px; transition:border-color .15s; }
+.compose:focus-within { border-color:#5a6270; }
+form.dropping .compose { border-color:#f2d94e; border-style:dashed; }
+textarea { flex:1; box-sizing:border-box; font:inherit; line-height:1.4; background:none; color:#e6ebf2; border:0; outline:none; resize:none; padding:7px 4px; min-height:1.4em; max-height:40vh; overflow-y:auto; }
+textarea::placeholder { color:#6b7484; }
+.compose button { flex:0 0 auto; display:flex; align-items:center; justify-content:center; width:34px; height:34px; border:0; border-radius:50%; padding:0; cursor:pointer; }
+.compose button svg { width:20px; height:20px; }
+.compose .attach { background:none; color:#aab3c2; }
+.compose .attach:hover { background:#1f2633; color:#e6ebf2; }
+.compose .send { background:#f2d94e; color:#0b0e13; }
+/* Attachments: images as thumbnails, other files as cards, each with a round remove in its corner. */
+#attached { display:flex; gap:10px; overflow-x:auto; padding:8px 4px 2px; scrollbar-width:thin; }
+#attached .tile { position:relative; flex:0 0 auto; height:64px; border-radius:12px; background:#1f2633; border:1px solid #2d3442; }
+#attached .tile.image { width:64px; }
+#attached .tile.image .thumb { width:100%; height:100%; object-fit:cover; border-radius:11px; display:block; }
+#attached .tile.file { display:flex; align-items:center; gap:10px; padding:0 14px 0 10px; max-width:220px; }
+#attached .kind { flex:0 0 auto; display:flex; align-items:center; justify-content:center; width:38px; height:44px; border-radius:6px; background:#2b3a55; color:#cfe0ff; font-size:10px; font-weight:800; letter-spacing:.03em; }
+#attached .about { display:flex; flex-direction:column; min-width:0; }
+#attached .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#e6ebf2; }
+#attached .size { color:#7c8696; font-size:11px; }
+#attached .remove { position:absolute; top:-7px; right:-7px; width:22px; height:22px; border-radius:50%; border:2px solid #161b24; background:#5a6270; color:#fff; font:700 13px/1 system-ui, sans-serif; padding:0; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+#attached .remove::after { content:""; position:absolute; inset:-10px; }  /* a thumb-sized target around the small dot */
+#attached .remove:hover { background:#e5534b; }
+#attached .tile.uploading > :not(.spinner) { opacity:0.45; }
+@keyframes spin { to { transform:rotate(360deg); } }
+#attached .spinner { position:absolute; top:50%; left:50%; width:20px; height:20px; margin:-10px 0 0 -10px; border:2px solid #e6ebf2; border-right-color:transparent; border-radius:50%; animation:spin .8s linear infinite; }
+.entry .sent-files { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.entry .sent-files img { width:56px; height:56px; object-fit:cover; border-radius:8px; display:block; }
+.entry .sent-files .card { display:inline-flex; align-items:center; gap:8px; max-width:100%; background:#161b24; border:1px solid #2d3442; border-radius:8px; padding:4px 10px 4px 4px; color:#cdd5e0; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.entry .sent-files .card b { flex:0 0 auto; background:#2b3a55; color:#cfe0ff; border-radius:5px; padding:4px 5px; font-size:9px; letter-spacing:.03em; }
 @keyframes pulse { 50% { opacity:0.35; } }
 #dot { flex:0 0 9px; height:9px; border-radius:50%; background:#e6ebf2; animation:pulse 1.6s ease-in-out infinite; }
 .entry.working { color:#c9a23a; display:flex; align-items:center; gap:4px; }
@@ -86,9 +107,9 @@ form.dropping { outline:2px dashed #f2d94e; outline-offset:-2px; }
   body { position:fixed; inset:0; font-size:15px; }  /* only the brief and chat scroll, never the bars off the screen */
   header .home { display:none; }
   header { flex-wrap:wrap; row-gap:2px; }
-  form button[type=submit] { display:none; }  /* the bottom bar's send stands in for it */
-  form button.attach { min-height:36px; padding:0 14px; border-radius:8px; }
-  #attached button { min-width:36px; min-height:36px; }
+  .compose .send { display:none; }  /* the bottom bar's send stands in for it */
+  .compose button { width:38px; height:38px; }
+  textarea { font-size:16px; }  /* below 16px, a phone zooms the page into the box */
   #brief { flex:1; }
   #divider { display:none; }
   body.chat-tab #brief, body.brief-tab #chat { display:none; }
@@ -99,8 +120,9 @@ form.dropping { outline:2px dashed #f2d94e; outline-offset:-2px; }
 <section id="brief" tabindex="-1"></section>
 <div id="divider" title="drag to size the brief"></div>
 <section id="chat"><div id="log"></div>
-<form id="say"><div id="attached" hidden></div><textarea id="text" placeholder="Say something"></textarea>
-<div class="row"><button type="button" class="attach" id="attach" title="attach files">attach</button><input type="file" id="pick" multiple hidden><span class="how" id="how"></span><span id="said"></span><button type="submit">send</button></div></form>
+<form id="say"><div id="said"></div><div id="attached" hidden></div>
+<div class="compose"><button type="button" class="attach" id="attach" title="attach files" aria-label="attach files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button><input type="file" id="pick" multiple hidden><textarea id="text" rows="1" placeholder="Message"></textarea><button type="submit" class="send" id="sendIt" title="send" aria-label="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
+<div id="how"></div></form>
 </section>
 </main>
 <nav class="tabs"><a class="home" href="./" onclick="event.preventDefault(); window.groveKey()"><img src="icon.svg" alt="lemonaid"></a><button data-tab="brief">brief</button><button data-tab="chat" class="on">chat</button><button class="send" type="submit" form="say">send</button></nav>
@@ -189,7 +211,26 @@ const grouped = entries => entries.reduce((out, e) => {
   else out.push(e.role === "tool" ? {at: e.at, tools: [e]} : {at: e.at, entry: e});
   return out;
 }, []).map(g => [g.at, g.tools ? renderTools(g.tools) : render(g.entry)]);
-const render = e => `<div class="entry ${e.role}"><div class="who">${escape(who(e))} ${time(e.at)}</div><div class="body">${rich(e.text)}</div></div>`;
+// What a message took with it: an image this browser sent as its thumbnail, any other file as a card.
+// The thumbnails are kept by name and size, the most recent few dozen, since the conversation
+// records only those.
+const thumbsKey = "lemonaid-sent-thumbs";
+const sentThumbs = (() => { try { return JSON.parse(localStorage.getItem(thumbsKey)) || {}; } catch { return {}; } })();
+const keepThumbs = files => {
+  for (const f of files) if (f.thumb) { delete sentThumbs[`${f.name}|${f.size}`]; sentThumbs[`${f.name}|${f.size}`] = f.thumb; }
+  const keys = Object.keys(sentThumbs);
+  for (const old of keys.slice(0, Math.max(0, keys.length - 40))) delete sentThumbs[old];
+  try { localStorage.setItem(thumbsKey, JSON.stringify(sentThumbs)); } catch {}
+};
+const kindOf = name => (name.includes(".") ? name.split(".").pop().slice(0, 4) : "file").toUpperCase();
+const sentFiles = files => !files || !files.length ? "" : `<div class="sent-files">${files.map(f => {
+  const thumb = f.thumb || sentThumbs[`${f.name}|${f.size}`] || "";
+  return /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(thumb)
+    ? `<img src="${thumb}" alt="${escape(f.name)}" title="${escape(f.name)}">`
+    : `<span class="card"><b>${escape(kindOf(f.name))}</b>${escape(f.name)}</span>`;
+}).join("")}</div>`;
+const render = e => `<div class="entry ${e.role}"><div class="who">${escape(who(e))} ${time(e.at)}</div>`
+  + `<div class="body">${e.text.trim() ? rich(e.text) : ""}${sentFiles((e.files || []).map(([name, size]) => ({name, size})))}</div></div>`;
 
 // What you sent stays shown, dimmed, until the conversation records it. Kept in this browser,
 // so a reload doesn't lose it.
@@ -205,8 +246,7 @@ let lastEntries = [];
 const renderPending = p => `<div class="entry user pending"><div class="who">you ${time(new Date(p.at).toISOString())}`
   + (p.unsure ? " \u00b7 may not have been sent: the server didn't answer</div>"
     : ` <span class="sent" title="waiting for the lemon's record of it">\u00b7 sent</span></div>`)
-  + `<div class="body">${rich(p.text)}${p.files && p.files.length
-    ? `<div class="files">attached: ${escape(p.files.map(f => f.name).join(", "))}</div>` : ""}</div></div>`;
+  + `<div class="body">${p.text.trim() ? rich(p.text) : ""}${sentFiles(p.files)}</div></div>`;
 
 $("log").addEventListener("toggle", ev => {
   const key = ev.target.dataset && ev.target.dataset.key;
@@ -262,7 +302,8 @@ const showView = v => {
   $("status").style.color = {alert: "#e5534b", blocked: "#f2c14e", merge: "#5fbf6a", approve: "#c58af9", review: "#a8794f", running: "#39b5a8", done: "#5a8dee"}[v.status] || "";
   $("bid").textContent = v.brief_id || "";
   shownView = v; $("edit").hidden = false;
-  $("how").textContent = v.how_text;
+  $("how").textContent = v.how === "mail" ? v.how_text : "";  // only a message that won't arrive as you says how
+  $("text").placeholder = `Message ${v.name}`;
   $("attach").hidden = v.attach === false;
   $("dot").hidden = !v.working;
   if (Boolean(v.working) !== working) { working = Boolean(v.working); if (lastTalk) showTalk(lastTalk); }
@@ -344,6 +385,7 @@ const send = async () => {
       $("text").value = "";
       keepDraft();
       attached.forget(ids);  // what was attached while it sent stays
+      keepThumbs(files);
       pending = [...pending, {text, files, at: Date.now(), seen}];
       savePending(pending);
       shownLog = null;
@@ -377,10 +419,14 @@ $("say").addEventListener("drop", event => {
 // What you typed and haven't sent, kept in this browser for each lemon, so leaving the page or
 // reloading it doesn't lose it.
 const draftKey = `lemonaid-draft:${channel}`;
+// The box grows with what's in it, up to its max-height, and shrinks again once it's sent.
+const fit = () => { const box = $("text"); box.style.height = "auto"; box.style.height = `${box.scrollHeight}px`; };
 const keepDraft = () => {
+  fit();
   try { if ($("text").value) localStorage.setItem(draftKey, $("text").value); else localStorage.removeItem(draftKey); } catch {}
 };
 try { $("text").value = localStorage.getItem(draftKey) || ""; } catch {}
+fit();
 $("text").addEventListener("input", keepDraft);
 // Arriving at a lemon, by a jump, a reload or going back, puts you in its box, after any draft.
 const toBox = () => { const box = $("text"); box.focus(); box.setSelectionRange(box.value.length, box.value.length); };

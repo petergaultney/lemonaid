@@ -41,6 +41,15 @@ def _sender(mark: dict) -> str:
     return f"{name} \u00b7 {chat.capitalize()}" if name and chat else name or "mail"
 
 
+def _files(mark: dict) -> tuple[tuple[str, int], ...]:
+    """The files the gateway kept with a message, as it records them under `media`."""
+    return tuple(
+        (str(each.get("fileName") or "file"), int(each.get("sizeBytes") or 0))
+        for each in mark.get("media") or ()
+        if isinstance(each, dict)
+    )
+
+
 def _entries(message: dict, spawner: str) -> abc.Iterator[entry.Entry]:
     """*spawner* names the session that spawned this one, if one did."""
     at = _at(message.get("timestamp"))
@@ -49,15 +58,16 @@ def _entries(message: dict, spawner: str) -> abc.Iterator[entry.Entry]:
         case "user":
             text = content if isinstance(content, str) else ""
             mark = message.get("__openclaw") or {}
-            if not text.strip():
+            files = _files(mark)
+            if not text.strip() and not files:
                 return
 
             if spawner and mark.get("seq") == 1:
-                yield entry.Entry(entry.OTHER, text, at, spawner)
+                yield entry.Entry(entry.OTHER, text, at, spawner, files)
             elif mark.get("senderIsOwner") is False:
-                yield entry.Entry(entry.OTHER, text, at, _sender(mark))
+                yield entry.Entry(entry.OTHER, text, at, _sender(mark), files)
             else:
-                yield entry.Entry(entry.USER, text, at)
+                yield entry.Entry(entry.USER, text, at, files=files)
         case "assistant" if isinstance(content, list):
             for block in content:
                 if block.get("type") == "text" and str(block.get("text") or "").strip():

@@ -142,3 +142,31 @@ def test_a_failed_turn_shows_where_it_falls_in_the_conversation():
 
     assert [each.role for each in shown] == [entry.USER, entry.FAILED, entry.LEMON]
     assert shown[1].text == "Auth profile unavailable"
+
+
+def test_a_message_shows_the_files_sent_with_it_even_with_no_text(tmp_path):
+    media = [
+        {"fileName": "photo.png", "sizeBytes": 2048, "contentType": "image/png"},
+        {"fileName": "notes.txt", "sizeBytes": 26, "contentType": "text/plain"},
+    ]
+    messages = [
+        {
+            "role": "user",
+            "content": "look",
+            "timestamp": "1795622032553",
+            "__openclaw": {"media": media},
+        },
+        {
+            "role": "user",
+            "content": "",
+            "timestamp": "1795622032553",
+            "__openclaw": {"media": media[:1]},
+        },
+    ]
+
+    found = openclaw.read(KEY, _cli(tmp_path, {"messages": messages}), 10, str)
+
+    assert [(each.text, each.files) for each in found] == [
+        ("look", (("photo.png", 2048), ("notes.txt", 26))),
+        ("", (("photo.png", 2048),)),
+    ]
