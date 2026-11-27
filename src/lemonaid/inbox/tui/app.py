@@ -42,7 +42,7 @@ from ...tmux.scratch import (
     save_current_size,
     size_has_drifted,
 )
-from .. import attention, db, sections, undo
+from .. import attention, db, lemon_items, sections, undo
 from . import (
     bar_click,
     bindings,
@@ -1440,6 +1440,12 @@ class LemonaidApp(CrashLoggedApp):
             if (group_id := sections.group_id(str(row_key.value))) is not None:
                 inbox_groups.toggle_group(self._content.inbox, group_id)
             elif notification := row_keys.notification(str(row_keys.key_id(row_key) or "")):
+                self._activate_lemon(notification)
+        elif table_id == "other_sources_table" and row_key is not None:
+            # another terminal's sessions aren't switched to from here, but a lemon item
+            # there opens whatever it names, on this machine
+            notification = row_keys.notification(str(row_keys.key_id(row_key) or ""))
+            if notification is not None and lemon_items.is_item(notification):
                 self._activate_lemon(notification)
 
 

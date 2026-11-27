@@ -7,7 +7,7 @@ from rich.text import Text
 
 from ....config import TuiConfig
 from ....lemon_watchers import ModelInfo, fish_path
-from ... import context_use, db
+from ... import context_use, db, lemon_items
 from .. import utils
 from ..utils import backend_cell, jump_gutter, styled_cell
 from . import backend_indicators, brief_cards, card_context, pr_numbers, row_cells
@@ -40,7 +40,11 @@ def backend_value(
     *,
     history: bool = False,
 ) -> Text:
-    """The model label; records `n`'s model in `models_by_channel` when it carries one."""
+    """The model label; records `n`'s model in `models_by_channel` when it carries one.
+    A lemon item has none: it is its lemon's, drawn just above it."""
+    if lemon_items.is_item(n):
+        return Text("")
+
     remembered = models_by_channel.get(n.channel)
     model = n.metadata.get("model")
     if isinstance(model, str) and model:

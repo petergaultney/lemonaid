@@ -11,7 +11,7 @@ import lemonaid.inbox.arrange.cli
 import lemonaid.messages.cli
 
 from ..audit import events
-from . import db, decorate_cli, pin_cli, show_cli, snooze_cli
+from . import db, decorate_cli, lemon_items, pin_cli, show_cli, snooze_cli
 
 
 def _notification_to_json(n: db.Notification) -> dict:
@@ -74,6 +74,11 @@ def cmd_add(args: argparse.Namespace) -> None:
             print(f"Error: invalid JSON metadata: {e}", file=sys.stderr)
             sys.exit(1)
 
+    if args.under is not None:
+        metadata = {**(metadata or {}), lemon_items.UNDER: args.under}
+    if args.hide_when_read:
+        metadata = {**(metadata or {}), lemon_items.HIDE_WHEN_READ: True}
+
     with db.connect() as conn:
         notification = db.add(
             conn,
@@ -86,10 +91,19 @@ def cmd_add(args: argparse.Namespace) -> None:
 
 
 def cmd_read(args: argparse.Namespace) -> None:
-    """Mark a notification as read."""
+    """Mark a notification as read, by ID or by channel."""
     with db.connect() as conn:
-        db.mark_read(conn, args.id)
-    print(f"Marked notification {args.id} as read")
+        found = (
+            db.get_by_channel(conn, args.channel, unread_only=False)
+            if args.channel
+            else db.get(conn, args.id)
+        )
+        if found is None:
+            print(f"No notification {args.channel or args.id}", file=sys.stderr)
+            sys.exit(1)
+
+        db.mark_read(conn, found.id)
+    print(f"Marked notification {found.id} as read")
 
 
 def cmd_snoozed(args: argparse.Namespace) -> None:
@@ -174,11 +188,21 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     add_parser.add_argument("message", help="Notification message")
     add_parser.add_argument("-n", "--name", help="Optional session name")
     add_parser.add_argument("--metadata", help="JSON metadata for handlers")
+    add_parser.add_argument(
+        "--under",
+        metavar="LEMON_CHANNEL",
+        help='draw the row under this lemon\'s row ("" for on its own); see docs/inbox-items.md',
+    )
+    add_parser.add_argument(
+        "--hide-when-read", action="store_true", help="with --under: leave the inbox once read"
+    )
     add_parser.set_defaults(func=cmd_add)
 
     # inbox read
     read_parser = inbox_subparsers.add_parser("read", help="Mark notification as read")
-    read_parser.add_argument("id", type=int, help="Notification ID")
+    read_target = read_parser.add_mutually_exclusive_group(required=True)
+    read_target.add_argument("id", type=int, nargs="?", help="Notification ID")
+    read_target.add_argument("--channel", help="the row with this channel")
     read_parser.set_defaults(func=cmd_read)
 
     show_cli.add_parser(inbox_subparsers)

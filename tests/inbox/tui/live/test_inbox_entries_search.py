@@ -18,6 +18,7 @@ def _frame(matching: set[int], collapsed: bool = False):
         matching_ids=matching,
         pinned=frozenset(),
         parents={},
+        attached={},
         other=[],
         groups=[Group(1, "A", 1.0, (), collapsed), Group(2, "B", 2.0, (), False)],
         active=SimpleNamespace(
@@ -48,3 +49,43 @@ def test_a_collapsed_group_still_shows_its_matches():
     entries, _, _ = inbox_entries.entries(_frame({1}, collapsed=True), rows, [], frozenset(), False)
 
     assert [e.key for e in entries] == ["group:1", "1@1"]
+
+
+def test_a_lemon_an_unread_reply_brought_back_leaves_the_fold():
+    from lemonaid.inbox import db, sections
+
+    lemon, quiet, reply = (
+        db.Notification(1, "lemon", ""),
+        db.Notification(2, "quiet", ""),
+        db.Notification(3, "item:lemon|/g.md", "", status="unread"),
+    )
+    entries = [sections.Row("1", lemon), sections.Row("3", reply)]
+
+    left = inbox_entries.still_folded([lemon, quiet], entries, {"item:lemon|/g.md": "lemon"})
+
+    assert left == [quiet]
+
+
+def test_a_search_keeps_the_lemon_of_a_matching_reply_in_the_other_pane():
+    there, reply, quiet = (
+        _n(5, "claude:there"),
+        db.Notification(6, "item:claude:there|/g.md", "", status="unread"),
+        _n(7, "claude:quiet"),
+    )
+    frame = _frame({6})
+    frame.other = [there, reply, quiet]
+    frame.attached = {reply.channel: "claude:there"}
+
+    _, _, other = inbox_entries.entries(frame, [], [], frozenset(), False)
+
+    assert other == [there, reply]
+
+
+def test_a_search_matching_only_a_read_reply_keeps_it_and_its_lemon():
+    lemon, reply = _n(5, "lemon"), _n(6, "item:lemon|/g.md")
+    frame = _frame({6})
+    frame.attached = {reply.channel: "lemon"}
+
+    entries, _, _ = inbox_entries.entries(frame, [lemon, reply], [], frozenset(), False)
+
+    assert [e.key for e in entries] == ["5", "6"]
