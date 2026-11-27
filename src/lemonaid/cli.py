@@ -30,8 +30,6 @@ import lemonaid.places.cli
 import lemonaid.po_box.cli
 import lemonaid.restore.cli
 import lemonaid.skills.cli
-import lemonaid.slack.cli
-import lemonaid.slack.gateway
 import lemonaid.tasks.cli
 import lemonaid.tasks.inspection.service
 import lemonaid.terminal.cli
@@ -43,6 +41,7 @@ import lemonaid.watch.notifications_cli
 import lemonaid.watch.reconcile
 import lemonaid.watch.restart
 import lemonaid.watch.run_cli
+import lemonaid.watch.source_cli
 import lemonaid.watch.wait_cli
 import lemonaid.wezterm.cli
 
@@ -182,7 +181,6 @@ def main() -> None:
     lemonaid.restore.cli.setup_parser(subparsers)
     lemonaid.brief.cli.setup_parser(subparsers)
     lemonaid.skills.cli.setup_parser(subparsers)
-    lemonaid.slack.cli.setup_parser(subparsers)
     lemonaid.tasks.cli.setup_parser(subparsers)
     lemonaid.terminal.cli.setup_parser(subparsers)
     lemonaid.tmux.cli.setup_parser(subparsers)
@@ -195,7 +193,6 @@ def main() -> None:
             lemonaid.tmux.label_host.service,
             lemonaid.tasks.inspection.service.service,
             lemonaid.codex.service.service,
-            lemonaid.slack.gateway.service,
             lemonaid.brief.sweep_service.service,
         ),
     )
@@ -204,6 +201,7 @@ def main() -> None:
     setup_mark_read_parser(subparsers)
     setup_mark_unread_parser(subparsers)
     for_lemons.setup_parser(subparsers)
+    lemonaid.watch.source_cli.add_plugin_commands(subparsers)
 
     # Forward `lemonaid claude --flag ...` to the real claude CLI.
     # Argparse can't forward unknown flags through a subparser, so this

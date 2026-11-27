@@ -28,6 +28,10 @@ class Failed(Exception):
     pass
 
 
+class Refused(Failed):
+    """The plugin answered `error`: it runs, but would not do what was asked."""
+
+
 class _Reader:
     """Reads lines and counted bytes from a pipe, giving up at a deadline."""
 
@@ -153,7 +157,7 @@ class Running:
 
         status, _, rest = self._answer_line(deadline).partition(" ")
         if status == "error":
-            raise Failed(rest or "error")
+            raise Refused(rest or "error")
 
         if not rest.isdigit():
             raise Failed(f"answered ok {rest}"[:120])

@@ -871,6 +871,21 @@ name = "relay-comments"
 command = "lemonaid-relay-comments"
 ```
 
+## `[[watch.sources]]`
+
+The plugins `lemonaid watch <name>` follows things outside lemonaid with, such as Slack threads. Without an entry, Slack is the only source; a list replaces it, and `[watch] sources = []` turns every source off. Each plugin gets the config file's top-level table named for it (`[slack]`). See [watch sources](source-plugins.md) for the protocol.
+
+| Key | Description |
+|-----|-------------|
+| `name` | The word after `lemonaid watch`, and the command `lemonaid <name>` that runs the plugin's own commands. Lowercase letters, digits and dashes; not one of lemonaid's own `watch` subcommands. |
+| `command` | The plugin, split as a shell would split it; no shell runs it. A bare name installed beside lemonaid is found there. |
+
+```toml
+[[watch.sources]]
+name = "slack"
+command = "lemonaid-slack"
+```
+
 ## `[watch.roles.<role>]`
 
 `lemonaid watch --self` wakes a lemon for a PR's events by its role on that PR: `author`, `reviewer`, `parent` or `mention` (see [watch](watch.md#roles)). `wake` replaces a role's whole list of event kinds: `state`, `head`, `ready`, `draft`, `decision`, `comments`, `conflict`, `ci-failed`, `ci-passed` and `ci-green`. An unknown role or kind is a warning, and the default list stands.
@@ -957,7 +972,7 @@ fetch_every = 60       # seconds between fetches of each followed thread while n
 presence_every = 300   # seconds between presence readings while the socket is up; 0 takes none
 ```
 
-With `push = false`, the scout host opens no socket, and each followed thread or channel is fetched every `fetch_every` seconds (10 or more). `presence_every` is for the trial described in [Presence while the socket is up](slack.md#presence-while-the-socket-is-up-trial).
+The table belongs to the Slack [watch source](source-plugins.md), which lemonaid hands it to unread. With `push = false`, the plugin opens no socket, and each followed thread or channel is fetched every `fetch_every` seconds (10 or more). `presence_every` is for the trial described in [Presence while the socket is up](slack.md#presence-while-the-socket-is-up-trial).
 
 ## `[claude.statusline]`
 

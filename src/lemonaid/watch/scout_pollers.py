@@ -9,7 +9,7 @@ from ..config import load_config
 from ..doc_plugins import configured
 from ..launch import end
 from ..log import get_logger
-from ..slack import permalink, signed_out
+from ..sources import plugin, problems
 from . import (
     briefs_events,
     command_cli,
@@ -33,7 +33,7 @@ from . import (
     review_events,
     review_requests,
     roles,
-    slack_events,
+    source_events,
     subscriptions,
     turns,
 )
@@ -239,20 +239,20 @@ def open_poller(
         )
         return lambda: briefs_events.poll(watch, deliver)
 
-    if spec.kind == "slack":
-        return slack_events.poller(
-            permalink.parse(spec.link),
-            spec.after,
-            spec.match,
+    settings = load_config().watch
+    if source := plugin.named(settings.sources, spec.kind):
+        return source_events.Poller(
+            source,
+            spec.args,
+            spec.target,
             spec.brief_done,
             directory,
             root.name,
             deliver,
-            lambda problem: signed_out.tell_once(directory.parent, problem, deliver),
-            load_config().slack,
+            lambda problem: problems.tell_once(directory.parent, source.name, problem, deliver),
+            lambda: problems.heard_again(directory.parent, source.name),
         )
 
-    settings = load_config().watch
     if spec.kind == "repo":
         return _repo_poller(spec, root, directory, me, deliver, settings.github_debounce)
     if spec.kind == "reviews":
