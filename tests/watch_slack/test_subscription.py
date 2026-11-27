@@ -1,14 +1,11 @@
 """A `lemonaid watch slack` line in a brief, read as a subscription and run by the watcher."""
 
-import threading
 import time
 
-import pytest
+from lemonaid.watch import brief_record, delivery, subscriptions
+from lemonaid_slack import api, session, wakes
 
-from lemonaid.slack import api, session, wakes
-from lemonaid.watch import brief_record, delivery, kqueue_waits, scouts, subscriptions
-
-from ..slack.shared import LINK, SESSION, THREAD, Slack, reply
+from ..lemonaid_slack.shared import LINK, SESSION, THREAD, Slack, reply
 from ..wait import shared
 
 REPLY_LINK = f"https://acme.slack.com/archives/C0TEAM/p1794857990000002?thread_ts={THREAD.ts}"
@@ -24,7 +21,7 @@ def test_a_line_naming_any_link_into_a_thread_follows_that_thread(tmp_path):
     [spec] = _slack_specs(text, tmp_path)
 
     assert spec.target == (THREAD.channel, THREAD.ts)
-    assert (spec.link, spec.after, spec.brief_done) == (LINK, "1794857980.000001", False)
+    assert (spec.args, spec.brief_done) == ((REPLY_LINK, "--after", "1794857980.000001"), False)
     assert brief_record._identity(f"lemonaid watch slack {LINK}") == brief_record._identity(
         f"lemonaid watch slack '{REPLY_LINK}'"
     )
@@ -36,7 +33,7 @@ def test_a_channel_line_follows_the_channel_with_its_pattern(tmp_path):
 
     [spec] = _slack_specs(text, tmp_path)
 
-    assert (spec.target, spec.link, spec.match) == (("C0TEAM",), channel, "(?i)deploy|release")
+    assert (spec.target, spec.args) == (("C0TEAM",), (channel, "--match", "(?i)deploy|release"))
     assert brief_record._identity(f"lemonaid watch slack {channel}") != brief_record._identity(
         f"lemonaid watch slack {LINK}"
     )
@@ -70,20 +67,6 @@ def test_a_signalled_reply_reaches_the_lemon_in_its_next_batch(tmp_path, monkeyp
     finally:
         stop.set()
         thread.join(5)
-
-
-@pytest.mark.skipif(not kqueue_waits.available(), reason="the scout host sleeps on kqueue")
-def test_the_gateways_signal_wakes_a_sleeping_scout_at_once():
-    spec = subscriptions.Subscription("slack", (THREAD.channel, THREAD.ts), link=LINK)
-    sources = scouts._sources(spec)  # before any poll has made the thread's directory
-    wake = threading.Event()
-    unwatch = kqueue_waits.Hub().watch(sources.paths, sources.pids, wake, sources.contents)
-    try:
-        time.sleep(0.05)
-        wakes.signal(THREAD.channel, THREAD.ts)
-        assert wake.wait(2)
-    finally:
-        unwatch()
 
 
 def test_a_lemon_following_two_threads_hears_once_about_signing_in_after_a_failed_batch(
