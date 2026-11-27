@@ -25,12 +25,15 @@ status: draft
 
 One difference to check when porting: the protocol gives a plugin LF text, as `watch doc` reads it. #570's `read` keeps CRLF so the watcher and `lemonaid comments` find the same section. If its parser needs the original line endings to find the section, it must accept LF input for watching; the editing commands still read the file themselves.
 
-## Core changes it would still need
+## Its other core changes, as host commands
 
-- **Inbox reply rows.** `comments/notice.py` writes `comments:<lemon>|<path>` rows straight into the inbox database, and the inbox and grove special-case that prefix (`inbox/sections.py`, `inbox/tui/live/*`, `grove/source/inbox_keys.py`). `handlers.py` opens such a row with `python -m lemonaid editor`. A plugin needs a generic inbox item instead: keyed upsert and acknowledgement through the CLI, an owning lemon to group under, and an activation command declared in config rather than imported. This is the largest piece.
-- **The caller's signature.** `comments.cli.own_signature` reads the brief and its watch subscriptions to find the name a lemon signs with for a file. A plugin needs that from a host command, such as `lemonaid watch doc --signature <doc> --self`, rather than importing `brief` and `subscriptions`.
-- **Skills from a plugin.** `review-guide` is a packaged skill, and the skill installer only renders packaged names. A plugin needs a way to register its own skill directory with `lemonaid skills install`. The Relay reply format has the same gap: it is still taught by the packaged `watch-doc` skill.
-- **Not needed:** the `lemonaid comments`, `lsp` and `editor` subcommands can be the plugin's own executable; `file.py`'s atomic write is small enough to copy.
+Three things #570 did in core are not document watching. Each now has a generic host command, so the plugin needs no core change for them either:
+
+- **Inbox reply rows.** `comments/notice.py` wrote `comments:<lemon>|<path>` rows into the database, and the inbox special-cased that prefix. The plugin now runs `lemonaid inbox add <channel> <message> -n <label> --under <lemon channel> --hide-when-read --metadata '{"opener": "editor", "path": ..., "open_uri": ...}'` and `lemonaid inbox read --channel <channel>`; the drawing is #570's layout, keyed on `under` ([inbox rows for a lemon](../inbox-items.md)). Opening the file in its editor is an `[inbox.openers]` entry the user configures, replacing the `python -m lemonaid editor` call in `handlers.py`. The lemon's channel comes from `lemonaid brief id --self --json`.
+- **The caller's signature.** `lemonaid watch doc --signature <doc>` prints what `comments.cli.own_signature` computed.
+- **Skills.** The plugin lists its skill directory under `[[skills.sources]]` (or prints it from a `command`), with `review-guide` marked `optional` in its `skills.toml` ([skills from other sources](../skills.md#skills-from-other-sources)).
+
+The `lemonaid comments`, `lsp` and `editor` subcommands become the plugin's own executable, and `file.py`'s atomic write is small enough to copy.
 
 ## What the interface leaves out on purpose
 
