@@ -190,7 +190,9 @@ def test_telling_a_dead_lemon_never_types_into_the_lemon_on_its_old_tty(world):
 
     assert "mailbox" not in tmux("capture-pane", "-p", "-t", b["pane"]), told.stderr
     assert b"read your mailbox" not in world.received("B")
-    resumed = wait("OLD to be resumed", lambda: world.running("OLD"))
+    resumed = wait(
+        "OLD to be resumed", lambda: world.running("OLD"), show=lambda: told.stdout + told.stderr
+    )
     assert resumed["pane"] != b["pane"]
     assert "mailbox" in resumed["prompt"]
     assert world.running("B") == b
