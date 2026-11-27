@@ -1,16 +1,17 @@
-"""Draw the lemon grove icon: a lemon slice whose membranes are a tree, with a straw behind it.
+"""Draw the lemon grove icon: a lemon slice whose membranes are a tree, usually with a straw behind it.
 
 Every membrane is one filled shape: a bough that tapers from its fork and arrives at the
 pulp's edge square on, then flares into the pith with curved fillets, so nothing ends in a cut.
 `detail` frames the icon around the lemon, with room for the straw inside the circle a phone
-crops an icon to. `tab` draws for a browser tab's 16 to 32 pixels: filling its square, with wider
+crops an icon to. `lemon` is the lemon alone, filling that circle; `maskable` adds a rind-coloured
+square behind it for launchers that crop. `tab` draws for a browser tab's 16 to 32 pixels: filling its square, with wider
 membranes and a heavier rind, and without the texture.
 
     python scripts/grove-icon.py tab > src/lemonaid/grove/web/icon.svg
     python scripts/grove-icon.py detail > docs/images/lemon-grove-icon.svg
-    rsvg-convert -w 180 -h 180 docs/images/lemon-grove-icon.svg -o src/lemonaid/grove/web/apple-touch-icon.png
-    rsvg-convert -w 192 -h 192 docs/images/lemon-grove-icon.svg -o src/lemonaid/grove/web/icon-192.png
-    rsvg-convert -w 512 -h 512 docs/images/lemon-grove-icon.svg -o src/lemonaid/grove/web/icon-512.png
+    python scripts/grove-icon.py maskable | rsvg-convert -w 180 -h 180 -o src/lemonaid/grove/web/apple-touch-icon.png
+    python scripts/grove-icon.py lemon | rsvg-convert -w 192 -h 192 -o src/lemonaid/grove/web/icon-192.png
+    python scripts/grove-icon.py lemon | rsvg-convert -w 512 -h 512 -o src/lemonaid/grove/web/icon-512.png
     python scripts/grove-icon.py maskable | rsvg-convert -w 512 -h 512 -o src/lemonaid/grove/web/icon-maskable.png
     rsvg-convert -w 1024 -h 1024 docs/images/lemon-grove-icon.svg -o docs/images/lemon-grove-icon.png
 """
@@ -20,6 +21,7 @@ import sys
 
 CX, CY = 118.0, 138.0
 RIND, PITH, PULP = 100.0, 90.0, 82.0
+FLAT_RIND = "#f9c80e"  # the rind with no dark edge, for a launcher that crops to its own shape
 
 
 def _polar(angle_deg: float, r: float) -> tuple[float, float]:
@@ -185,39 +187,59 @@ def _pores() -> str:
 _STRAW = {"at": -60.0, "inset": 38.0, "turn": -62.0, "length": 78.0, "width": 22.0}
 
 
-def _placed(p: tuple[float, float]) -> tuple[float, float]:
+_TAB_STRAW = {**_STRAW, "at": -45.0, "inset": 30.0, "turn": -50.0}  # leaves by the corner
+
+
+def _placed(p: tuple[float, float], straw: dict = _STRAW) -> tuple[float, float]:
     """*p*, in the straw's own frame, where the straw stands behind the fruit."""
-    base, a = _polar(_STRAW["at"], RIND - _STRAW["inset"]), math.radians(_STRAW["turn"])
+    base, a = _polar(straw["at"], RIND - straw["inset"]), math.radians(straw["turn"])
     return base[0] + p[0] * math.cos(a) - p[1] * math.sin(a), base[1] + p[0] * math.sin(a) + p[
         1
     ] * math.cos(a)
 
 
-def _framed(detail: bool, fill: float = 0.92) -> str:
-    """The square viewBox: for *detail*, around the fruit, whose inscribed circle holds the fruit
-    and the straw with *fill* of its radius used; otherwise the smallest square that holds them."""
-    h, length = _STRAW["width"] / 2, _STRAW["length"]
-    straw = [_placed((length * i / 20, y)) for i in range(21) for y in (-h, h)]
-    if detail:
-        fruit = RIND + 6  # the rind's stroke and its drop shadow
-        half = max(fruit, *(math.hypot(x - CX, y - CY) + 1.5 for x, y in straw)) / fill
-        return f"{CX - half:.2f} {CY - half:.2f} {2 * half:.2f} {2 * half:.2f}"
+def _tab_half() -> float:
+    """Half the tab icon's side: the rind's stroke and a small margin."""
+    return RIND + 2.5 + 14
 
-    rim = RIND + 2.5  # the rind's stroke
-    xs = [CX - rim, CX + rim, *(x for x, _ in straw)]
-    ys = [CY - rim, CY + rim, *(y for _, y in straw)]
-    side = max(max(xs) - min(xs), max(ys) - min(ys)) + 2
-    mx, my = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
-    return f"{mx - side / 2:.2f} {my - side / 2:.2f} {side:.2f} {side:.2f}"
+
+def _tab_straw() -> float:
+    """The straw's length in the tab icon, as long as fits the square around the lemon."""
+    half = _tab_half()
+    h = _STRAW["width"] / 2
+
+    def inside(length: float) -> bool:
+        corners = [_placed((length, y), _TAB_STRAW) for y in (-h, h)]
+        return all(abs(x - CX) <= half and abs(y - CY) <= half for x, y in corners)
+
+    return max(n for n in range(10, int(_STRAW["length"]) + 1) if inside(n))
+
+
+def _framed(detail: bool, fill: float = 0.92, straw_shown: bool = True, flat: bool = False) -> str:
+    """The square viewBox, centred on the fruit. For *detail*, its inscribed circle holds the fruit
+    and the straw with *fill* of its radius used; otherwise it is the tab icon's."""
+    h, length = _STRAW["width"] / 2, _STRAW["length"]
+    if detail:
+        straw = (
+            [_placed((length * i / 20, y)) for i in range(21) for y in (-h, h)]
+            if straw_shown
+            else []
+        )
+        fruit = RIND if flat else RIND + 6  # else the rind's stroke and its drop shadow
+        half = max([fruit, *(math.hypot(x - CX, y - CY) + 1.5 for x, y in straw)]) / fill
+    else:
+        half = _tab_half()
+    return f"{CX - half:.2f} {CY - half:.2f} {2 * half:.2f} {2 * half:.2f}"
 
 
 def _straw(detail: bool) -> str:
     """Drawn flat and behind the fruit, so it rises from behind the rind."""
-    width, length = _STRAW["width"], _STRAW["length"]
+    placing = _STRAW if detail else _TAB_STRAW
+    width, length = placing["width"], placing["length"] if detail else _tab_straw()
     h, band = width / 2, width * 0.55
     edge = 1.6 if detail else 3
     return f"""
-  <g transform="translate({_pt(_polar(_STRAW['at'], RIND - _STRAW['inset']))}) rotate({_STRAW['turn']})">
+  <g transform="translate({_pt(_polar(placing['at'], RIND - placing['inset']))}) rotate({placing['turn']})">
     <defs>
       <pattern id="stripes" patternUnits="userSpaceOnUse" width="{2 * band:.2f}" height="{4 * width:.2f}" patternTransform="skewX(-35)">
         <rect width="{2 * band:.2f}" height="{4 * width:.2f}" fill="#fbf6ee"/><rect width="{band:.2f}" height="{4 * width:.2f}" fill="#e0302f"/>
@@ -228,18 +250,19 @@ def _straw(detail: bool) -> str:
   </g>"""
 
 
-def icon(detail: bool) -> str:
+def icon(detail: bool, straw: bool = True, fill: float = 0.92, flat: bool = False) -> str:
     hl0, hl1 = _polar(-205, RIND - 4.5), _polar(-100, RIND - 4.5)
     texture = (
         f'<path d="{_streaks()}" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" opacity="0.18" clip-path="url(#pulp-clip)"/>'
         if detail
         else ""
     )
+    rim = FLAT_RIND if flat else "#d48f00"
     zest = f'<g fill="#fff3a0" opacity="0.4">{_pores()}</g>' if detail else ""
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="{_framed(detail)}">
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="{_framed(detail, fill, straw, flat)}">
   <defs>
     <radialGradient id="rind" cx="0.38" cy="0.32" r="0.75">
-      <stop offset="0" stop-color="#ffe95e"/><stop offset="0.7" stop-color="#f9c80e"/><stop offset="1" stop-color="#d48f00"/>
+      <stop offset="0" stop-color="#ffe95e"/><stop offset="0.7" stop-color="#f9c80e"/><stop offset="1" stop-color="{rim}"/>
     </radialGradient>
     <radialGradient id="pith" gradientUnits="userSpaceOnUse" cx="{CX}" cy="{CY}" r="{PITH}">
       <stop offset="0.9" stop-color="#fffcec"/><stop offset="1" stop-color="#f0dfa6"/>
@@ -254,7 +277,7 @@ def icon(detail: bool) -> str:
       <stop offset="0" stop-color="#ffffff" stop-opacity="0.45"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="rim-shade" gradientUnits="userSpaceOnUse" cx="{CX}" cy="{CY}" r="{PULP}">
-      <stop offset="0.82" stop-color="#c98a00" stop-opacity="0"/><stop offset="1" stop-color="#c98a00" stop-opacity="0.3"/>
+      <stop offset="0.82" stop-color="#c98a00" stop-opacity="0"/><stop offset="1" stop-color="#c98a00" stop-opacity="{0 if flat else 0.3}"/>
     </radialGradient>
     <clipPath id="pulp-clip"><circle cx="{CX}" cy="{CY}" r="{PULP}"/></clipPath>
     <mask id="flesh" maskUnits="userSpaceOnUse" x="-20" y="-20" width="300" height="300">
@@ -267,8 +290,8 @@ def icon(detail: bool) -> str:
       <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#3a2a00" flood-opacity="0.32"/>
     </filter>
   </defs>
-  {_straw(detail)}
-  <circle cx="{CX}" cy="{CY}" r="{RIND}" fill="url(#rind)" stroke="#9a6800" stroke-width="{2.5 if detail else 5}" filter="url(#drop)"/>
+  {_straw(detail) if straw else ""}
+  <circle cx="{CX}" cy="{CY}" r="{RIND}" fill="url(#rind)" {'' if flat else f'stroke="#9a6800" stroke-width="{2.5 if detail else 5}" filter="url(#drop)"'}/>
   {zest}
   <path d="M{_pt(hl0)} A{RIND - 4.5} {RIND - 4.5} 0 0 1 {_pt(hl1)}" stroke="url(#highlight)" stroke-width="{3.5 if detail else 6}" stroke-linecap="round" fill="none"/>
   <circle cx="{CX}" cy="{CY}" r="{PITH}" fill="url(#pith)"/>
@@ -284,18 +307,20 @@ def icon(detail: bool) -> str:
 """
 
 
-def maskable(background: str = "#bfe3f5", room: float = 1.0) -> str:
-    """The detail icon as Android installs it, which crops a full square to its own shape: on
-    *background*, the detail framing taking the middle *room* of the square."""
-    drawn = icon(True)
+def maskable(background: str = FLAT_RIND, fill: float = 0.98) -> str:
+    """The lemon alone, as Android installs it: on *background*, the square a launcher crops to its
+    own shape, with the rind reaching *fill* of the inscribed circle."""
+    drawn = icon(True, straw=False, fill=fill, flat=True)
     framed = drawn.split('viewBox="')[1].split('"')[0]
     x, y, side, _ = (float(each) for each in framed.split())
-    wider = side / room
-    left, top = x - (wider - side) / 2, y - (wider - side) / 2
     head, body = drawn.split(">", 1)
-    head = head.replace(framed, f"{left:.2f} {top:.2f} {wider:.2f} {wider:.2f}")
-    return f'{head}>\n  <rect x="{left:.2f}" y="{top:.2f}" width="{wider:.2f}" height="{wider:.2f}" fill="{background}"/>{body}'
+    return f'{head}>\n  <rect x="{x:.2f}" y="{y:.2f}" width="{side:.2f}" height="{side:.2f}" fill="{background}"/>{body}'
 
 
 if __name__ == "__main__":
-    sys.stdout.write(maskable() if sys.argv[1] == "maskable" else icon(sys.argv[1] == "detail"))
+    which = sys.argv[1]
+    sys.stdout.write(
+        maskable()
+        if which == "maskable"
+        else icon(which != "tab", straw=which != "lemon", flat=which == "lemon")
+    )
