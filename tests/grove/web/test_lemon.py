@@ -1,5 +1,6 @@
 """A lemon's page in the web grove: what it shows, and which way typed text goes in."""
 
+import base64
 import json
 import time
 
@@ -9,7 +10,7 @@ from lemonaid.brief import attached, pr
 from lemonaid.brief import store as brief_store
 from lemonaid.config import Config
 from lemonaid.front_end import interface, pick
-from lemonaid.grove.web import lemon
+from lemonaid.grove.web import attachments, lemon
 from lemonaid.inbox import db
 from lemonaid.messages import tell_delivery
 from lemonaid.openclaw import turns
@@ -152,3 +153,77 @@ def test_say_sends_mail_when_the_front_end_cant_type(worker, monkeypatch):
 
 def test_say_refuses_empty_text(worker):
     assert lemon.say(CHANNEL, "  ", Config()) == "nothing to send"
+
+
+def _attached(name: str, mime: str, raw: bytes) -> str:
+    saved = attachments.save(name, mime, base64.b64encode(raw).decode())
+    assert isinstance(saved, dict)
+    return saved["id"]
+
+
+def test_say_puts_attached_files_paths_into_a_typing_lemons_text(worker, monkeypatch):
+    typed = []
+    found = pick.named("tmux")
+    assert found is not None
+    prompt = lambda row, config, text: typed.append(text) or ""  # noqa: E731
+    monkeypatch.setattr(
+        lemon.pick,
+        "named",
+        lambda name: interface.FrontEnd(found.terminal, found.open_beside, None, prompt),
+    )
+    file_id = _attached("notes.txt", "text/plain", b"hi")
+
+    assert lemon.say(CHANNEL, "", Config(), [file_id]) == ""
+    [path] = attachments.found([file_id])  # type: ignore[misc]
+    assert typed == [f"Attached file:\n- {path.path}"]
+
+
+def test_say_sends_an_openclaw_session_the_files_themselves(monkeypatch):
+    sent = []
+    monkeypatch.setattr(
+        lemon.chat, "send", lambda key, text, files=(): sent.append((key, text, files)) or ""
+    )
+    with db.connect() as conn:
+        db.register_working(
+            conn, "openclaw:agent:main:probe", "", name="probe", switch_source="openclaw-chat"
+        )
+    file_id = _attached("photo.png", "image/png", b"png")
+
+    assert lemon.say("openclaw:agent:main:probe", "look", Config(), [file_id]) == ""
+    assert sent == [
+        (
+            "agent:main:probe",
+            "look",
+            [
+                {
+                    "type": "image",
+                    "mimeType": "image/png",
+                    "fileName": "photo.png",
+                    "content": base64.b64encode(b"png").decode(),
+                }
+            ],
+        )
+    ]
+
+
+def test_say_refuses_a_file_the_server_no_longer_has(worker):
+    assert lemon.say(CHANNEL, "see this", Config(), ["20261126-120000-0123abcd"]) == (
+        "an attachment is gone from the server; remove it and attach it again"
+    )
+
+
+def test_an_openclaw_lemon_takes_files_only_over_a_held_gateway_connection(monkeypatch):
+    with db.connect() as conn:
+        db.register_working(
+            conn, "openclaw:agent:main:probe", "", name="probe", switch_source="openclaw-chat"
+        )
+    monkeypatch.setattr(lemon.gateway, "_held", None)
+    assert lemon.view("openclaw:agent:main:probe", Config(), pr.no_state)["attach"] is False
+
+    monkeypatch.setattr(lemon.gateway, "_held", object())
+    assert lemon.view("openclaw:agent:main:probe", Config(), pr.no_state)["attach"] is True
+
+
+def test_a_terminal_lemon_always_takes_files(worker, monkeypatch):
+    monkeypatch.setattr(lemon.gateway, "_held", None)
+    assert lemon.view(CHANNEL, Config(), pr.no_state)["attach"] is True

@@ -7,6 +7,7 @@ this front end, and `lemon start` from it opens a new session of the same agent.
 """
 
 import uuid
+from collections import abc
 
 from ..config import Config
 from ..inbox import db
@@ -17,11 +18,23 @@ NAME = "openclaw-chat"
 _SEND_TIMEOUT_SECONDS = 60  # the gateway answers once it has started the turn
 
 
-def send(session_key: str, text: str) -> str:
-    """Send *text* into a session as its user's. Returns why not, or ""."""
-    params = {"sessionKey": session_key, "message": text, "idempotencyKey": str(uuid.uuid4())}
+def send(session_key: str, text: str, attachments: abc.Sequence[dict] = ()) -> str:
+    """Send *text* into a session as its user's, with *attachments* as `chat.send` takes them
+    (`mimeType`, `fileName`, base64 `content`). Returns why not, or ""."""
+    params = {
+        "sessionKey": session_key,
+        "message": text,
+        "idempotencyKey": str(uuid.uuid4()),
+        **({"attachments": list(attachments)} if attachments else {}),
+    }
     try:
-        gateway.call(sessions.cli(), "chat.send", params, _SEND_TIMEOUT_SECONDS)
+        gateway.call(  # files are too large for the CLI's command line
+            sessions.cli(),
+            "chat.send",
+            params,
+            _SEND_TIMEOUT_SECONDS,
+            **({"by_cli": False} if attachments else {}),
+        )
     except OSError as error:
         return f"chat.send failed: {error}"
 

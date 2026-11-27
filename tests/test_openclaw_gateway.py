@@ -191,3 +191,21 @@ def test_call_falls_back_to_the_cli_when_the_held_connection_fails(monkeypatch):
 
     assert gateway.call("openclaw", "chat.history", {"sessionKey": "k"}, 5) == {"messages": []}
     assert ran[0][:4] == ["openclaw", "gateway", "call", "chat.history"]
+
+
+def test_a_call_kept_off_the_cli_fails_rather_than_fall_back(monkeypatch):
+    def refused() -> None:
+        raise OSError("connection refused")
+
+    ran = []
+    monkeypatch.setattr(gateway.subprocess, "run", lambda argv, **_: ran.append(argv))
+    monkeypatch.setattr(gateway, "_connect", refused)
+    monkeypatch.setattr(gateway, "_held", gateway._Held())
+
+    with pytest.raises(OSError, match="held gateway connection failed"):
+        gateway.call("openclaw", "chat.send", {"sessionKey": "k"}, 5, by_cli=False)
+
+    monkeypatch.setattr(gateway, "_held", None)
+    with pytest.raises(OSError, match="holds no gateway connection"):
+        gateway.call("openclaw", "chat.send", {"sessionKey": "k"}, 5, by_cli=False)
+    assert ran == []

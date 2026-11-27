@@ -51,16 +51,16 @@ def grove(keys: web_config.WebConfig) -> str:
     return _first(f"{shim}\n{_keys(keys)}", page.html())
 
 
-def _phone(keys: web_config.WebConfig, name: str) -> str:
+def _phone(keys: web_config.WebConfig, name: str, own: tuple[str, ...] = ()) -> str:
     """A page made for a phone, which edits a lemon in a sheet of its own (`edit.js`) and keeps
-    conversations to draw at once (`talks.js`)."""
+    conversations to draw at once (`talks.js`), and runs its *own* scripts before its body's."""
     here = resources.files(__package__)
-    scripts = "\n".join(here.joinpath(each).read_text() for each in ("edit.js", "talks.js"))
+    scripts = "\n".join(here.joinpath(each).read_text() for each in ("edit.js", "talks.js", *own))
     return _first(f"{_keys(keys)}\n{scripts}", here.joinpath(name).read_text())
 
 
 def lemon(keys: web_config.WebConfig) -> str:
-    return _phone(keys, "lemon.html")
+    return _phone(keys, "lemon.html", ("attach.js",))
 
 
 def groups(keys: web_config.WebConfig) -> str:
