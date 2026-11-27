@@ -1035,10 +1035,12 @@ function jumpTo(l) {
   if (!l) return;
   // A lemon with a jump problem still asks Python, which resumes one whose pane is gone (window/data.py).
   hideCard();
-  // A window left up after the jump waits at the whole grove; one that failed stays to say why.
+  // A window left up after the jump waits at the whole grove; one that failed stays to say why. A browser
+  // navigating to the lemon's page (shim.js) leaves the grove as it is: showing the whole grove steps
+  // back through history, which would cancel the navigation.
   window.pywebview.api.jump(l.channel).then(problem => {
     if (problem) document.getElementById("msg").textContent = problem;
-    else { wholeGrove(); draw(); }
+    else if (!window.groveLeaving) { wholeGrove(); draw(); }
   });
 }
 function zoomTo(d) {
