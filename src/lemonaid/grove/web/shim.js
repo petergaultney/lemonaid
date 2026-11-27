@@ -19,7 +19,10 @@
   // Leaving the page closes its stream, so the browser may keep the page to show again as it was
   // when you come back, and the stream opens again then.
   window.addEventListener("pagehide", () => { if (changes) changes.close(); });
-  window.addEventListener("pageshow", event => { if (event.persisted && changes) listen(); });
+  window.addEventListener("pageshow", event => {
+    window.groveLeaving = false;
+    if (event.persisted && changes) listen();
+  });
   const post = async (name, args) => {
     const r = await fetch(`api/${name}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(args)});
     if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
@@ -42,7 +45,7 @@
       if (["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) return call("switch", [channel]);
       if (window.groveNote) window.groveNote("jump", {channel});
       const r = await call("jump", [channel]);
-      if (r && r.lemon) { location.href = `lemon?channel=${encodeURIComponent(r.lemon)}`; return ""; }
+      if (r && r.lemon) { window.groveLeaving = true; location.href = `lemon?channel=${encodeURIComponent(r.lemon)}`; return ""; }
       return r;
     },
     // Leaving the grove (Backspace or Escape at the whole grove, Space, q) goes back to the last lemon.

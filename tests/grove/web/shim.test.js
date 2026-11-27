@@ -8,21 +8,25 @@ const vm = require("node:vm");
 
 const shim = fs.readFileSync(path.join(__dirname, "../../../src/lemonaid/grove/web/shim.js"), "utf8");
 
-function browser() {
-  const streams = [], asked = [], fetched = [], ready = {};
+function browser(hostname = "grove.example", answer = {}) {
+  const streams = [], asked = [], fetched = [], ready = {}, shown = {};
   class EventSource {
     static OPEN = 1;
     constructor(url) { this.url = url; this.readyState = 0; streams.push(this); }
   }
   const context = {
     EventSource, Event: class { constructor(type) { this.type = type; } }, setInterval: () => 0,
-    fetch: async url => { asked.push(url); return {ok: true, json: async () => ({})}; },
+    fetch: async url => { asked.push(url); return {ok: true, json: async () => answer}; },
     document: {addEventListener: (type, then) => { ready[type] = then; }},
-    window: {open: () => {}, dispatchEvent: () => {}, addEventListener: () => {}, groveData: () => fetched.push(1)},
+    location: {hostname, href: ""},
+    window: {
+      open: () => {}, dispatchEvent: () => {}, groveData: () => fetched.push(1),
+      addEventListener: (type, then) => { shown[type] = then; },
+    },
   };
   vm.createContext(context);
   vm.runInContext(shim, context);
-  return {api: context.window.pywebview.api, ready, streams, asked, fetched};
+  return {api: context.window.pywebview.api, window: context.window, location: context.location, shown, ready, streams, asked, fetched};
 }
 
 test("a call reaches the server as a POST to api/<name>", async () => {
@@ -30,6 +34,17 @@ test("a call reaches the server as a POST to api/<name>", async () => {
 
   await api.search("barn");
   assert.deepEqual(asked, ["api/search"]);
+});
+
+test("jumping to a lemon in a browser navigates to its page and tells the grove page it is leaving", async () => {
+  const {api, window, location, shown} = browser("grove.example", {lemon: "a b"});
+
+  assert.equal(await api.jump("x"), "");
+  assert.equal(location.href, "lemon?channel=a%20b");
+  assert.equal(window.groveLeaving, true);
+
+  shown.pageshow({persisted: true});
+  assert.equal(window.groveLeaving, false, "a page shown again from the browser's cache is no longer leaving");
 });
 
 test("the stream of changes waits for the page's own first call for the grove", async () => {
