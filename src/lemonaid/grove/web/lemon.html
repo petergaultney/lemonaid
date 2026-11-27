@@ -68,6 +68,15 @@ form .row { display:flex; gap:8px; align-items:center; }
 form .how { color:#7c8696; flex:1; }
 form button { font:inherit; background:#f2d94e; color:#0b0e13; border:0; padding:3px 12px; font-weight:700; }
 #said { color:#f2c14e; }
+form button.attach { background:#2d3442; color:#e6ebf2; }
+form.dropping { outline:2px dashed #f2d94e; outline-offset:-2px; }
+#attached { display:flex; flex-wrap:wrap; gap:6px; }
+#attached .chip { display:inline-flex; align-items:center; gap:6px; max-width:100%; background:#2d3442; border-radius:6px; padding:2px 4px 2px 8px; }
+#attached .chip.uploading { opacity:0.6; padding-right:8px; }
+#attached .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#attached .size { color:#7c8696; white-space:nowrap; }
+#attached button { font:inherit; font-size:16px; line-height:1; background:none; color:#e6ebf2; border:0; padding:2px 6px; min-width:28px; min-height:28px; }
+.entry .files { color:#7c8696; font-size:11px; }
 @keyframes pulse { 50% { opacity:0.35; } }
 #dot { flex:0 0 9px; height:9px; border-radius:50%; background:#e6ebf2; animation:pulse 1.6s ease-in-out infinite; }
 .entry.working { color:#c9a23a; display:flex; align-items:center; gap:4px; }
@@ -79,7 +88,9 @@ form button { font:inherit; background:#f2d94e; color:#0b0e13; border:0; padding
   body { position:fixed; inset:0; font-size:15px; }  /* only the brief and chat scroll, never the bars off the screen */
   header .home { display:none; }
   header { flex-wrap:wrap; row-gap:2px; }
-  form button { display:none; }  /* the bottom bar's send stands in for it */
+  form button[type=submit] { display:none; }  /* the bottom bar's send stands in for it */
+  form button.attach { min-height:36px; padding:0 14px; border-radius:8px; }
+  #attached button { min-width:36px; min-height:36px; }
   #brief { flex:1; }
   #divider { display:none; }
   body.chat-tab #brief, body.brief-tab #chat { display:none; }
@@ -90,8 +101,8 @@ form button { font:inherit; background:#f2d94e; color:#0b0e13; border:0; padding
 <section id="brief" tabindex="-1"></section>
 <div id="divider" title="drag to size the brief"></div>
 <section id="chat"><div id="log"></div>
-<form id="say"><textarea id="text" placeholder="Say something"></textarea>
-<div class="row"><span class="how" id="how"></span><span id="said"></span><button type="submit">send</button></div></form>
+<form id="say"><div id="attached" hidden></div><textarea id="text" placeholder="Say something"></textarea>
+<div class="row"><button type="button" class="attach" id="attach" title="attach files">attach</button><input type="file" id="pick" multiple hidden><span class="how" id="how"></span><span id="said"></span><button type="submit">send</button></div></form>
 </section>
 </main>
 <nav class="tabs"><a class="home" href="./" onclick="event.preventDefault(); window.groveKey()"><img src="icon.svg" alt="lemonaid"></a><button data-tab="brief">brief</button><button data-tab="chat" class="on">chat</button><button class="send" type="submit" form="say">send</button></nav>
@@ -196,7 +207,8 @@ let lastEntries = [];
 const renderPending = p => `<div class="entry user pending"><div class="who">you ${time(new Date(p.at).toISOString())}`
   + (p.unsure ? " \u00b7 may not have been sent: the server didn't answer</div>"
     : ` <span class="sent" title="waiting for the lemon's record of it">\u00b7 sent</span></div>`)
-  + `<div class="body">${rich(p.text)}</div></div>`;
+  + `<div class="body">${rich(p.text)}${p.files && p.files.length
+    ? `<div class="files">attached: ${escape(p.files.map(f => f.name).join(", "))}</div>` : ""}</div></div>`;
 
 $("log").addEventListener("toggle", ev => {
   const key = ev.target.dataset && ev.target.dataset.key;
@@ -253,6 +265,7 @@ const showView = v => {
   $("bid").textContent = v.brief_id || "";
   shownView = v; $("edit").hidden = false;
   $("how").textContent = v.how_text;
+  $("attach").hidden = v.attach === false;
   $("dot").hidden = !v.working;
   if (Boolean(v.working) !== working) { working = Boolean(v.working); if (lastTalk) showTalk(lastTalk); }
   const brief = JSON.stringify(v.brief);
@@ -318,17 +331,22 @@ const refresh = async () => {
   }).map(([k, v]) => [k, Math.round(v || 0)]).concat([["kept", Boolean(kept)]])));
 };
 
+// What you've attached and haven't sent (attach.js), shown above the box.
+const attached = window.groveAttach(channel, $("attached"), line => { $("said").textContent = line; });
 const send = async () => {
-  const text = $("text").value;
+  if (attached.busy()) { $("said").textContent = "wait for the files to finish uploading"; return; }
+
+  const text = $("text").value, files = attached.files(), ids = attached.ids();
   const seen = matching(text, lastEntries) + pending.filter(p => p.text === text).length;  // before the send can be recorded
   $("said").textContent = "sending...";
   try {
-    const problem = await call("say", [channel, text]);
+    const problem = await call("say", [channel, text, ids]);
     $("said").textContent = problem;
     if (!problem) {
       $("text").value = "";
       keepDraft();
-      pending = [...pending, {text, at: Date.now(), seen}];
+      attached.forget(ids);  // what was attached while it sent stays
+      pending = [...pending, {text, files, at: Date.now(), seen}];
       savePending(pending);
       shownLog = null;
       $("log").scrollTop = $("log").scrollHeight;
@@ -337,12 +355,27 @@ const send = async () => {
     $("said").textContent = `${error}; check the conversation before sending again`;
     $("text").value = "";
     keepDraft();
-    pending = [...pending, {text, at: Date.now(), seen, unsure: true}];
+    attached.forget(ids);  // what was attached while it sent stays
+    pending = [...pending, {text, files, at: Date.now(), seen, unsure: true}];
     savePending(pending);
     shownLog = null;
   }
   refresh();
 };
+// Files come from the attach button, a paste into the box, or a drop on the form; none sends.
+$("attach").addEventListener("click", () => $("pick").click());
+$("pick").addEventListener("change", () => { attached.add($("pick").files); $("pick").value = ""; });
+$("text").addEventListener("paste", event => {
+  const files = event.clipboardData && event.clipboardData.files;
+  if (files && files.length) { event.preventDefault(); attached.add(files); }
+});
+$("say").addEventListener("dragover", event => { event.preventDefault(); $("say").classList.add("dropping"); });
+$("say").addEventListener("dragleave", () => $("say").classList.remove("dropping"));
+$("say").addEventListener("drop", event => {
+  event.preventDefault();
+  $("say").classList.remove("dropping");
+  if (event.dataTransfer.files.length) attached.add(event.dataTransfer.files);
+});
 // What you typed and haven't sent, kept in this browser for each lemon, so leaving the page or
 // reloading it doesn't lose it.
 const draftKey = `lemonaid-draft:${channel}`;

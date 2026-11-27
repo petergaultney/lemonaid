@@ -340,3 +340,20 @@ def test_a_page_asks_which_vaults_the_servers_links_open(tmp_path):
 
     assert calls.vaults() == ["trove", "work"]
     assert "vaults" in server._CALLS
+
+
+def test_a_page_attaches_and_removes_files():
+    window = dict.fromkeys(("hide", "leave", "stick", "drag", "refresh"), lambda: None)
+    calls = server._WebApi(api.Shared(Config()), pr.no_state, **window)
+
+    saved = calls.attach("a.txt", "text/plain", "aGk=")
+    assert isinstance(saved, dict) and saved["size"] == 2
+    assert calls.detach(saved["id"]) == ""
+    assert {"attach", "detach", "say"} <= server._CALLS
+
+
+def test_a_call_larger_than_any_attachment_is_refused_unread(served, monkeypatch):
+    monkeypatch.setattr(server, "_MAX_CALL_BYTES", 100)
+
+    assert _post(f"{served}/api/search", ["x" * 200])[0] == 413
+    assert _post(f"{served}/api/search", ["barn"]) == (200, ["barn"])

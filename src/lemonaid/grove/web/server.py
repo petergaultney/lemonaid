@@ -25,13 +25,14 @@ from ...inbox import db, pins
 from ...log import get_logger
 from ...openclaw import gateway
 from ..window import api, data, edits
-from . import brief_page, changes, lemon, notes, pages
+from . import attachments, brief_page, changes, lemon, notes, pages
 
 _log = get_logger("grove.web")
 
 REFRESH_SECONDS = 3.0
 _ZIP_ABOVE = 1024  # bytes; a smaller answer goes as it is
 _LOOPBACK = frozenset({"127.0.0.1", "::1"})
+_MAX_CALL_BYTES = attachments.MAX_BYTES * 4 // 3 + 64 * 1024  # an attachment, as base64 in JSON
 
 
 class _WebApi(api.Api):
@@ -60,8 +61,14 @@ class _WebApi(api.Api):
     def talk(self, channel: str) -> dict:
         return lemon.talk(channel)
 
-    def say(self, channel: str, text: str) -> str:
-        return lemon.say(channel, text, self._shared.config)
+    def say(self, channel: str, text: str, attached: abc.Sequence[str] = ()) -> str:
+        return lemon.say(channel, text, self._shared.config, attached)
+
+    def attach(self, name: str, mime: str, content: str) -> dict | str:
+        return attachments.save(name, mime, content)
+
+    def detach(self, found_id: str) -> str:
+        return attachments.drop(found_id)
 
     def vaults(self) -> list[str]:
         return [root.name for root in self._shared.config.brief.vaults]
@@ -98,8 +105,10 @@ class _WebApi(api.Api):
 # browser's to do (shim.js) and aren't here.
 _CALLS = frozenset(
     {
+        "attach",
         "block_refusal",
         "data",
+        "detach",
         "edit",
         "edit_info",
         "jump",
@@ -238,6 +247,11 @@ def _handler(
 
         def do_POST(self) -> None:
             length = int(self.headers.get("Content-Length") or 0)
+            if length > _MAX_CALL_BYTES:
+                self.close_connection = True  # what it sent is left unread
+                self._send(413, b"too large", "text/plain")
+                return
+
             sent = self.rfile.read(length)  # even if refused: the connection carries the next call
             name = self.path.removeprefix("/api/")
             if name == "note" and self._from_the_page():

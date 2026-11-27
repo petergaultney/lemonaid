@@ -269,11 +269,24 @@ def _by_cli(cli: str, method: str, params: dict, timeout: float) -> dict:
         raise OSError(f"{method} said something other than JSON: {error}") from error
 
 
-def call(cli: str, method: str, params: dict, timeout: float) -> dict:
-    """The gateway's answer to *method*. Raises OSError when it gives none."""
+def held() -> bool:
+    """Whether calls go over a held connection, which takes *params* of any size; the CLI's go
+    in one command-line argument, which the system caps."""
+    return _held is not None
+
+
+def call(cli: str, method: str, params: dict, timeout: float, by_cli: bool = True) -> dict:
+    """The gateway's answer to *method*, by the CLI only if the held connection fails and
+    *by_cli*. Raises OSError when it gives none."""
     if _held is not None:
         try:
             return _held.call(method, params, timeout)
         except (OSError, ValueError, KeyError) as error:
+            if not by_cli:
+                raise OSError(f"the held gateway connection failed: {error}") from error
+
             _log.warning("held gateway connection failed, using the CLI: %s", error)
+    if not by_cli:
+        raise OSError("lemonaid holds no gateway connection here (the openclaw extra)")
+
     return _by_cli(cli, method, params, timeout)

@@ -8,16 +8,17 @@ reads as a message rather than as its user.
 import getpass
 import os
 import time
+from collections import abc
 from pathlib import Path
 
 from ... import conversation, front_end, openclaw
 from ...brief import attached, family, identity, pr, render, target
 from ...config import Config
-from ...front_end import interface, pick
+from ...front_end import chat, interface, pick
 from ...inbox import db, pins, turns
 from ...messages import tell_delivery
-from ...openclaw import sessions
-from . import brief_page
+from ...openclaw import gateway, sessions
+from . import attachments, brief_page
 
 LIMIT = 200  # messages a page shows, with the tool calls among them
 MAIL = "mail"
@@ -125,6 +126,7 @@ def view(channel: str, config: Config, prs: pr.Lookup, width: int = brief_page.W
         "brief": brief,
         "how": how,
         "how_text": _HOW.get(how, f"Types into its {how} terminal as you."),
+        "attach": name != chat.NAME or gateway.held(),  # an OpenClaw lemon's files need a held one
     }
 
 
@@ -198,10 +200,15 @@ def _mail(channel: str, text: str) -> str:
     return "" if delivered.will_read else delivered.line or "queued, but it may not read it soon"
 
 
-def say(channel: str, text: str, config: Config) -> str:
-    """Put *text* into the lemon on *channel*, as mail only where its front end can't type.
-    Returns why it couldn't, or ""."""
-    if not text.strip():
+def say(channel: str, text: str, config: Config, attached: abc.Sequence[str] = ()) -> str:
+    """Put *text* and the files *attached* names (`attachments`) into the lemon on *channel*, as
+    mail only where its front end can't type. An OpenClaw session gets the files themselves;
+    any other lemon, their paths on this machine. Returns why it couldn't, or ""."""
+    files = attachments.found(attached)
+    if isinstance(files, str):
+        return files
+
+    if not text.strip() and not files:
         return "nothing to send"
 
     with db.connect() as conn:
@@ -209,11 +216,15 @@ def say(channel: str, text: str, config: Config) -> str:
     if row is None:
         return f"No live lemon on {channel}"
 
-    _, found = _front_end(row)
+    name, found = _front_end(row)
     if not (found and found.prompt):
-        return _mail(channel, text)
+        return _mail(channel, attachments.as_text(text, files))
 
-    problem = found.prompt(row, config, text)
+    key = sessions.session_key(row.channel)
+    if files and name == chat.NAME and key:
+        problem = chat.send(key, text, attachments.for_chat(files))
+    else:
+        problem = found.prompt(row, config, attachments.as_text(text, files))
     if not problem:  # answering it read it, and an unread lemon never shows mid-turn
         with db.connect() as conn:
             db.mark_all_read_for_channel(conn, channel)
