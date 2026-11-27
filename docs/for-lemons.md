@@ -1546,6 +1546,10 @@ PATCH
 
 Edits by anyone else, another lemon's included, still wake you. Details: [watch.md](watch.md#ignoring-the-lemons-own-edits).
 
+`lemonaid watch doc --signature <doc>` prints the name your own waiter on `<doc>` counts as
+yours: the `--me` of your brief's `watch doc` line for it, else `<Brief-ID name> (Author)`.
+A tool that writes your replies into a document signs with it.
+
 With body edits enabled (`All edits` in a brief's Docs table), the wake keeps its
 `+N/-M lines` summary first, then lists up to twenty changed hunks. Each gives the
 new-body line range, nearest Markdown heading (levels 1-6), removed-line count,

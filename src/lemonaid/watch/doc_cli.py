@@ -45,6 +45,7 @@ once, naming the first.
     lemonaid watch doc --watch-list <list.json> --me Pliny --openclaw-session <key> --idle-expire 604800
     lemonaid watch doc --status <doc> --me Pliny
     lemonaid watch doc --editing <doc>; <edit it>; lemonaid watch doc --mine <doc>
+    lemonaid watch doc --signature <doc>
 """
 
 import argparse
@@ -59,6 +60,7 @@ from . import (
     cursors,
     delivery,
     doc_events,
+    doc_signature,
     doc_wait,
     own_edits,
     registry,
@@ -95,6 +97,9 @@ def _record_own(a: argparse.Namespace) -> int:
 def run(a: argparse.Namespace) -> int:
     if a.editing or a.mine:
         return _record_own(a)
+
+    if a.signature:
+        return doc_signature.run(a.signature)
 
     if not a.me:
         print("not started: --me is required")
@@ -255,6 +260,12 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         type=pathlib.Path,
         metavar="DOC",
         help="after that edit: record it as yours, so your waiter does not wake you for it",
+    )
+    mode.add_argument(
+        "--signature",
+        type=pathlib.Path,
+        metavar="DOC",
+        help="print the name your own waiter on DOC counts as yours, for a tool to sign with",
     )
     ap.add_argument("--me", default="", help="author name you sign replies with")
     ap.add_argument(

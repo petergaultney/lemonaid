@@ -714,6 +714,15 @@ snooze_day_starts = "08:30"
 snooze_presets = ["15m", "1h", "1d", "1w"]
 ```
 
+### `[inbox.openers]`
+
+Commands Enter may run for a row that names a file, by name: a row with metadata `{"opener": "<name>", "path": "<file>"}` runs that command with `{path}` filled in, and falls back to its `open_uri`. Each command must use `{path}`; no shell runs it. See [inbox rows for a lemon](inbox-items.md).
+
+```toml
+[inbox.openers]
+editor = "my-editor open {path} --focus"
+```
+
 ## `[[places.roots]]`
 
 Each root declares the shell commands that acquire and release directories under one path; [places.md](places.md) describes them all.

@@ -227,3 +227,137 @@ def test_header_counts_hidden_and_folded_statuses_in_priority_order(collapsed):
         ("review", 1),
         ("done", 2),
     )
+
+
+def test_a_reply_row_is_drawn_right_after_its_lemon_in_its_group():
+    lemon, other, reply = _n(1, "lemon"), _n(2, "other"), _n(3, "item:/g.md|lemon", True)
+    members = {"lemon": ("A",), "other": ("A",), "item:/g.md|lemon": ("A",)}
+
+    entries, _ = sections.layout(
+        [reply, other, lemon],
+        [],
+        set(),
+        members,
+        [_group(1, "A")],
+        {},
+        attached={"item:/g.md|lemon": "lemon"},
+    )
+
+    assert _keys(entries) == ["group:1", "2@1", "1@1", "3@1"]
+
+
+def test_a_reply_row_brings_back_its_folded_lemon():
+    lemon, reply = _n(1, "lemon"), _n(2, "item:/g.md|lemon", True)
+    members = {"lemon": ("A",), "item:/g.md|lemon": ("A",)}
+
+    entries, _ = sections.layout(
+        [reply],
+        [lemon],
+        set(),
+        members,
+        [_group(1, "A")],
+        {},
+        attached={"item:/g.md|lemon": "lemon"},
+    )
+
+    assert _keys(entries) == ["group:1", "1@1", "2@1"]
+
+
+def test_a_reply_row_brings_back_its_folded_lemon_outside_a_group():
+    lemon, reply = _n(1, "lemon"), _n(2, "item:/g.md|lemon", True)
+
+    entries, folded = sections.layout(
+        [reply], [lemon], set(), {}, [], {}, attached={"item:/g.md|lemon": "lemon"}
+    )
+
+    assert _keys(entries) == ["1", "2"]
+    assert folded == []
+
+
+def test_a_reply_row_follows_its_pinned_lemon_without_drawing_it_twice():
+    lemon, loose, reply = _n(1, "lemon"), _n(2, "loose"), _n(3, "item:/g.md|lemon", True)
+
+    entries, _ = sections.layout(
+        [loose, reply, lemon],
+        [],
+        {"lemon"},
+        {},
+        [],
+        {},
+        attached={"item:/g.md|lemon": "lemon"},
+    )
+
+    assert _keys(entries) == ["1", "3", "2"]
+
+
+def test_a_group_header_counts_lemons_not_reply_rows():
+    lemon, reply = _n(1, "lemon"), _n(2, "item:/g.md|lemon", True)
+    members = {"lemon": ("A",), "item:/g.md|lemon": ("A",)}
+
+    entries, _ = sections.layout(
+        [lemon, reply],
+        [],
+        set(),
+        members,
+        [_group(1, "A")],
+        {},
+        attached={"item:/g.md|lemon": "lemon"},
+    )
+
+    header = entries[0]
+    assert (header.count, header.active, header.visible) == (1, 1, 1)
+
+
+def test_a_read_reply_row_stays_folded_with_its_lemon():
+    lemon, reply = _n(1, "lemon"), _n(2, "item:lemon|/g.md")
+    members = {"lemon": ("A",), "item:lemon|/g.md": ("A",)}
+
+    entries, _ = sections.layout(
+        [reply],
+        [lemon],
+        set(),
+        members,
+        [_group(1, "A")],
+        {},
+        attached={"item:lemon|/g.md": "lemon"},
+    )
+
+    assert _keys(entries) == ["group:1"]
+
+
+def test_an_unread_reply_shows_under_its_pinned_lemon_in_a_collapsed_group():
+    lemon, reply = _n(1, "lemon"), _n(2, "item:lemon|/g.md", True)
+    members = {"lemon": ("A",), "item:lemon|/g.md": ("A",)}
+
+    entries, _ = sections.layout(
+        [lemon, reply],
+        [],
+        {"lemon"},
+        members,
+        [_group(1, "A", collapsed=True)],
+        {},
+        attached={"item:lemon|/g.md": "lemon"},
+    )
+
+    assert _keys(entries) == ["group:1", "1@1", "2@1"]
+
+
+def test_a_reply_the_fold_took_stays_folded_in_a_group_as_outside_one():
+    lemon, reply = _n(1, "lemon"), _n(2, "item:lemon|/g.md", True)
+    members = {"lemon": ("A",), "item:lemon|/g.md": ("A",)}
+
+    grouped, _ = sections.layout(
+        [lemon],
+        [reply],
+        set(),
+        members,
+        [_group(1, "A")],
+        {},
+        attached={"item:lemon|/g.md": "lemon"},
+    )
+    loose, _ = sections.layout(
+        [lemon], [reply], set(), {}, [], {}, attached={"item:lemon|/g.md": "lemon"}
+    )
+
+    assert _keys(grouped) == ["group:1", "1@1"]
+    assert _keys(loose) == ["1"]
