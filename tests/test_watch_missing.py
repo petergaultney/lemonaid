@@ -4,6 +4,7 @@ import os
 
 import pytest
 
+from lemonaid.doc_plugins import plugin
 from lemonaid.watch import doc_events, file_events, path_presence
 
 
@@ -11,7 +12,7 @@ def test_a_renamed_doc_is_suggested_once_across_rearms(tmp_path):
     doc = tmp_path / "old.md"
     doc.write_text("body")
     root = tmp_path / "cursors"
-    watch = doc_events.open_watch(root, doc, "me", [], False, 0)
+    watch = doc_events.open_watch(root, doc, "me", [], False, 0, plugins=plugin.defaults())
     renamed = tmp_path / "new.md"
     doc.rename(renamed)
     sent = []
@@ -22,7 +23,7 @@ def test_a_renamed_doc_is_suggested_once_across_rearms(tmp_path):
     assert "possible replacement" in sent[0] and "Confirm" in sent[0]
     assert watch.doc == doc
     assert doc_events.poll(watch, lambda _: True) is doc_events.Outcome.NOTHING
-    rearmed = doc_events.open_watch(root, doc, "me", [], False, 0)
+    rearmed = doc_events.open_watch(root, doc, "me", [], False, 0, plugins=plugin.defaults())
     assert doc_events.poll(rearmed, lambda _: True) is doc_events.Outcome.NOTHING
 
 
@@ -30,13 +31,13 @@ def test_a_move_while_unarmed_is_suggested(tmp_path):
     doc = tmp_path / "old.md"
     doc.write_text("body")
     root = tmp_path / "cursors"
-    doc_events.open_watch(root, doc, "me", [], False, 0)
+    doc_events.open_watch(root, doc, "me", [], False, 0, plugins=plugin.defaults())
     destination = tmp_path / "nearby"
     destination.mkdir()
     renamed = destination / "new.md"
     doc.rename(renamed)
     sent = []
-    watch = doc_events.open_watch(root, doc, "me", [], False, 0)
+    watch = doc_events.open_watch(root, doc, "me", [], False, 0, plugins=plugin.defaults())
     doc_events.poll(watch, lambda msg: sent.append(msg) or True)
     assert str(renamed) in sent[0]
 
@@ -44,7 +45,9 @@ def test_a_move_while_unarmed_is_suggested(tmp_path):
 def test_a_deleted_doc_is_reported_without_a_destination(tmp_path):
     doc = tmp_path / "old.md"
     doc.write_text("body")
-    watch = doc_events.open_watch(tmp_path / "cursors", doc, "me", [], False, 0)
+    watch = doc_events.open_watch(
+        tmp_path / "cursors", doc, "me", [], False, 0, plugins=plugin.defaults()
+    )
     # Keep the original object allocated so this test cannot manufacture inode reuse.
     with doc.open():
         doc.unlink()
@@ -59,10 +62,10 @@ def test_a_failed_notice_is_retried_after_rearm(tmp_path):
     doc = tmp_path / "old.md"
     doc.write_text("body")
     root = tmp_path / "cursors"
-    watch = doc_events.open_watch(root, doc, "me", [], False, 0)
+    watch = doc_events.open_watch(root, doc, "me", [], False, 0, plugins=plugin.defaults())
     doc.rename(tmp_path / "new.md")
     assert doc_events.poll(watch, lambda _: False) is doc_events.Outcome.FAILED
-    watch = doc_events.open_watch(root, doc, "me", [], False, 0)
+    watch = doc_events.open_watch(root, doc, "me", [], False, 0, plugins=plugin.defaults())
     assert doc_events.poll(watch, lambda _: True) is doc_events.Outcome.DELIVERED
 
 
@@ -71,7 +74,9 @@ def test_a_save_gap_does_not_report_and_reappearance_resets_missing_notice(tmp_p
     monkeypatch.setattr(path_presence.time, "monotonic", lambda: clock[0])
     doc = tmp_path / "note.md"
     doc.write_text("body")
-    watch = doc_events.open_watch(tmp_path / "cursors", doc, "me", [], False, 2)
+    watch = doc_events.open_watch(
+        tmp_path / "cursors", doc, "me", [], False, 2, plugins=plugin.defaults()
+    )
     backup = tmp_path / "note.md~"
     doc.rename(backup)
     assert doc_events.poll(watch, lambda _: True) is doc_events.Outcome.NOTHING
@@ -133,7 +138,9 @@ def test_ignore_removed_does_not_search_or_deliver(tmp_path, monkeypatch):
 def test_atomic_save_refreshes_identity_for_a_later_rename(tmp_path):
     doc = tmp_path / "note.md"
     doc.write_text("same content")
-    watch = doc_events.open_watch(tmp_path / "cursors", doc, "me", [], False, 0)
+    watch = doc_events.open_watch(
+        tmp_path / "cursors", doc, "me", [], False, 0, plugins=plugin.defaults()
+    )
     temp = tmp_path / "temp"
     temp.write_text("same content")
     os.replace(temp, doc)

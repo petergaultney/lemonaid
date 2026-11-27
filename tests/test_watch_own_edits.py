@@ -5,6 +5,7 @@ import time
 
 import pytest
 
+from lemonaid.doc_plugins import plugin
 from lemonaid.hooks import own_change
 from lemonaid.watch import doc_events, own_edits, own_edits_replay
 
@@ -29,7 +30,15 @@ def state_dir(tmp_path):
 
 def _watch(state_dir, doc, writer=_WRITER):
     return doc_events.open_watch(
-        state_dir, doc, _ME, [], edits=True, quiet=0, writer=writer, own_root=state_dir
+        state_dir,
+        doc,
+        _ME,
+        [],
+        edits=True,
+        quiet=0,
+        writer=writer,
+        own_root=state_dir,
+        plugins=plugin.defaults(),
     )
 
 
@@ -121,9 +130,9 @@ def test_an_own_reply_does_not_wake_and_anothers_new_comment_does(doc, state_dir
 
 def _cli_edit(state_dir, doc, writer: str, new_text: str) -> None:
     """`--editing`, an edit through a shell or Codex's apply_patch, then `--mine`."""
-    own_edits.before_edit(state_dir, writer, own_edits.cli_key(doc), doc)
+    own_edits.before_edit(state_dir, writer, own_edits.cli_key(doc), doc, plugin.defaults())
     doc.write_text(new_text)
-    assert own_edits.after_edit(state_dir, writer, own_edits.cli_key(doc), doc)
+    assert own_edits.after_edit(state_dir, writer, own_edits.cli_key(doc), doc, plugin.defaults())
 
 
 def test_an_edit_recorded_with_editing_and_mine_does_not_wake(doc, state_dir):
@@ -145,7 +154,9 @@ def test_mine_without_editing_records_nothing(doc, state_dir):
     w = _watch(state_dir, doc, "codex-thread")
     doc.write_text(doc.read_text() + "Mine, unannounced.\n")
 
-    assert not own_edits.after_edit(state_dir, "codex-thread", own_edits.cli_key(doc), doc)
+    assert not own_edits.after_edit(
+        state_dir, "codex-thread", own_edits.cli_key(doc), doc, plugin.defaults()
+    )
     assert len(_poll_twice(w)) == 1
 
 
@@ -203,22 +214,24 @@ def test_chain_to_needs_every_new_transition_in_order():
 def test_a_stale_editing_does_not_pair_with_a_later_mine(doc, state_dir):
     """An --editing whose patch failed is not the start of an edit made much later."""
     w = _watch(state_dir, doc, "codex-thread")
-    own_edits.before_edit(state_dir, "codex-thread", own_edits.cli_key(doc), doc)
+    own_edits.before_edit(state_dir, "codex-thread", own_edits.cli_key(doc), doc, plugin.defaults())
     pending = own_edits.writer_dir(state_dir, "codex-thread") / "pending" / own_edits.cli_key(doc)
     os.utime(pending, (time.time() - 3600, time.time() - 3600))
     doc.write_text(doc.read_text() + "Sam's, much later.\n")
 
-    assert not own_edits.after_edit(state_dir, "codex-thread", own_edits.cli_key(doc), doc)
+    assert not own_edits.after_edit(
+        state_dir, "codex-thread", own_edits.cli_key(doc), doc, plugin.defaults()
+    )
     assert len(_poll_twice(w)) == 1
 
 
 def test_a_pending_edit_whose_tool_call_failed_is_swept(doc, state_dir):
     _watch(state_dir, doc)
-    own_edits.before_edit(state_dir, _WRITER, "lost", doc)
+    own_edits.before_edit(state_dir, _WRITER, "lost", doc, plugin.defaults())
     lost = own_edits.writer_dir(state_dir, _WRITER) / "pending" / "lost"
     os.utime(lost, (time.time() - 3600, time.time() - 3600))
 
-    own_edits.before_edit(state_dir, _WRITER, "next", doc)
+    own_edits.before_edit(state_dir, _WRITER, "next", doc, plugin.defaults())
 
     assert not lost.exists()
 

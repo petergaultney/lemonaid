@@ -6,7 +6,7 @@ from lemonaid.watch import lemon_signature, roles, shared_signer, signature
 def test_a_name_is_spaced_at_its_second_capital():
     assert signature.spaced("FilmyBoy") == "Filmy Boy"
     assert signature.spaced("Filmy Boy") == "Filmy Boy"
-    assert signature.sign("FilmyBoy", "Author", in_relay=True) == "Filmy Boy (Author)"
+    assert signature.sign("FilmyBoy", "Author", spaced_name=True) == "Filmy Boy (Author)"
     assert signature.sign("Filmy Boy", "Author") == "FilmyBoy (Author)"
 
 

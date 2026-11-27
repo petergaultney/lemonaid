@@ -70,6 +70,7 @@ _SCRIPT_CASES = {
     "lemonaid-tmux-window-status": ["", "/tmp", "xonsh"],
     "lemonaid-tmux-session-name": ["test-session"],
     "lemonaid-claude-statusline": [],
+    "lemonaid-relay-comments": ["body", "/doc.md"],
 }
 
 

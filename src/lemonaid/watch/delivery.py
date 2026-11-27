@@ -224,8 +224,8 @@ def to_openclaw(session_key: str, me: str, hq_session: str, cli: str, timeout_ms
             [
                 f"watch-doc event: {message}",
                 "",
-                "Use the watch-doc skill: re-read the document and reply inline to every unanswered Relay Comment thread,",
-                f'signing each reply block author="{me}" authorId="{session_key}".',
+                "Use the watch-doc skill: re-read the document and reply inline to every unanswered comment thread,",
+                f"signing each reply {me}; where a reply records an author ID, use {session_key}.",
                 "This turn only answers comments: do not refile or move anything, and do not message the user directly.",
                 f"If something needs the user outside the document, hand it to the user's session with sessions_send to {hq_session}.",
             ]

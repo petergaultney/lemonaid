@@ -14,15 +14,23 @@ LINK = re.compile(r"\[(?P<label>(?:\\.|[^\]])*)\]\(<?(?P<url>[^>]+?)>?\)")
 
 
 class Watch(enum.StrEnum):
-    RELAY_COMMENTS = "Relay comments"
-    ALL_EDITS = "All edits"
+    COMMENTS = "Comments"  # unanswered comments, of whatever kind the document plugins read
+    ALL_EDITS = "All edits"  # comments, and edits to the body
+
+    @classmethod
+    def read(cls, cell: str) -> "Watch":
+        """*cell* as a Watch, the name `Comments` had before plugins included; raises ValueError."""
+        return cls.COMMENTS if cell == _OLD_COMMENTS else cls(cell)
+
+
+_OLD_COMMENTS = "Relay comments"
 
 
 @dataclasses.dataclass(frozen=True)
 class Row:
     path: Path
     purpose: str
-    watch: Watch = Watch.RELAY_COMMENTS
+    watch: Watch = Watch.COMMENTS
 
 
 def path_of(cell: str, vaults: abc.Iterable[Path] = (), base: Path | None = None) -> Path | None:
@@ -74,9 +82,9 @@ def parse(body: abc.Sequence[str]) -> tuple[list[Row], list[str]]:
             continue
 
         try:
-            watch = Watch(cells[2])
+            watch = Watch.read(cells[2])
         except ValueError:
-            problems.append("### Docs: Watch is Relay comments or All edits")
+            problems.append("### Docs: Watch is Comments or All edits")
             continue
         if any(row.path == path for row in rows):
             problems.append(f"### Docs: {path} has two rows")
@@ -134,7 +142,7 @@ def add(
     text: str,
     path: Path,
     purpose: str,
-    watch: Watch = Watch.RELAY_COMMENTS,
+    watch: Watch = Watch.COMMENTS,
     vaults: abc.Collection[Path] = (),
 ) -> str:
     path = path.expanduser().resolve()
@@ -145,7 +153,7 @@ def add(
 
 
 def watch_all_edits(text: str, path: Path, purpose: str, vaults: abc.Collection[Path] = ()) -> str:
-    """*text* with *path* watched for `All edits`, upgrading a `Relay comments` row and keeping its purpose."""
+    """*text* with *path* watched for `All edits`, upgrading a `Comments` row and keeping its purpose."""
     found = next((row for row in rows(text) if row.path == path.expanduser().resolve()), None)
     if found is not None and found.watch == Watch.ALL_EDITS:
         return text

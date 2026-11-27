@@ -3,21 +3,21 @@
 import dataclasses
 import enum
 import hashlib
-import json
 import pathlib
 import typing as ty
 from collections import abc
 
+from ..doc_plugins import document
+from ..plugins.command import Plugins
 from . import (
-    body_norm,
     clip,
     cursors,
     delivery,
     doc_body,
+    doc_threads,
     own_edits,
     own_edits_replay,
     path_presence,
-    relay_comments,
     signature,
     turns,
 )
@@ -41,11 +41,13 @@ class DocWatch:
     settled_path: pathlib.Path
     consumed_path: pathlib.Path
     consumed: int  # the last of the writer's own_edits transitions the settled body accounts for
-    reported: set[str]
+    reported: doc_threads.Reported
     settled_body: str
     pending_body: str
     pending_since: float
     presence: path_presence.Presence
+    plugins: Plugins
+    unprojected: str | None  # the first body's text, while a plugin fails to project it
     all_threads: bool = False
     settled_quiet: float = 0  # quiet period enforced outside this detector
     latest_turn: turns.Turns | None = None  # where no hook records the writer's own edits
@@ -57,33 +59,45 @@ def state_stem(state_dir: pathlib.Path, doc: pathlib.Path, me: str) -> pathlib.P
     return state_dir / hashlib.sha1(f"{doc.resolve()}\0{me}".encode()).hexdigest()[:16]
 
 
-def _thread_key(thread: str) -> str:
-    return hashlib.sha1(body_norm.normalized(thread).encode()).hexdigest()[:16]
+def _first_body(path: pathlib.Path, doc: pathlib.Path, plugins: Plugins, text: str) -> str | None:
+    body = document.body(plugins, doc, text)
+    if body is not None:
+        cursors.write_text(path, body)
+    return body
 
 
-def _load_reported(path: pathlib.Path) -> set[str]:
-    try:
-        return set(json.loads(path.read_text()))
-    except (OSError, ValueError):
-        return set()
-
-
-def _load_settled(path: pathlib.Path, doc: pathlib.Path) -> str:
+def _load_settled(
+    path: pathlib.Path, doc: pathlib.Path, plugins: Plugins
+) -> tuple[str, str | None]:
     """The body as of the last reported edit; the first waiter for a doc takes its current body.
 
     A doc that doesn't exist yet has an empty body, so writing it is reported as its creation.
+    When a plugin fails on that first body, the text is returned second, still to be projected.
     """
     try:
-        return path.read_text()
+        return path.read_text(), None
     except OSError:
         pass
     try:
         text = doc.read_text()
     except FileNotFoundError:
         text = ""
-    body = relay_comments.body_without_threads(text)
-    cursors.write_text(path, body)
-    return body
+    body = _first_body(path, doc, plugins, text)
+    return (text, text) if body is None else (body, None)
+
+
+def _baseline_ready(w: "DocWatch") -> bool:
+    """Whether the first body is projected, projecting it now if a plugin failed before."""
+    if w.unprojected is None:
+        return True
+
+    body = _first_body(w.settled_path, w.doc, w.plugins, w.unprojected)
+    if body is None:
+        return False
+
+    w.settled_body = w.pending_body = body
+    w.unprojected = None
+    return True
 
 
 def _load_consumed(
@@ -113,6 +127,8 @@ def open_watch(
     own_root: pathlib.Path | None = None,
     cursor_key: str | None = None,
     latest_turn: turns.Turns | None = None,
+    *,
+    plugins: Plugins,
 ) -> DocWatch:
     """`writer`, when set, is the watching lemon's own_edits key: body edits it made don't wake it.
 
@@ -127,7 +143,7 @@ def open_watch(
         own_edits.register(own_root, writer, doc)
     stem = state_stem(state_dir, doc, me if cursor_key is None else cursor_key)
     settled_path = stem.with_suffix(".settled.md")
-    settled_body = _load_settled(settled_path, doc) if edits else ""
+    settled_body, unprojected = _load_settled(settled_path, doc, plugins) if edits else ("", None)
     consumed_path = stem.with_suffix(".consumed")
     consumed = _load_consumed(consumed_path, own_root, writer, doc) if writer and edits else 0
     return DocWatch(
@@ -141,11 +157,13 @@ def open_watch(
         settled_path=settled_path,
         consumed_path=consumed_path,
         consumed=consumed,
-        reported=_load_reported(stem.with_suffix(".reported.json")),
+        reported=doc_threads.load(stem.with_suffix(".reported.json")),
         settled_body=settled_body,
         pending_body=settled_body,
         pending_since=0.0,
         presence=path_presence.open_watch(stem, doc, seen=bool(settled_body)),
+        plugins=plugins,
+        unprojected=unprojected,
         latest_turn=latest_turn,
     )
 
@@ -171,30 +189,19 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
         print(f"cannot read {w.doc}: {e}", flush=True)
         return Outcome.NOTHING
 
-    body = relay_comments.body_without_threads(text)
-    if w.latest_turn and w.writer:
+    body = document.body(w.plugins, w.doc, text)
+    if w.latest_turn and w.writer and body is not None:
         doc_body.observe(w, body, w.latest_turn)
-    threads = {_thread_key(t): t for t in relay_comments.unanswered_threads(text, w.mine)}
-    new = [t for k, t in threads.items() if k not in w.reported]
-    reminders = [t for k, t in threads.items() if k in w.reported] if w.all_threads else []
-    messages = (
-        [
-            clip.shorten(
-                f"{len(new)} new or changed unanswered thread(s) in {w.doc} ({len(threads)} unanswered in all)\n\n"
-                + "\n\n".join(relay_comments.thread_text(t) for t in new)
-                + "".join(
-                    f"\n\nStill unanswered, already reported: {relay_comments.thread_gist(t)}"
-                    for t in reminders
-                ),
-                clip.BATCH_LIMIT,
-            )
-        ]
-        if new
-        else []
+    readings = document.threads(w.plugins, w.doc, text, w.mine)
+    waiting = doc_threads.waiting(readings)
+    new = [t for t in waiting if not doc_threads.was_reported(w.reported, t)]
+    reminders = (
+        [t for t in waiting if doc_threads.was_reported(w.reported, t)] if w.all_threads else []
     )
+    messages = [doc_threads.message(w.doc, readings, new, reminders, len(waiting))] if new else []
     edit, consumed = (
         doc_body.changed(w, body, lambda consumed: _settle(w, body, consumed))
-        if w.edits
+        if w.edits and body is not None and _baseline_ready(w)
         else ("", w.consumed)
     )
     if edit:
@@ -205,9 +212,9 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
     ):
         return Outcome.FAILED
 
-    if set(threads) != w.reported:
-        w.reported = set(threads)
-        cursors.write_json(w.reported_path, sorted(w.reported))
-    if edit:
+    if (still := doc_threads.still_reported(w.reported, readings)) != w.reported:
+        w.reported = still
+        doc_threads.save(w.reported_path, still)
+    if edit and body is not None:
         _settle(w, body, consumed)
     return Outcome.DELIVERED if messages else Outcome.NOTHING

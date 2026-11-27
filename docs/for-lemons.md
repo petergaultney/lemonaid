@@ -1520,8 +1520,9 @@ watcher follows it from your brief's `## Watching`.
 
 ## Watching a document for comments
 
-`lemonaid watch doc --wait <doc> --me <your name> --once` blocks until a Relay Comment
-thread in `<doc>` is waiting on you, prints one line, and exits. Run it as a background task
+`lemonaid watch doc --wait <doc> --me <your name> --once` blocks until a comment
+thread in `<doc>` is waiting on you (Relay Comments, or another format a configured
+[document plugin](doc-plugins.md) reads), prints one line, and exits. Run it as a background task
 (Claude), or pass a bare `--codex-thread` to have the event queued into your
 Codex thread instead. `--status <doc> --me <name>` says whether a waiter is already running;
 a second one for the same doc and name refuses to start (exit 3). OpenClaw sessions use
@@ -1552,7 +1553,7 @@ and added text. Deletions give the position `after line N` (0 means the start).
 Before the first heading it says `before any heading`; headings inside fenced
 code are ignored. Heading excerpts stop at 120 characters and added-text excerpts
 at 8000 characters per hunk, with omitted-character counts. A final count reports
-any hunks omitted. Line numbers refer to the body with Relay comment markup removed.
+any hunks omitted. Line numbers refer to the body with the plugins' comments removed.
 A comment wake shows each new or changed thread's last comment in full (cut at 4000
 characters), one block per thread; a whole batch is cut at 30000 characters. Each cut
 names what was omitted so the lemon can read the source.
@@ -1728,7 +1729,7 @@ in `## Now`:
 | Document | Purpose | Watch |
 |---|---|---|
 | `/path/to/design.md` | Discuss the design | All edits |
-| `/path/to/results.md` | Questions about results | Relay comments |
+| `/path/to/results.md` | Questions about results | Comments |
 
 ## Watching
 
@@ -1752,7 +1753,8 @@ explicit row for a child replaces its defaults. Every watched lemon, child or no
 reported once when its harness exits, its session or place is gone, or it is deaf; a lemon
 whose brief is `done` is not. Details in [Watching other lemons](watch.md#watching-other-lemons).
 
-Watch is an enum: `Relay comments` watches unanswered comments; `All edits`
+Watch is an enum: `Comments` watches unanswered comments (`Relay comments`, its old name,
+still reads); `All edits`
 also watches body edits. No boolean Edits column is accepted. Docs remain subscribed
 at Status done. `Output-Doc:` supplies a document subscription; starting `watch doc`
 records a row. Legacy `## Waiters` and `brief waiter` remain readable.

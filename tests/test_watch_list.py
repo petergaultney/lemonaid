@@ -5,6 +5,7 @@ import time
 
 import pytest
 
+from lemonaid.doc_plugins import plugin
 from lemonaid.watch import doc_wait, watch_list
 
 _ASK = '{{authorId="1" author="Sam">>is this true?<<}}'
@@ -56,6 +57,7 @@ def test_the_list_waiter_delivers_touches_and_exits_once_its_list_is_empty(tmp_p
     thread = threading.Thread(
         target=doc_wait.wait_list,
         args=(tmp_path / "state", list_path, waiter, "Ada", [], False, 45.0, deliver, 0.0, 0.01),
+        kwargs={"plugins": plugin.defaults()},
     )
     thread.start()
     thread.join(timeout=10)

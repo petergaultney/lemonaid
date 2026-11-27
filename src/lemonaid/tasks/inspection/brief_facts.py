@@ -13,8 +13,8 @@ from pathlib import Path
 
 from ... import brief
 from ...brief import doc_table, linked_asks, status
+from ...doc_plugins import configured, document
 from ...inbox import status_since
-from ...watch import relay_comments
 from ..model import holding, identities
 from . import live
 
@@ -66,7 +66,9 @@ def file(key: str, now: float) -> list[live.Fact]:
         temporary = captured.with_suffix(".tmp")
         temporary.write_bytes(content)
         shutil.move(temporary, captured)
-    text = relay_comments.body_without_threads(content.decode(errors="replace"))
+    raw = content.decode(errors="replace")
+    body = document.body(configured.plugins(), path, raw)
+    text = raw if body is None else body
     return [
         live.fact("file", key, "exists", "true", now),
         live.fact("file", key, "modified_at", live.stamp(modified), now),

@@ -1,7 +1,7 @@
 """Edits a lemon made to a doc it watches, so its own waiter does not wake it for them.
 
 An edit is recorded as a numbered transition between two body digests (the body outside
-comment threads, see relay_comments.body_without_threads) under the writer's key, per doc.
+comment threads, as the configured document plugins read it) under the writer's key, per doc.
 The waiter replays, in order, the transitions it has not yet consumed, starting from the
 body it last reported, and adopts a changed body silently only when that chain reaches it.
 Anyone else's change on the way, a human's edit made earlier in the same turn included,
@@ -26,7 +26,9 @@ import pathlib
 import time
 from collections import abc
 
-from . import body_norm, relay_comments
+from ..doc_plugins import document
+from ..plugins.command import Plugins
+from . import body_norm
 
 _KEEP = 50
 _PENDING_MAX_AGE = 600.0  # seconds; an --editing whose edit failed must not pair with a later one
@@ -75,12 +77,14 @@ def body_digest(body: str) -> str:
     return hashlib.sha256(body_norm.normalized(body).encode()).hexdigest()[:16]
 
 
-def _file_digest(doc: pathlib.Path) -> str:
+def _file_digest(doc: pathlib.Path, plugins: Plugins) -> str | None:
+    """None when a plugin failed: an edit recorded without its comments removed would not chain."""
     try:
         text = doc.read_text()
     except FileNotFoundError:
         text = ""
-    return body_digest(relay_comments.body_without_threads(text))
+    body = document.body(plugins, doc, text)
+    return None if body is None else body_digest(body)
 
 
 @contextlib.contextmanager
@@ -169,14 +173,21 @@ def record(own_root: pathlib.Path, writer: str, doc: pathlib.Path, before: str, 
             _append(edits, before, after)  # parallel tool calls each see the same change
 
 
-def before_edit(own_root: pathlib.Path, writer: str, key: str, doc: pathlib.Path) -> None:
+def before_edit(
+    own_root: pathlib.Path, writer: str, key: str, doc: pathlib.Path, plugins: Plugins
+) -> None:
     path = _pending(own_root, writer, key)
     path.parent.mkdir(parents=True, exist_ok=True)
     _sweep(path.parent)
-    path.write_text(_file_digest(doc))
+    if (digest := _file_digest(doc, plugins)) is not None:
+        path.write_text(digest)
+    else:
+        path.unlink(missing_ok=True)  # an earlier before digest must not pair with this edit
 
 
-def after_edit(own_root: pathlib.Path, writer: str, key: str, doc: pathlib.Path) -> bool:
+def after_edit(
+    own_root: pathlib.Path, writer: str, key: str, doc: pathlib.Path, plugins: Plugins
+) -> bool:
     """Record the edit whose before digest `before_edit` kept; without one, record nothing."""
     path = _pending(own_root, writer, key)
     try:
@@ -186,10 +197,10 @@ def after_edit(own_root: pathlib.Path, writer: str, key: str, doc: pathlib.Path)
         return False
 
     path.unlink()
-    if not fresh:
+    if not fresh or (after := _file_digest(doc, plugins)) is None:
         return False
 
-    record(own_root, writer, doc, before, _file_digest(doc))
+    record(own_root, writer, doc, before, after)
     # Two parallel calls that both edit the doc record two transitions from the same
     # before digest, which don't chain, so the waiter wakes: a false wake, never a lost one.
     return True

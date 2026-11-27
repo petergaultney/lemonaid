@@ -1,6 +1,7 @@
-"""A lemon's comment signature: `FilmyBoy (Author)` on GitHub, `Filmy Boy (Author)` in Relay.
+"""A lemon's comment signature: `FilmyBoy (Author)`, or with its name spaced, `Filmy Boy (Author)`.
 
-Matching also accepts the older `Author (FilmyBoy)` order, so existing documents keep working.
+Matching accepts both spellings and the older `Author (FilmyBoy)` order, so existing
+documents keep working.
 """
 
 import re
@@ -14,12 +15,12 @@ _ROLE_FIRST = re.compile(rf"^(?P<role>{_ROLES}) \((?P<name>[A-Za-z ]+)\)$")
 
 
 def spaced(name: str) -> str:
-    """`FilmyBoy` as `Filmy Boy`, so its Relay initials read as two letters."""
+    """`FilmyBoy` as `Filmy Boy`, so an app that shows initials shows two letters."""
     return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name.replace(" ", ""))
 
 
-def sign(name: str, role: str, in_relay: bool = False) -> str:
-    return f"{spaced(name) if in_relay else name.replace(' ', '')} ({role})"
+def sign(name: str, role: str, spaced_name: bool = False) -> str:
+    return f"{spaced(name) if spaced_name else name.replace(' ', '')} ({role})"
 
 
 def parse(signature: str) -> tuple[str, str] | None:

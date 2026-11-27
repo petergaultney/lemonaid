@@ -1,4 +1,6 @@
-"""`lemonaid watch doc`: a blocking waiter on Markdown documents with Relay Comments.
+"""`lemonaid watch doc`: a blocking waiter on documents' comments and body edits.
+
+Comments are what the configured document plugins find; see docs/doc-plugins.md.
 
 Text documents only. Body changes report line hunks; binary files and byte ranges
 are not supported. Use `lemonaid watch file` for binary-file change notifications.
@@ -19,10 +21,10 @@ mid-turn, and a body change made during its turn counts as its own.
 Events:
 - a previously present document stays missing for `--quiet` seconds; a bounded nearby
   identity search may suggest a replacement for the lemon to confirm (the watch stays put)
-- a Relay Comment thread whose last block is not by `--me` (or a `--legacy` name)
-  appeared, or an unanswered one gained a block (always on)
-- the document body changed outside comment threads, after `--quiet` seconds of no further
-  change (unless `--no-edits`; a human types incrementally, and the session's own edits
+- a comment thread a plugin says waits on `--me` (or a `--legacy` name) appeared, or an
+  unanswered one changed (always on)
+- the document body, with the plugins' comments removed, changed, after `--quiet` seconds
+  of no further change (unless `--no-edits`; a human types incrementally, and the session's own edits
   also trigger this, except those `own_edits` records - see below). A doc that doesn't
   exist yet has an empty body, so its creation is reported this way.
 
@@ -50,6 +52,7 @@ import os
 import pathlib
 import sys
 
+from ..doc_plugins import configured
 from ..openclaw import sessions
 from . import (
     brief_record,
@@ -75,10 +78,14 @@ def _record_own(a: argparse.Namespace) -> int:
 
     doc = a.editing or a.mine
     if a.editing:
-        own_edits.before_edit(own_edits.root(), writer, own_edits.cli_key(doc), doc)
+        own_edits.before_edit(
+            own_edits.root(), writer, own_edits.cli_key(doc), doc, configured.plugins()
+        )
         return 0
 
-    if not own_edits.after_edit(own_edits.root(), writer, own_edits.cli_key(doc), doc):
+    if not own_edits.after_edit(
+        own_edits.root(), writer, own_edits.cli_key(doc), doc, configured.plugins()
+    ):
         print(f"not recorded: run --editing {doc} before the edit, then --mine after it")
         return 2
 
@@ -144,6 +151,7 @@ def run(a: argparse.Namespace) -> int:
             writer,
             cursor_key=cursor_key,
             latest_turn=latest_turn,
+            plugins=configured.plugins(),
         )
     )
     lock = watch_list.hold_waiter(a.watch_list) if a.watch_list else waiter_lock.acquire(lock_path)
@@ -202,6 +210,7 @@ def run(a: argparse.Namespace) -> int:
                     cursor_key,
                     latest_turn,
                     writer,
+                    plugins=configured.plugins(),
                 )
             else:
                 doc_wait.wait_doc(watch, deliver, once, a.interval, latest_turn)
@@ -220,7 +229,7 @@ def _cmd(a: argparse.Namespace) -> None:
 def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap = subparsers.add_parser(
         "doc",
-        help="Wait for Relay Comments and body edits on vault documents",
+        help="Wait for comments and body edits on documents",
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
