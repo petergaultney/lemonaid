@@ -96,6 +96,14 @@ def on_tty(tty: str) -> list[Identity]:
     return [entry for pid in result.stdout.split() if (entry := inspect(int(pid))) is not None]
 
 
+def session(pid: int) -> int | None:
+    """*pid*'s session, or None once it has exited or sits in a session hidden from us."""
+    try:
+        return os.getsid(pid)
+    except (ProcessLookupError, PermissionError):
+        return None
+
+
 def descendants(pid: int) -> list[Identity]:
     """Include tool jobs that detached from the pane's controlling terminal."""
     result = subprocess.run(
