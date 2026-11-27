@@ -21,7 +21,6 @@ from . import (
     palette,
     po_box_config,
     restore_config,
-    slack_config,
     status_registry,
     tasks_config,
     watch_config,
@@ -452,7 +451,6 @@ class Config:
     codex: codex_config.CodexConfig = field(default_factory=codex_config.CodexConfig)
     tasks: tasks_config.TasksConfig = field(default_factory=tasks_config.TasksConfig)
     restore: restore_config.RestoreConfig = field(default_factory=restore_config.RestoreConfig)
-    slack: slack_config.SlackConfig = field(default_factory=slack_config.SlackConfig)
     web: web_config.WebConfig = field(default_factory=web_config.WebConfig)
     skill_sources: tuple[source_config.Source, ...] = ()
 
@@ -929,7 +927,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         openclaw=openclaw,
         backends=backends,
         places=places,
-        watch=watch_config.parse(data.get("watch", {})),
+        watch=watch_config.parse(data.get("watch", {}), data),
         usage=settings.parse(data.get("usage", {})),
         messages=messages_config.parse(data.get("messages", {})),
         po_box=po_box_config.parse(data.get("po-box", {})),
@@ -938,7 +936,6 @@ def _parse_config(data: dict[str, Any]) -> Config:
         tasks=tasks_config.parse(data.get("tasks", {})),
         restore=restore_config.parse(data.get("restore", {})),
         codex=codex_config.parse(data.get("codex", {})),
-        slack=slack_config.parse(data.get("slack", {})),
         web=web_config.parse(data.get("web", {})),
     )
 

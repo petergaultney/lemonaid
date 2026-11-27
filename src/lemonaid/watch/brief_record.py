@@ -12,6 +12,7 @@ from ..brief import attached, doc_table, identity, lemon, store, verbs_cli, wait
 from ..codex import channels
 from ..inbox import db
 from ..messages import mailbox_command
+from ..sources import host
 from . import record_context, registry
 
 
@@ -38,7 +39,7 @@ def _identity(
         pr_cli,
         repo_cli,
         reviews_cli,
-        slack_cli,
+        source_cli,
     )
 
     lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
@@ -50,6 +51,13 @@ def _identity(
             word in ("--help", "-h") or all(c in ";&|<>()" for c in word) for word in words
         ):
             return None
+        if found := source_cli.subscription(words[2:]):
+            source, given = found
+            try:
+                target = host.check(source, given.args)
+            except host.Failed:
+                return None
+            return (source.name, False, target, repo, given.me, False, ())
         parser = _WatchParser(allow_abbrev=False)
         sub = parser.add_subparsers(required=True)
         for module in (
@@ -62,7 +70,6 @@ def _identity(
             file_cli,
             command_cli,
             briefs_cli,
-            slack_cli,
         ):
             module.add_parser(sub)
         a = parser.parse_args(words[2:])
@@ -82,8 +89,6 @@ def _identity(
         target = reviews_cli.target(a.scope)
     elif kind == "command":
         target = (str(a.wait),)
-    elif kind == "slack":
-        target = a.link.target
     elif kind == "pr":
         url_repo, number = a.wait
         target = (str(number),)

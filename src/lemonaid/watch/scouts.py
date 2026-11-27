@@ -9,7 +9,6 @@ import typing as ty
 from pathlib import Path
 
 from ..log import get_logger
-from ..slack import wakes
 from . import (
     briefs_events,
     delivery,
@@ -38,7 +37,7 @@ class _Sources(ty.NamedTuple):
 
 def _sources(spec: subscriptions.Subscription) -> _Sources:
     """What a subscription's detector reads from disk; PR and repo detectors read GitHub, and a
-    Slack thread's reads Slack when the gateway touches its wake file."""
+    watch source's hears from its plugin."""
     if spec.kind in ("doc", "file"):
         targets = [Path(target) for target in spec.target]
         return _Sources([t for t in targets if not t.is_dir()], [t for t in targets if t.is_dir()])
@@ -48,9 +47,6 @@ def _sources(spec: subscriptions.Subscription) -> _Sources:
 
     if spec.kind == "command":
         return _Sources([], [], [int(spec.target[0])])
-
-    if spec.kind == "slack":
-        return _Sources([wakes.wake_file(*spec.target)], [])
 
     return _Sources([], [])
 
@@ -151,15 +147,18 @@ class Scout:
         try:
             while not self.stopped.is_set():
                 try:
-                    poll = poll or scout_pollers.open_poller(
-                        self.spec,
-                        self.root,
-                        self.writer,
-                        self.deliver,
-                        self.signatures,
-                        self.notes,
-                        self.latest_turn,
-                    )
+                    if poll is None:
+                        poll = scout_pollers.open_poller(
+                            self.spec,
+                            self.root,
+                            self.writer,
+                            self.deliver,
+                            self.signatures,
+                            self.notes,
+                            self.latest_turn,
+                        )
+                        if wake_with := getattr(poll, "wake_with", None):
+                            wake_with(self.wake)  # a watch source's plugin wakes it
                     poll()
                     failure_state.clear(failed)
                 except delivery.Failed:
@@ -190,6 +189,8 @@ class Scout:
                 self.wake.clear()
         finally:
             unwatch()
+            if close := getattr(poll, "close", None):
+                close()
             self.ready.set()
             if self.spec.kind == "doc" and self.spec.edits and self.writer:
                 own_edits.unregister(own_edits.root(), self.writer, Path(self.spec.target[0]))

@@ -20,9 +20,9 @@ from lemonaid.inbox import db, presence  # noqa: E402
 from lemonaid.inbox.tui import app as tui_app  # noqa: E402
 from lemonaid.lemon_watchers import watcher  # noqa: E402
 from lemonaid.messages import service  # noqa: E402
-from lemonaid.slack import api as slack_api  # noqa: E402
-from lemonaid.slack import session as slack_session  # noqa: E402
 from lemonaid.watch import restart, scout_start  # noqa: E402
+from lemonaid_slack import api as slack_api  # noqa: E402
+from lemonaid_slack import session as slack_session  # noqa: E402
 from tests import codex_fakes, tmux_guard  # noqa: E402
 
 # The per-test fixtures below are monkeypatches, and `monkeypatch.undo()` in a test
@@ -50,6 +50,15 @@ _TMUX_GUARD = tmux_guard.install(
 if _TMUX_GUARD:
     os.environ["PATH"] = f"{_TMUX_GUARD.bin}{os.pathsep}{os.environ['PATH']}"
 os.environ["TMUX"] = "/nonexistent/lemonaid-tests,0,0"
+# The Slack plugin, run as its own process by a test, finds this `security` before the real one,
+# so it can never read the developer's Keychain.
+_NO_KEYCHAIN = _LAST_RESORT / "no-keychain"
+_NO_KEYCHAIN.mkdir(exist_ok=True)
+(_NO_KEYCHAIN / "security").write_text(
+    "#!/bin/sh\necho 'tests never use the Keychain' >&2\nexit 1\n"
+)
+(_NO_KEYCHAIN / "security").chmod(0o755)
+os.environ["PATH"] = f"{_NO_KEYCHAIN}{os.pathsep}{os.environ['PATH']}"
 os.environ[codex_app_server.NO_APP_SERVER] = "1"  # also for lemonaid run as a subprocess
 
 

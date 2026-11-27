@@ -22,7 +22,7 @@ and a push scout is started again in its place. Another waiter stays stopped for
 its lemon to rearm.
 
 A lemon named by Lemon-ID, or --self, also gets a push scout if it has no watcher.
-Then each waiter it started by hand (`watch pr`, `watch slack` and the rest) is
+Then each waiter it started by hand (`watch pr`, `watch doc` and the rest) is
 stopped once its running watcher reads the same source from the brief, and tells
 its lemon not to rearm it. A waiter the watcher doesn't follow keeps running. --all
 restarts only watchers, and leaves hand-started waiters running.

@@ -1,4 +1,5 @@
-"""`slack_events.poller`: one lemon following one Slack thread or channel."""
+"""One lemon following one Slack thread or channel: lemonaid's source poller asking the Slack
+plugin."""
 
 import datetime
 import time
@@ -7,11 +8,12 @@ import pytest
 
 from lemonaid.brief import attached, identity, store, waiters
 from lemonaid.inbox import db
-from lemonaid.slack import api, session, signed_out, wakes
-from lemonaid.slack_config import SlackConfig
-from lemonaid.watch import delivery, slack_events
+from lemonaid.sources import plugin, problems
+from lemonaid.watch import delivery, source_events
+from lemonaid_slack import api, follow, session, signed_out, wakes
 
-from ..slack.shared import CHANNEL, LINK, SESSION, THREAD, Slack, post, reply
+from ..lemonaid_slack.shared import CHANNEL, LINK, SESSION, THREAD, Slack, post, reply
+from .shared import wait_ready
 
 OLD = "1794857980.000001"
 NEW = "1794857990.000002"
@@ -25,6 +27,9 @@ def slack(monkeypatch):
     return fake
 
 
+SLACK = plugin.defaults()[0]
+
+
 def _poller(
     tmp_path,
     delivered: list,
@@ -33,27 +38,39 @@ def _poller(
     after="",
     match="",
     done=False,
-    every=60.0,
     conversation=THREAD,
-):
+    deliver=None,
+) -> source_events.Poller:
     directory = tmp_path / "cursors" / (lemon_id or "lemon.Ann") / "slack"
     directory.mkdir(parents=True, exist_ok=True)
-    return slack_events.poller(
-        conversation,
-        after,
-        match,
+    args = (
+        conversation.link,
+        *(("--after", after) if after else ()),
+        *(("--match", match) if match else ()),
+    )
+    deliver = deliver or delivered.append
+    return source_events.Poller(
+        SLACK,
+        args,
+        conversation.target,
         done,
         directory,
         lemon_id,
-        delivered.append,
-        lambda problem: signed_out.tell_once(directory.parent, problem, delivered.append),
-        SlackConfig(fetch_every=every),
+        deliver,
+        lambda problem: problems.tell_once(directory.parent, "slack", problem, deliver),
+        lambda: problems.heard_again(directory.parent, "slack"),
     )
 
 
-def _signal(conversation=THREAD) -> None:
+def _signal(poll: source_events.Poller, conversation=THREAD) -> None:
     time.sleep(0.01)
     assert wakes.signal(conversation.channel, conversation.ts)
+    wait_ready(poll.key)
+
+
+def _due(poll: source_events.Poller) -> float:
+    """Seconds until the poller asks again without a signal."""
+    return poll.next_at - time.monotonic()
 
 
 def test_a_first_poll_takes_the_thread_as_seen_and_a_signalled_reply_is_delivered(tmp_path, slack):
@@ -64,7 +81,7 @@ def test_a_first_poll_takes_the_thread_as_seen_and_a_signalled_reply_is_delivere
     poll()
     assert delivered == []
 
-    _signal()
+    _signal(poll)
     poll()
 
     [message] = delivered
@@ -89,25 +106,25 @@ def test_a_reply_that_was_not_delivered_is_delivered_by_the_next_poller(tmp_path
     def fail(message: str) -> None:
         raise delivery.Failed("Batch was not delivered")
 
-    directory = tmp_path / "cursors" / "lemon.Ann" / "slack"
-    failing = slack_events.poller(THREAD, "", "", False, directory, "", fail, fail, SlackConfig())
     with pytest.raises(delivery.Failed):
-        failing()
+        _poller(tmp_path, [], deliver=fail)()
 
     delivered: list = []
     _poller(tmp_path, delivered)()  # a restarted scout catches up from the cursor
     assert len(delivered) == 1 and "a new reply" in delivered[0]
 
 
-def test_without_a_gateway_threads_are_fetched_on_a_timer_and_with_one_only_when_signalled(
+def test_without_a_gateway_threads_are_fetched_on_a_timer_and_with_one_mostly_when_signalled(
     tmp_path, slack
 ):
-    poll = _poller(tmp_path, [], every=0)
+    poll = _poller(tmp_path, [])
     poll()
-    poll()
-    assert slack.fetches() == 2
+    assert 50 < _due(poll) <= 60  # fetch_every
 
     wakes.beat()
+    poll.next_at = 0
+    poll()
+    assert 590 < _due(poll) <= 600
     poll()
     assert slack.fetches() == 2
 
@@ -123,7 +140,7 @@ def test_with_a_gateway_up_a_backstop_fetch_still_finds_what_it_never_signalled(
     poll()
     assert delivered == []
 
-    monkeypatch.setattr(slack_events, "_BACKSTOP", 0.0)
+    poll.next_at = 0  # the backstop's time has come
     poll()
 
     assert len(delivered) == 1 and "the socket does not report" in delivered[0]
@@ -134,12 +151,12 @@ def test_a_pattern_delivers_only_the_messages_it_matches_and_passes_the_rest(tmp
     poll = _poller(tmp_path, delivered, match="(?i)deploy")
     poll()
     slack.replies.append(reply(NEW, "lunch?"))
-    _signal()
+    _signal(poll)
     poll()
     assert delivered == []
 
     slack.replies.append(reply("1794857995.000003", "<@U0ANN> the Deploy is done"))
-    _signal()
+    _signal(poll)
     poll()
 
     [message] = delivered
@@ -154,7 +171,7 @@ def test_a_channel_delivers_the_messages_posted_in_it(tmp_path, slack):
     poll()
     slack.posts.append(post(NEW, "a new post"))
 
-    _signal(CHANNEL)
+    _signal(poll, CHANNEL)
     poll()
 
     [message] = delivered
@@ -175,11 +192,12 @@ def _lemon_following(tmp_path) -> tuple:
 
 def test_a_thread_quiet_for_seven_days_ends_once_and_leaves_watching(tmp_path, slack):
     path, lemon_id = _lemon_following(tmp_path)
-    slack.replies[:] = [reply(f"{int(slack_events.time.time()) - 8 * 86400}.000100", "long ago")]
+    slack.replies[:] = [reply(f"{int(follow.time.time()) - 8 * 86400}.000100", "long ago")]
     delivered: list = []
     poll = _poller(tmp_path, delivered, lemon_id=lemon_id)
 
     poll()
+    poll.next_at = 0
     poll()
 
     [message] = delivered
@@ -211,9 +229,10 @@ def test_with_no_sign_in_the_lemon_hears_once_and_the_user_sees_it_in_the_inbox(
     current = [None]
     monkeypatch.setattr(session, "load", lambda: current[0])
     delivered: list = []
-    poll = _poller(tmp_path, delivered, every=0)
+    poll = _poller(tmp_path, delivered)
 
     poll()
+    poll.next_at = 0
     poll()
 
     assert len(delivered) == 1 and "lemonaid slack signin" in delivered[0]
@@ -222,6 +241,7 @@ def test_with_no_sign_in_the_lemon_hears_once_and_the_user_sees_it_in_the_inbox(
 
     current[0] = SESSION
     signed_out.signed_in()
+    poll.next_at = 0
     poll()
     assert slack.fetches() == 1
     assert _inbox_row().is_archived
@@ -234,7 +254,7 @@ def test_a_session_slack_refuses_pauses_every_call_until_a_new_sign_in(tmp_path,
 
     poll()
     slack.error = None
-    _signal()
+    _signal(poll)
     poll()
 
     assert len(delivered) == 1 and "no longer accepts" in delivered[0]
@@ -246,7 +266,7 @@ def test_an_unreachable_slack_tells_nobody_and_is_tried_again(tmp_path, slack):
     slack.error = api.Unavailable("conversations.replies: URLError")
     delivered: list = []
 
-    _poller(tmp_path, delivered, every=0)()
+    _poller(tmp_path, delivered)()
     slack.error = None
     _poller(tmp_path, delivered)()
 

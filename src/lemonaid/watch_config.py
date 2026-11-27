@@ -1,5 +1,5 @@
-"""Configurable review-thread filters, role wake lists, GitHub outage debounce and document
-plugins for watchers."""
+"""Configurable review-thread filters, role wake lists, GitHub outage debounce, document
+plugins and watch sources for watchers."""
 
 import sys
 from collections import abc
@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from .doc_plugins import plugin
 from .plugins import command
+from .sources import plugin as source_plugin
 from .watch import roles
 
 
@@ -25,6 +26,16 @@ class WatchConfig:
     github_debounce: float = 600.0  # seconds GitHub must stay unreachable before a lemon hears
     reconcile: bool = True  # see watch/reconcile.py
     doc_plugins: tuple[command.Plugin, ...] = field(default_factory=plugin.defaults)
+    sources: tuple[source_plugin.Source, ...] = field(default_factory=source_plugin.defaults)
+
+
+# `lemonaid watch` subcommands of lemonaid's own, which no source may be named
+OWN_KINDS = frozenset(
+    {
+        *("doc", "file", "command", "pr", "repo", "reviews", "mentions", "notifications"),
+        *("briefs", "openclaw", "notes", "reconcile", "stop", "restart", "host"),
+    }
+)
 
 
 _CASELESS_HOSTS = frozenset({"github.com"})  # hosts whose logins are unique regardless of case
@@ -94,7 +105,8 @@ def _doc_plugins(data: object) -> tuple[command.Plugin, ...]:
     return plugin.parse(data.get("plugins", list(plugin.DEFAULT_ENTRIES)))
 
 
-def parse(data: dict) -> WatchConfig:
+def parse(data: dict, tables: dict | None = None) -> WatchConfig:
+    """*tables* is the whole config file, for each source's own table."""
     pr = data.get("pr", {})
     values: dict[str, bool] = {}
     for key in ("skip_outdated", "skip_resolved", "link_nudge"):
@@ -123,4 +135,7 @@ def parse(data: dict) -> WatchConfig:
         github_debounce=_debounce(data.get("github_debounce", WatchConfig.github_debounce)),
         reconcile=_reconcile(data.get("reconcile", WatchConfig.reconcile)),
         doc_plugins=_doc_plugins(data.get("doc", {})),
+        sources=source_plugin.parse(
+            data.get("sources", list(source_plugin.DEFAULT_ENTRIES)), tables or {}, OWN_KINDS
+        ),
     )

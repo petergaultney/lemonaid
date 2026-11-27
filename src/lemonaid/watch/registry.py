@@ -33,8 +33,7 @@ KINDS = (
     "file",
     "command",
     "briefs",
-    "slack",
-)
+)  # and each configured watch source's name
 _OLD_KINDS = {"inbox": "mailbox"}  # as waiters from before 0.142 registered themselves
 
 
