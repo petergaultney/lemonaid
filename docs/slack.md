@@ -2,6 +2,8 @@
 
 A lemon can follow a Slack thread or channel the way it follows a PR: list `lemonaid watch slack <link>` under its brief's `## Watching`, and each new message wakes it with the message's author, time, permalink and text. lemonaid reads Slack as you, with your own Slack session, so it needs no Slack app and no workspace admin. It only reads: it never posts, reacts, marks anything read or follows a thread for you.
 
+Slack is a [watch source](source-plugins.md): a plugin, `lemonaid-slack`, that lemonaid runs and talks to only through that protocol. It ships with lemonaid and is configured by default, so nothing needs setting up beyond signing in.
+
 This is macOS only for now, and needs the `slack` extra:
 
 ```bash
@@ -28,7 +30,7 @@ lemonaid slack status    # who lemonaid reads Slack as, and whether its socket i
 lemonaid slack signout   # remove the session from the Keychain
 ```
 
-`signout` forgets the session, and the scout host's socket closes within a second; a new sign-in likewise replaces the session the socket uses. Slack keeps the old session until it expires; end it in Slack's own list of your sessions to end it now.
+`signout` forgets the session, and the socket closes within a second; a new sign-in likewise replaces the session the socket uses. Slack keeps the old session until it expires; end it in Slack's own list of your sessions to end it now.
 
 ## Following a thread or channel
 
@@ -59,7 +61,7 @@ A subscription ends when the lemon's brief is `done`, or once nothing has been p
 
 ## How messages arrive
 
-The scout host holds one websocket to Slack for every lemon: the web client's own gateway socket, opened with your session. It runs only while some lemon follows a thread or channel, and stops five minutes after the last one stops. When the socket sees a message in a followed thread or channel, it touches that conversation's file under `$LEMONAID_STATE_DIR/slack/followed/`, and each lemon following it then fetches what is new with one `conversations.replies` (thread) or `conversations.history` (channel) call from its own cursor. Messages reach the lemon within a few seconds.
+One websocket to Slack serves every lemon on the machine: the web client's own gateway socket, opened with your session. The Slack plugin holds it while it follows a thread or channel for some lemon (when several lemonaid processes run the plugin, one holds the socket and the others hear it), and closes it five minutes after the last one stops. When the socket sees a message in a followed thread or channel, it touches that conversation's file under `$LEMONAID_STATE_DIR/slack/followed/`, the plugin tells lemonaid the subscription is ready, and each lemon following it then fetches what is new with one `conversations.replies` (thread) or `conversations.history` (channel) call from its own cursor. Messages reach the lemon within a few seconds.
 
 The socket has no replay, so the fetch, not the socket, decides what is delivered. Each time the socket connects, everything followed is fetched, so a message sent while the laptop slept, or while the scout host restarted, arrives then. The cursor advances only after a batch is delivered, so a restart neither misses nor repeats a message.
 
@@ -71,4 +73,4 @@ When Slack refuses the session, lemonaid stops calling Slack, puts one `lemonaid
 
 ## Presence while the socket is up (trial)
 
-While the socket is up, Slack counts it as one of your connections. Whether an idle socket keeps you "active", and so holds back the notifications Slack sends to your phone while you are away, is not known yet. Every `presence_every` seconds the scout host appends one `users.getPresence` reading to `$LEMONAID_STATE_DIR/slack/presence.jsonl`, with how long the Mac has been idle. If `presence` stays `active` while `idle_seconds` grows, set `push = false` under `[slack]`, and lemons fall back to timed fetches.
+While the socket is up, Slack counts it as one of your connections. Whether an idle socket keeps you "active", and so holds back the notifications Slack sends to your phone while you are away, is not known yet. Every `presence_every` seconds the plugin holding the socket appends one `users.getPresence` reading to `$LEMONAID_STATE_DIR/slack/presence.jsonl`, with how long the Mac has been idle. If `presence` stays `active` while `idle_seconds` grows, set `push = false` under `[slack]`, and lemons fall back to timed fetches.

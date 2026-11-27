@@ -19,6 +19,7 @@ from ..brief import (
     waiters,
 )
 from ..messages import mailbox_command
+from ..sources import host
 from . import (
     briefs_cli,
     command_cli,
@@ -30,7 +31,7 @@ from . import (
     repo_cli,
     reviews_cli,
     roles,
-    slack_cli,
+    source_cli,
 )
 
 
@@ -73,10 +74,8 @@ class Subscription:
     role: str = ""  # a PR's, see watch/roles.py
     deadline: str = ""  # a file watch's
     mentioned: bool = False  # the brief links to this PR, so its merge or close asks about that
-    link: str = ""  # a Slack thread's or channel's link
-    after: str = ""  # a Slack subscription's first fetch reports messages after this ts
-    match: str = ""  # a Slack subscription reports only messages this regex matches
-    brief_done: bool = False  # the brief's Status is done, which ends a Slack subscription
+    args: tuple[str, ...] = ()  # a watch source's, for its plugin
+    brief_done: bool = False  # the brief's Status is done, which a watch source may end on
 
     @property
     def source(self) -> str:
@@ -99,6 +98,15 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
     if words[:2] != ["lemonaid", "watch"]:
         raise Problem(f"Not a lemonaid watch subscription: {command}")
 
+    if found := source_cli.subscription(words[2:]):
+        source, given = found
+        try:
+            target = host.check(source, given.args)
+        except host.Failed as error:
+            raise Problem(f"{source.name}: {error}") from None
+
+        return Subscription(source.name, target, given.me or me, interval=1, args=given.args)
+
     parser = _Parser(allow_abbrev=False)
     sub = parser.add_subparsers(dest="kind", required=True)
     for module in (
@@ -111,7 +119,6 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
         mentions_cli,
         notifications_wait_cli,
         briefs_cli,
-        slack_cli,
     ):
         module.add_parser(sub)
     args = parser.parse_args(words[2:])
@@ -119,17 +126,6 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
         raise Problem(f"Use the --wait form: {command}")
 
     kind = args.kind
-    if kind == "slack":
-        return Subscription(
-            kind,
-            args.link.target,
-            args.me or me,
-            interval=1,  # a look at the wake file; Slack is read only when it changed
-            link=args.link.link,
-            after=args.after,
-            match=args.match,
-        )
-
     if kind == "pr":
         repo, number = args.wait
         repo = repo or args.repo
@@ -250,7 +246,7 @@ def report(
     output = output_doc.read(text)
     done = status.split(text).status == "done"
     for key, spec in specs.items():
-        if spec.kind == "slack" and done:
+        if spec.args and done:
             specs[key] = dataclasses.replace(spec, brief_done=True)
         if spec.kind == "pr":
             review = reviews.get(spec.target)

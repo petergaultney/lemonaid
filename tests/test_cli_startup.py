@@ -71,6 +71,7 @@ _SCRIPT_CASES = {
     "lemonaid-tmux-session-name": ["test-session"],
     "lemonaid-claude-statusline": [],
     "lemonaid-relay-comments": ["body", "/doc.md"],
+    "lemonaid-slack": ["--help"],
 }
 
 
