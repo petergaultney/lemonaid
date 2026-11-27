@@ -6,7 +6,8 @@ html,body { margin:0; background:#0b0e13; color:#e6ebf2; }
 body { font:15px/1.4 "SF Mono", Menlo, monospace; }
 header { display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:#161b24; }
 header .chip { background:#f2d94e; color:#0b0e13; padding:1px 8px; font-weight:800; }
-header a { color:#8ab4f8; text-decoration:none; }
+header a { display:flex; }
+header a img { width:22px; height:22px; }
 main { padding:8px 14px; max-width:40em; }
 p { color:#aab3c2; }
 .row { display:grid; grid-template-columns:minmax(6em, auto) 1fr auto; gap:6px 10px; align-items:center; padding:8px 0; border-bottom:1px solid #222a36; }
@@ -18,7 +19,7 @@ p { color:#aab3c2; }
 .problem { color:#e5534b; }
 </style>
 </head><body>
-<header><span class="chip">vaults on this device</span><a href="./">grove</a></header>
+<header><span class="chip">vaults on this device</span><a href="./" title="back to the grove"><img src="icon.svg" alt="lemonaid"></a></header>
 <main>
 <p>A brief links a note by the name of its vault on the server. Where this device names that vault otherwise, write its name here; where it doesn't have the vault, tick "not here" and its links show as plain text. A blank name keeps the server's.</p>
 <div id="rows"></div>
