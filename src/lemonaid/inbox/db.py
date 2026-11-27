@@ -446,9 +446,11 @@ _STICKY_METADATA = (
     "model",
     "context_tokens",
     "context_window",
-    # A Codex lemon's turns, recorded by its hooks (`codex/turns.py`).
+    # A Codex lemon's turns, recorded by its hooks (`codex/turns.py`), and an OpenClaw lemon's
+    # (`record_turn_times`).
     "turn_id",
     "turn_ended_id",
+    "turn_started_at",
     "turn_ended_at",
     "turn_interrupted",
 )
@@ -884,6 +886,20 @@ def hold_snooze_through_turns(conn: sqlite3.Connection, notification_id: int) ->
 def record_turn(conn: sqlite3.Connection, channel: str, at: float | None) -> int:
     """Record that *channel* is mid-turn as of *at*, or between turns when None."""
     cursor = conn.execute("UPDATE notifications SET turn_at = ? WHERE channel = ?", (at, channel))
+    conn.commit()
+    return cursor.rowcount
+
+
+def record_turn_times(
+    conn: sqlite3.Connection, channel: str, at: float | None, started: float, ended: float
+) -> int:
+    """Record *channel* mid-turn as of *at*, or between turns when None, with when its latest turn
+    started and its last turn ended (0 for none), for a source that sees each turn whole."""
+    cursor = conn.execute(
+        "UPDATE notifications SET turn_at = ?, metadata = json_set(coalesce(metadata, '{}'),"
+        " '$.turn_started_at', ?, '$.turn_ended_at', ?) WHERE channel = ?",
+        (at, started, ended, channel),
+    )
     conn.commit()
     return cursor.rowcount
 

@@ -65,7 +65,6 @@ from . import (
 )
 
 _OPENCLAW_TURN_TIMEOUT_MS = 600_000
-_OPENCLAW_TURN_EVERY = 5.0  # seconds between checks whether the session is mid-turn
 
 
 def _record_own(a: argparse.Namespace) -> int:
@@ -131,11 +130,7 @@ def run(a: argparse.Namespace) -> int:
         if a.openclaw_session
         else own_edits.writer_from_env(os.environ, a.codex_thread)
     )
-    latest_turn = (
-        sessions.turn_checker(a.openclaw_cli, a.openclaw_session, _OPENCLAW_TURN_EVERY)
-        if a.openclaw_session
-        else None
-    )
+    latest_turn = sessions.recorded_turns(a.openclaw_session) if a.openclaw_session else None
     watch = (  # before the lock, so a held lock means the baseline is taken
         None
         if a.watch_list

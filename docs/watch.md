@@ -101,8 +101,8 @@ on the lemon.
   defaults to the name half of the calling lemon's Brief-ID, and `--legacy` names older
   signatures. The unit runs `lemonaid watch doc --watch-list`, which runs one agent turn in the
   session for each event (`openclaw gateway call agent`) and keeps watching.
-  OpenClaw has no hook for a lemon's own edits, so the waiter asks the gateway
-  (`sessions.list`) whether the session is mid-turn: while it is, nothing is delivered and
+  OpenClaw has no hook for a lemon's own edits, so the waiter reads whether the session is
+  mid-turn from the turns `lemonaid openclaw observe` records: while it is, nothing is delivered and
   what arrives goes in one event after the turn. A body change the waiter sees appear while a
   turn runs is recorded as the lemon's own edit, as Claude Code's hooks record one, and wakes
   nobody. Those hooks are blind to a human edit only during one tool call; here the blind

@@ -96,6 +96,7 @@ def test_a_held_connection_keeps_the_turns_its_events_say_failed(monkeypatch):
 def test_a_held_connection_tells_when_a_session_s_turn_runs_and_ends(monkeypatch):
     monkeypatch.setattr(turns, "_ended", {})
     monkeypatch.setattr(turns, "_recorded", {})
+    monkeypatch.setattr(turns, "_started", {})
     socket = _Socket({})
     run = {"runId": "r1", "stream": "lifecycle", "ts": 1795671692000, "sessionKey": "agent:main:x"}
     for payload in (
@@ -106,7 +107,7 @@ def test_a_held_connection_tells_when_a_session_s_turn_runs_and_ends(monkeypatch
     monkeypatch.setattr(gateway, "_connect", lambda: socket)
     told: list[tuple[str, float | None]] = []
 
-    gateway._Held(lambda key, at: told.append((key, at))).call("chat.history", {}, 5)
+    gateway._Held(lambda key, at, *_: told.append((key, at))).call("chat.history", {}, 5)
 
     assert told == [("agent:main:x", 1795671692.0), ("agent:main:x", None)]
 
@@ -114,13 +115,14 @@ def test_a_held_connection_tells_when_a_session_s_turn_runs_and_ends(monkeypatch
 def test_listening_hears_a_turn_before_any_call(monkeypatch):
     monkeypatch.setattr(turns, "_ended", {})
     monkeypatch.setattr(turns, "_recorded", {})
+    monkeypatch.setattr(turns, "_started", {})
     monkeypatch.setattr(gateway, "_held", None)
     socket = _Socket({})
     started = {"runId": "r1", "stream": "lifecycle", "ts": 1795671692000, "sessionKey": "k"}
     socket.incoming.put(json.dumps({"type": "event", "event": "agent", "payload": started}))
     monkeypatch.setattr(gateway, "_connect", lambda: socket)
     told: queue.Queue = queue.Queue()
-    gateway.hold(lambda key, at: told.put((key, at)))
+    gateway.hold(lambda key, at, *_: told.put((key, at)))
 
     gateway.listen()
 
@@ -131,19 +133,24 @@ def test_listening_hears_a_turn_before_any_call(monkeypatch):
 def test_a_held_connection_reconnects_after_its_turn_callback_raises(monkeypatch):
     monkeypatch.setattr(turns, "_ended", {})
     monkeypatch.setattr(turns, "_recorded", {})
+    monkeypatch.setattr(turns, "_started", {})
     broken = _Socket({})
     started = {"runId": "r1", "stream": "lifecycle", "ts": 1795671692000, "sessionKey": "k"}
     broken.incoming.put(json.dumps({"type": "event", "event": "agent", "payload": started}))
     sockets = [broken, _Socket({"messages": [1]})]
     monkeypatch.setattr(gateway, "_connect", lambda: sockets.pop(0))
 
-    def locked(key: str, at: float | None) -> None:
+    entered: list[str] = []
+
+    def locked(key: str, at: float | None, started: float, ended: float) -> None:
+        entered.append(key)
         raise sqlite3.OperationalError("database is locked")
 
     held = gateway._Held(locked)
 
     assert held.call("chat.history", {}, 5) == {"messages": [1]}
     assert sockets == []
+    assert entered == ["k"]
 
 
 def test_an_error_answer_raises():
