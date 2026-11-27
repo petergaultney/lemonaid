@@ -18,7 +18,7 @@ class Element {
 // A page whose storage starts as *stored*; the server answers each upload with the next id.
 function page(stored = {}) {
   const store = {...stored}, calls = [];
-  let next = 0, hold = null;
+  let next = 0, hold = null, decode = null;
   const context = {
     localStorage: {
       getItem: key => store[key] ?? null,
@@ -27,6 +27,7 @@ function page(stored = {}) {
     },
     document: {createElement: () => new Element()},
     btoa: s => Buffer.from(s, "binary").toString("base64"),
+    createImageBitmap: () => new Promise(r => { decode = r; }),
     fetch: async (url, request) => {
       const args = JSON.parse(request.body);
       calls.push([url, args]);
@@ -41,6 +42,7 @@ function page(stored = {}) {
   return {
     store, calls, list, said,
     attach: channel => context.window.groveAttach(channel, list, line => said.push(line)),
+    finishDecoding: () => decode && decode({width: 10, height: 10}),
     holdUploads: () => { let release; hold = new Promise(r => { release = r; }); return () => { hold = null; release(); }; },
   };
 }
@@ -49,7 +51,16 @@ const file = (name, text = "hi", type = "text/plain") => ({
   name, type, size: text.length, arrayBuffer: async () => new TextEncoder().encode(text).buffer,
 });
 const plain = x => JSON.parse(JSON.stringify(x));  // out of the page's context, to compare
-const names = list => list.children.map(chip => chip.children[0].textContent);
+// Each tile's file name, and a tile's part by its class.
+const part = (tile, cls) => {
+  for (const child of tile.children) {
+    if (child.className === cls) return child;
+    const inner = child.children && part(child, cls);
+    if (inner) return inner;
+  }
+  return null;
+};
+const names = list => list.children.map(tile => part(tile, "name").textContent);
 
 test("a picked file uploads and stays in the draft when the page is drawn again", async () => {
   const first = page();
@@ -58,7 +69,7 @@ test("a picked file uploads and stays in the draft when the page is drawn again"
   assert.deepEqual(first.calls, [["api/attach", ["notes.txt", "text/plain", "aGk="]]]);
   const again = page(first.store).attach("claude:a");
   assert.deepEqual(plain(again.ids()), ["id0"]);
-  assert.deepEqual(plain(again.files()), [{name: "notes.txt", size: 2}]);
+  assert.deepEqual(plain(again.files()), [{name: "notes.txt", size: 2, thumb: ""}]);
 });
 
 test("each lemon keeps its own attachments", async () => {
@@ -72,7 +83,7 @@ test("a removed attachment leaves the draft and the server", async () => {
   const shown = page(), attached = shown.attach("claude:a");
   await attached.add([file("a.txt"), file("b.txt")]);
 
-  shown.list.children[0].children[2].listeners.click();
+  part(shown.list.children[0], "remove").listeners.click();
 
   assert.deepEqual(plain(attached.ids()), ["id1"]);
   assert.deepEqual(names(shown.list), ["b.txt"]);
@@ -98,7 +109,7 @@ test("a file still uploading shows and keeps the message from going", async () =
 
   assert.equal(attached.busy(), true);
   assert.deepEqual(names(shown.list), ["big.pdf"]);
-  assert.equal(shown.list.children[0].children[1].textContent, "uploading...");
+  assert.equal(part(shown.list.children[0], "size").textContent, "uploading...");
   release();
   await done;
   assert.equal(attached.busy(), false);
@@ -139,4 +150,16 @@ test("a file attached while a message was sending stays for the next one", async
   assert.deepEqual(plain(attached.ids()), ["id1"]);
   assert.deepEqual(names(shown.list), ["later.txt"]);
   assert.deepEqual(plain(page(shown.store).attach("claude:a").ids()), ["id1"]);
+});
+
+test("a picked image counts as uploading while its thumbnail is still being drawn", async () => {
+  const shown = page(), attached = shown.attach("claude:a");
+  const done = attached.add([file("photo.png", "png", "image/png")]);
+  await new Promise(r => setImmediate(r));
+
+  assert.equal(attached.busy(), true);
+  shown.finishDecoding();
+  await done;
+  assert.equal(attached.busy(), false);
+  assert.deepEqual(plain(attached.ids()), ["id0"]);
 });

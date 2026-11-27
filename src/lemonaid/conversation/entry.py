@@ -19,6 +19,7 @@ class Entry(ty.NamedTuple):
     text: str
     at: str  # ISO 8601 as the harness wrote it, or ""
     sender: str = ""  # who sent OTHER input, when the harness says
+    files: tuple[tuple[str, int], ...] = ()  # (name, bytes) of each file sent with it
 
 
 def tail_records(path: Path) -> abc.Iterator[dict]:
