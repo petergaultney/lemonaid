@@ -196,7 +196,7 @@ const byDay = items => {
     return heading + html;
   }).join("");
 };
-const who = e => ({user: "you", lemon: $("name").textContent, other: e.sender || "message", failed: "turn failed"})[e.role] || e.role;
+const who = e =>({user: "you", lemon: $("name").textContent, other: e.sender || "message", failed: "turn failed"})[e.role] || e.role;
 // Each run of tool calls is one collapsed line; which ones you opened survive a refresh.
 const opened = new Set();
 const toolKey = e => `${e.at}|${e.text}`;
@@ -240,10 +240,7 @@ const pendingKey = `lemonaid-pending:${channel}`;
 const loadPending = () => { try { return JSON.parse(localStorage.getItem(pendingKey) || "[]"); } catch { return []; } };
 const savePending = list => { try { localStorage.setItem(pendingKey, JSON.stringify(list)); } catch {} };
 let pending = loadPending();
-// A send counts as recorded once the conversation holds more entries with its text than when it
-// was sent, so an earlier identical message doesn't clear it.
-const matching = (text, entries) => entries.filter(e => (e.role === "user" || e.role === "other") && e.text.includes(text.trim())).length;
-const recorded = (p, entries) => matching(p.text, entries) > (p.seen ?? 0);
+const {matching, unrecorded, inTime} = window.groveSent;  // sent.js
 let lastEntries = [];
 const renderPending = p => `<div class="entry user pending"><div class="who">you ${time(new Date(p.at).toISOString())}`
   + (p.unsure ? " \u00b7 may not have been sent: the server didn't answer</div>"
@@ -321,12 +318,12 @@ const showTalk = c => {
   lastTalk = c;
   if (!c.conversation_problem) {
     lastEntries = c.entries;
-    const left = pending.filter(p => !recorded(p, c.entries));
-    if (left.length !== pending.length) { pending = left; savePending(pending); }
+    const left = unrecorded(pending, c.entries);
+    if (JSON.stringify(left) !== JSON.stringify(pending)) { pending = left; savePending(pending); }
   }
   const html = (c.conversation_problem ? `<div class="problem">${escape(c.conversation_problem)}</div>` : "")
-    + byDay([...(c.conversation_problem ? [] : grouped(c.entries)),
-             ...pending.map(p => [p.at, renderPending(p)])])
+    + byDay(inTime(c.conversation_problem ? [] : grouped(c.entries),
+                   pending.map(p => [new Date(p.at).toISOString(), renderPending(p)])))
     + (working ? `<div class="entry working"><i></i><i></i><i></i>working...</div>` : "");
   if (html !== shownLog) {
     const log = $("log"), atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
@@ -378,7 +375,7 @@ const send = async () => {
   if (attached.busy()) { $("said").textContent = "wait for the files to finish uploading"; return; }
 
   const text = $("text").value, files = attached.files(), ids = attached.ids();
-  const seen = matching(text, lastEntries) + pending.filter(p => p.text === text).length;  // before the send can be recorded
+  const seen = matching(text, lastEntries);  // before the send can be recorded
   $("said").textContent = "sending...";
   try {
     const problem = await call("say", [channel, text, ids]);
