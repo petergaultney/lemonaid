@@ -22,7 +22,9 @@ def test_start_passes_extra_arguments_after_preset_defaults(
     recorded = tmp_path / "args.json"
     script = tmp_path / "harness"
     script.write_text(
-        f"#!/usr/bin/env python3\nimport json, sys\nopen({str(recorded)!r}, 'w').write(json.dumps(sys.argv[1:]))\n"
+        "#!/usr/bin/env python3\nimport json, os, sys\n"
+        f"open({str(recorded)!r} + '.new', 'w').write(json.dumps(sys.argv[1:]))\n"
+        f"os.replace({str(recorded)!r} + '.new', {str(recorded)!r})\n"  # the test reads once it exists
     )
     script.chmod(0o755)
     config = Config(
