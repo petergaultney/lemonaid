@@ -60,7 +60,7 @@ def _phone(keys: web_config.WebConfig, name: str, own: tuple[str, ...] = ()) -> 
 
 
 def lemon(keys: web_config.WebConfig) -> str:
-    return _phone(keys, "lemon.html", ("attach.js",))
+    return _phone(keys, "lemon.html", ("attach.js", "sent.js"))
 
 
 def groups(keys: web_config.WebConfig) -> str:
