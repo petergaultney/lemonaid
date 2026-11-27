@@ -19,7 +19,6 @@ import sys
 import threading
 import typing as ty
 import uuid
-from collections import abc
 from pathlib import Path
 
 from ..log import get_logger
@@ -158,8 +157,8 @@ class _Held:
     event to `turns`, and dropping the other events: a connection nothing reads stops answering its keepalive pings, and the gateway's events (a tick
     every 15 s, and more) would back up until it does."""
 
-    def __init__(self, on_turn: abc.Callable[[str, float | None], None] | None = None) -> None:
-        self._on_turn = on_turn  # a session's turn running as of a time, or over (`turns.track`)
+    def __init__(self, on_turn: turns.Record | None = None) -> None:
+        self._on_turn = on_turn
         self._lock = threading.Lock()  # opening a connection, and sending on it
         self._socket: ty.Any = None
         self._waiting: dict[
@@ -233,7 +232,7 @@ class _Held:
 _held: _Held | None = None
 
 
-def hold(on_turn: abc.Callable[[str, float | None], None] | None = None) -> bool:
+def hold(on_turn: turns.Record | None = None) -> bool:
     """Call the gateway over one held connection from now on, for a long-lived process, telling
     *on_turn* when a session's turn runs or ends. False without the `openclaw` extra, which
     leaves calls on the CLI."""

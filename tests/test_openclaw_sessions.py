@@ -1,9 +1,12 @@
 import json
 import subprocess
+import time
 from pathlib import Path
 
+from lemonaid.inbox import db
 from lemonaid.openclaw import sessions
 from lemonaid.watch import turns
+from tests.lineage.shared import lemon
 
 ROOM_KEY = "agent:garden:matrix:channel:!g4rd3n:grove.example"
 
@@ -138,38 +141,24 @@ def test_cli_falls_back_to_the_installers_path(monkeypatch, tmp_path):
     assert sessions.cli() == str(Path(tmp_path) / ".local/bin/openclaw")
 
 
-def test_turn_checker_reads_the_sessions_latest_turn_from_the_gateway(monkeypatch):
-    calls = []
-    listing = {
-        "sessions": [
-            {"key": ROOM_KEY, "status": "running", "startedAt": 1795704721783},
-            {"key": "agent:main:other", "status": "done", "startedAt": 1, "endedAt": 2},
-        ]
-    }
+def test_recorded_turns_reads_the_observer_s_record_from_the_inbox():
+    lemon("garden", sessions.channel(ROOM_KEY))
+    latest = sessions.recorded_turns(ROOM_KEY)
+    assert latest() is None  # nothing observed yet: nobody can say
 
-    def run(argv, **_):
-        calls.append(argv)
-        return subprocess.CompletedProcess(argv, 0, json.dumps(listing), "")
+    now = float(int(time.time()))  # whole seconds, which JSON keeps exactly
+    with db.connect() as conn:
+        db.record_turn_times(conn, sessions.channel(ROOM_KEY), now, now - 5, now - 60)
+    assert latest() == turns.Turn(True, now - 5, now - 60)
 
-    monkeypatch.setattr(sessions.subprocess, "run", run)
-    now = [100.0]
-    monkeypatch.setattr(sessions.time, "monotonic", lambda: now[0])
-    latest = sessions.turn_checker("openclaw", ROOM_KEY, max_age=5)
-
-    assert latest() == turns.Turn(True, 1795704721.783, 0)
-    listing["sessions"][0] |= {"status": "done", "endedAt": 1795704734299}
-    assert latest().running is True  # not asked again yet
-    now[0] += 5
-    assert latest() == turns.Turn(False, 1795704721.783, 1795704734.299)
-    assert len(calls) == 2
-    assert calls[0] == ["openclaw", "gateway", "call", "sessions.list", "--json", "--params", "{}"]
+    with db.connect() as conn:
+        db.record_turn_times(conn, sessions.channel(ROOM_KEY), None, now - 5, now)
+    assert latest() == turns.Turn(False, now - 5, now)
 
 
-def test_turn_checker_says_none_when_the_gateway_cant(monkeypatch):
-    monkeypatch.setattr(
-        sessions.subprocess,
-        "run",
-        lambda argv, **_: subprocess.CompletedProcess(argv, 1, "", "gateway down"),
-    )
+def test_a_turn_recorded_long_ago_is_not_still_running():
+    lemon("garden", sessions.channel(ROOM_KEY))
+    with db.connect() as conn:
+        db.record_turn_times(conn, sessions.channel(ROOM_KEY), time.time() - 3600, 1.0, 0)
 
-    assert sessions.turn_checker("openclaw", ROOM_KEY, max_age=5)() is None
+    assert sessions.recorded_turns(ROOM_KEY)() == turns.Turn(False, 1.0, 0)

@@ -31,16 +31,14 @@ _log = get_logger("watch.openclaw_scout")
 _NEXT = "delivers the next batch as another turn in this session"
 _ACCEPT_TIMEOUT_MS = 60_000
 _LIST_EVERY = 60.0  # seconds between the scout's checks that its session still exists
-_TURN_EVERY = (
-    5.0  # seconds between its checks whether the session is mid-turn, while it holds a batch
-)
+_SENT_RUNS_FOR = 5.0  # seconds a sent turn counts as running, before the observer records it
 
 
 def _sent_counts_as_running(
     send: delivery.Deliver, latest: turns.Turns, within: float
 ) -> tuple[delivery.Deliver, turns.Turns]:
     """*send* and *latest*, with the session counted as mid-turn for *within* seconds after a
-    send, until a listing taken after the gateway accepted the turn can say so itself."""
+    send, until the observer's record of the turn can say so itself."""
     sent = float("-inf")
     lock = threading.Lock()
 
@@ -81,7 +79,7 @@ def harness(channel: str) -> Harness:
         until_final=False,
     )
     deliver, latest_turn = _sent_counts_as_running(
-        send, sessions.turn_checker(sessions.cli(), key, _TURN_EVERY), _TURN_EVERY
+        send, sessions.recorded_turns(key), _SENT_RUNS_FOR
     )
     return Harness(deliver, lambda: exists(key) is not False, f"openclaw-{key}", latest_turn)
 

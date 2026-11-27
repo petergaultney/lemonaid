@@ -8,11 +8,12 @@ import json
 import os
 import shutil
 import subprocess
-import threading
 import time
 import typing as ty
 from pathlib import Path
 
+from ..inbox import db
+from ..inbox.turns import STALE_SECONDS
 from ..log import get_logger
 from ..watch import turns
 from . import gateway
@@ -162,57 +163,21 @@ def exists_checker(executable: str, max_age: float) -> ty.Callable[[str], bool |
     return exists
 
 
-def _turn(entry: dict[str, ty.Any]) -> turns.Turn:
-    return turns.Turn(
-        running=entry.get("status") == "running",
-        started=int(entry.get("startedAt") or 0) / 1000,
-        ended=int(entry.get("endedAt") or 0) / 1000,
-    )
-
-
-def _turns_listed(executable: str) -> dict[str, turns.Turn]:
-    """Each session's latest turn, from the gateway's `sessions.list` (`openclaw sessions`
-    leaves out when a turn started and ended). Raises `Unavailable`."""
-    try:
-        cp = subprocess.run(
-            [executable, "gateway", "call", "sessions.list", "--json", "--params", "{}"],
-            capture_output=True,
-            text=True,
-            timeout=_LIST_TIMEOUT,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as error:
-        raise Unavailable(f"openclaw gateway call sessions.list: {error}") from error
-
-    if cp.returncode != 0:
-        raise Unavailable(
-            f"openclaw gateway call sessions.list exited {cp.returncode}: {cp.stderr.strip()[-300:]}"
-        )
-
-    try:
-        entries = json.loads(cp.stdout).get("sessions") or []
-    except (ValueError, AttributeError) as error:
-        raise Unavailable(f"sessions.list printed no session list: {error}") from error
-
-    return {e["key"]: _turn(e) for e in entries if isinstance(e.get("key"), str)}
-
-
-def turn_checker(executable: str, session_key: str, max_age: float) -> turns.Turns:
-    """The session's latest turn, asking the gateway at most every *max_age* seconds."""
-    known: turns.Turn | None = None
-    listed_at = float("-inf")
-    lock = threading.Lock()  # a scout's doc detectors ask from their own threads
+def recorded_turns(session_key: str) -> turns.Turns:
+    """The session's latest turn as `lemonaid openclaw observe` recorded it in the inbox, read
+    afresh each time; None where it has recorded none, as when it isn't running."""
+    at = channel(session_key)
 
     def latest() -> turns.Turn | None:
-        nonlocal known, listed_at
-        with lock:
-            if time.monotonic() - listed_at >= max_age:
-                listed_at = time.monotonic()
-                try:
-                    known = _turns_listed(executable).get(session_key)
-                except Unavailable as error:
-                    _log.warning("%s", error)
-                    known = None
-            return known
+        with db.connect() as conn:
+            row = db.get_by_channel(conn, at, unread_only=False)
+        if row is None or "turn_started_at" not in row.metadata:
+            return None
+
+        return turns.Turn(
+            row.turn_at is not None and time.time() - row.turn_at < STALE_SECONDS,
+            float(row.metadata["turn_started_at"]),
+            float(row.metadata.get("turn_ended_at") or 0),
+        )
 
     return latest

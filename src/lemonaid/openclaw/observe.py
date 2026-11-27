@@ -27,11 +27,11 @@ def _discover(cli: str, days: float) -> None:
         _log.warning("can't list OpenClaw sessions: %s", error)
 
 
-def _record_turn(session_key: str, at: float | None) -> None:
+def _record_turn(session_key: str, at: float | None, started: float, ended: float) -> None:
     """Runs on the gateway connection's reader, which a raise would end."""
     try:
         with db.connect() as conn:
-            db.record_turn(conn, sessions.channel(session_key), at)
+            db.record_turn_times(conn, sessions.channel(session_key), at, started, ended)
     except sqlite3.Error:
         _log.exception("can't record %s's turn", session_key)
 

@@ -69,11 +69,11 @@ def test_observing_reopens_the_gateway_connection_each_round(monkeypatch):
 
 
 def test_a_turn_that_cant_be_recorded_is_logged_not_raised(monkeypatch, caplog):
-    def locked(conn, channel, at):
+    def locked(conn, channel, at, started, ended):
         raise sqlite3.OperationalError("database is locked")
 
-    monkeypatch.setattr(observe.db, "record_turn", locked)
+    monkeypatch.setattr(observe.db, "record_turn_times", locked)
 
-    observe._record_turn("agent:main:x", 1.0)
+    observe._record_turn("agent:main:x", 1.0, 1.0, 0)
 
     assert "agent:main:x" in caplog.text
