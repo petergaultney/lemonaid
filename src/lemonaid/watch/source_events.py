@@ -17,6 +17,7 @@ from pathlib import Path
 from ..brief import lemon, verbs_cli, waiters
 from ..inbox import db
 from ..log import get_logger
+from ..plugins import processes, running
 from ..sources import answer, host, plugin
 from . import cursors, delivery
 
@@ -41,7 +42,7 @@ def follows(command: str, source: plugin.Source, target: tuple[str, ...]) -> boo
 
     try:
         return host.check(source, plugin.words(words[3:]).args) == target
-    except host.Failed:
+    except running.Failed:
         return False
 
 
@@ -84,12 +85,13 @@ class Poller:
         self.follower = lemon_id or directory.parent.name
         self.key = uuid.uuid4().hex
         self.next_at = 0.0
-        self.generation = host.generation(source)  # of the plugin process that knows the key
+        self.launch = host.launch(source)
+        self.generation = processes.generation(self.launch)  # of the process that knows the key
         self.ended = False
 
     def wake_with(self, wake: threading.Event) -> None:
         """Set *wake* when the plugin says this subscription is ready, or fails."""
-        host.listen(self.key, self.source, wake)
+        host.listen(self.key, self.launch, wake)
 
     def _end(self, said: answer.Said) -> None:
         self.ended = True
@@ -114,8 +116,8 @@ class Poller:
             *((("done", "yes"),) if self.brief_done else ()),
         ]
         try:
-            return answer.parse(host.ask(self.source, f"poll {self.key}", fields, cursor))
-        except host.Failed as error:
+            return answer.parse(processes.ask(self.launch, f"poll {self.key}", fields, cursor))
+        except running.Failed as error:
             _log.warning("cannot poll %s %s: %s", self.source.name, self.target, error)
             return None
 
@@ -124,14 +126,16 @@ class Poller:
             return
 
         now = time.monotonic()
-        replaced = host.generation(self.source) != self.generation and host.may_start(self.source)
+        replaced = processes.generation(self.launch) != self.generation and processes.may_start(
+            self.launch
+        )
         if not (host.take_ready(self.key) or now >= self.next_at or replaced):
             return
 
-        generation = host.generation(self.source)
+        generation = processes.generation(self.launch)
         found = self._ask()
         if found is None:
-            self.next_at = now + host.RETRY_AFTER
+            self.next_at = now + processes.RETRY_AFTER
             return
 
         self.generation = generation
@@ -154,6 +158,6 @@ class Poller:
         """Tell the plugin this subscription is gone, so it stops following it."""
         host.unlisten(self.key)
         try:
-            host.ask(self.source, f"forget {self.key}", [], "")
-        except host.Failed as error:
+            processes.ask(self.launch, f"forget {self.key}", [], "")
+        except running.Failed as error:
             _log.info("could not tell %s to forget %s: %s", self.source.name, self.target, error)

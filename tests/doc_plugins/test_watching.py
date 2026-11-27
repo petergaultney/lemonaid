@@ -4,7 +4,8 @@ import json
 
 import pytest
 
-from lemonaid.doc_plugins import document, run
+from lemonaid.doc_plugins import document
+from lemonaid.plugins import processes
 from lemonaid.watch import doc_events, own_edits
 
 from .shared import RELAY, fake
@@ -179,7 +180,7 @@ def test_one_plugin_process_serves_every_call(tmp_path, doc):
         _add(doc, f"%% Ana: ask {n}\n")
         _poll(w)
 
-    assert len(run._running) == 1
+    assert len(processes._running) == 1
 
 
 def test_a_plugin_that_crashes_is_started_again_after_a_pause(tmp_path, doc, monkeypatch, capfd):
@@ -192,7 +193,7 @@ def test_a_plugin_that_crashes_is_started_again_after_a_pause(tmp_path, doc, mon
     assert _poll(w) == []
     assert capfd.readouterr().err == ""  # held off, and said once
 
-    monkeypatch.setattr(run, "RETRY_AFTER", 0.0)
+    monkeypatch.setattr(processes, "RETRY_AFTER", 0.0)
     _add(doc, "%% Ana: and again\n")
     assert _poll(w) == []
     assert "exited" in capfd.readouterr().err  # started, and crashed, again

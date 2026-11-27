@@ -11,7 +11,7 @@ import types
 import pytest
 
 from lemonaid.inbox import db
-from lemonaid.plugins import running
+from lemonaid.plugins import processes, running
 from lemonaid.sources import host, plugin
 from lemonaid_slack import follow, gateway_socket, serve
 
@@ -46,9 +46,9 @@ class _InProcess:
 
 
 def _reset() -> None:
-    host.close()
-    host._host.failed_at.clear()
-    host._host.ready.clear()
+    processes.close()
+    processes._failed_at.clear()
+    host._ready.clear()
     host.check.cache_clear()
 
 
