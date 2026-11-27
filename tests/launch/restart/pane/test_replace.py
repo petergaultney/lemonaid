@@ -1,5 +1,6 @@
 import contextlib
 import dataclasses
+import os
 import shutil
 import time
 from pathlib import Path
@@ -35,6 +36,7 @@ def test_login_shell_does_not_admit_other_terminal_jobs(server, monkeypatch):
     root = dataclasses.replace(process.inspect(server.pid), executable="-fish")
     job = dataclasses.replace(root, pid=root.pid + 1, executable="sleep")
     monkeypatch.setattr(process, "on_tty", lambda tty: [root, job])
+    monkeypatch.setattr(process, "session", lambda pid: root.pid)
     module_time.patch(monkeypatch, pane, monotonic=iter([0, 11]).__next__)
     with pytest.raises(ValueError, match="Unmanaged jobs"):
         pane.replace(server, root, server.cwd, "exec false", {})
@@ -65,6 +67,54 @@ def test_dead_pane_resumes_without_k_and_preserves_window(server, monkeypatch):
     assert replacement.window == server.window
     assert replacement.socket == server.socket
     assert replacement.pid != server.pid
+
+
+def _dies(server) -> process.Identity:
+    pane.preserve(server)
+    source = process.inspect(server.pid)
+    assert source is not None
+    process.terminate(source)
+    deadline = time.monotonic() + 3
+    while not pane.check(server).dead and time.monotonic() < deadline:
+        time.sleep(0.05)
+    return source
+
+
+def test_a_dead_pane_is_replaced_once_another_terminal_has_its_device(server, monkeypatch):
+    source = _dies(server)
+    stranger = process.inspect(os.getpid())  # in pytest's session, not the pane's
+    on_tty = process.on_tty
+    monkeypatch.setattr(process, "on_tty", lambda tty: [*on_tty(tty), stranger])
+
+    replacement = pane.replace(server, source, server.cwd, "exec sleep 30", {})
+
+    assert replacement.pid != server.pid
+
+
+def test_a_dead_panes_leftover_job_still_blocks_replacement(server, monkeypatch):
+    source = _dies(server)
+    job = dataclasses.replace(source, pid=source.pid + 1, executable="sleep")
+    monkeypatch.setattr(process, "on_tty", lambda tty: [job])
+    monkeypatch.setattr(process, "session", lambda pid: source.pid)
+    module_time.patch(monkeypatch, pane, monotonic=iter([0, 11]).__next__)
+
+    with pytest.raises(ValueError, match=r"Unmanaged jobs.*'sleep'.*dead=True"):
+        pane.replace(server, source, server.cwd, "exec false", {})
+
+
+def test_a_real_job_of_the_pane_is_in_its_session_and_blocks_replacement(server, monkeypatch):
+    pane.run(server.socket, "respawn-pane", "-k", "-t", server.pane, "sleep 37 & exec sh")
+    target = pane.by_id(server.socket, server.pane)
+    deadline = time.monotonic() + 5
+    while len(jobs := process.on_tty(target.tty)) < 2 and time.monotonic() < deadline:
+        time.sleep(0.05)
+    root = process.inspect(target.pid)
+    assert root is not None and process.shell(root, [])
+    assert {process.session(job.pid) for job in jobs} == {target.pid}
+    module_time.patch(monkeypatch, pane, monotonic=iter([0, 11]).__next__)
+
+    with pytest.raises(ValueError, match=r"Unmanaged jobs.*'sleep'.*dead=False"):
+        pane.replace(target, root, target.cwd, "exec false", {})
 
 
 def test_changed_pane_is_never_replaced(server):

@@ -111,19 +111,27 @@ def restore(target: Pane, previous: str) -> None:
     )
 
 
+def _jobs(target: Pane, root: process.Identity) -> list[process.Identity]:
+    """The processes on *target*'s terminal in the session *root* leads.
+
+    tmux closes a dead pane's terminal, and another terminal may then get its device.
+    """
+    return [p for p in process.on_tty(target.tty) if process.session(p.pid) == root.pid]
+
+
 def replace(
     target: Pane, root: process.Identity, cwd: str, line: str, environment: dict[str, str]
 ) -> Pane:
     current = check(target)
     deadline = time.monotonic() + 10
-    remaining = process.on_tty(target.tty)
+    remaining = _jobs(target, root)
     shell_root = process.shell(root, launch_args.argv(root.pid))
     expected = [root] if not current.dead and shell_root else []
     while remaining != expected and time.monotonic() < deadline:
         time.sleep(0.05)
         current = check(target)
         expected = [root] if not current.dead and shell_root else []
-        remaining = process.on_tty(target.tty)
+        remaining = _jobs(target, root)
     if remaining != expected:
         raise ValueError(
             "Unmanaged jobs remain on the terminal; refusing to respawn the pane: "
