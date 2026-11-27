@@ -27,7 +27,7 @@ from . import (
     watch_config,
     web_config,
 )
-from .inbox import context_use, snooze_time
+from .inbox import context_use, openers, snooze_time
 from .usage import settings
 
 
@@ -321,6 +321,8 @@ class InboxConfig:
     ungrouped_first: bool = True
     # Minutes a lemon may sit idle on a PR it owns the next move on before its card says "stuck".
     stall_minutes: float = 15.0
+    # Commands a row may ask Enter to run on its file; see inbox/openers.py.
+    openers: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 @dataclass
@@ -866,6 +868,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         arrange=inbox_data.get("arrange", ""),
         arrange_may_fold_unread=inbox_data.get("arrange_may_fold_unread", False),
         ungrouped_first=inbox_data.get("ungrouped_first", True),
+        openers=openers.parse(inbox_data.get("openers", {})),
         stall_minutes=float(inbox_data.get("stall_minutes", InboxConfig.stall_minutes)),
     )
 

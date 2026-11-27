@@ -9,7 +9,7 @@ from . import cmux, front_end, tmux
 from .codex import channels as codex_channels
 from .codex import processes
 from .config import Config, load_config
-from .inbox import db
+from .inbox import db, openers
 from .log import get_logger
 
 _log = get_logger("handlers")
@@ -47,8 +47,9 @@ def handle_notification(
     """
     Handle a notification by switching to its source.
 
-    An `open_uri` in the metadata wins: the row names a document rather than a
-    session, so it is handed to `open` instead of a switch-handler.
+    A row that names a document rather than a session opens it: first with the
+    configured `[inbox.openers]` command its `opener` names, then its `open_uri` with
+    `open`, instead of a switch-handler.
 
     Otherwise the front end the switch_source names shows it.
 
@@ -60,6 +61,9 @@ def handle_notification(
     # A row naming a document opens it in whichever app owns its URI scheme.
     # Nothing is running behind such a row, so there is no pane to switch to,
     # and the switch_source still decides where the row is *listed*.
+    if openers.run(config.inbox.openers, metadata or {}):
+        return True
+
     uri = (metadata or {}).get("open_uri")
     if uri:
         _log.info("opening %s", uri)

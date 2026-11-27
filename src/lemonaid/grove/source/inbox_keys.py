@@ -54,7 +54,8 @@ def only_block(frame: inbox_frame.Frame, found: Grove, digit: str) -> inbox_fram
     if block is None:
         return frame
 
-    channels = {lemon.channel for tree in block.trees for lemon in tree.lemons}
+    lemons = {lemon.channel for tree in block.trees for lemon in tree.lemons}
+    channels = lemons | {row for row, lemon in frame.attached.items() if lemon in lemons}
     memberships = {
         channel: tuple(name for name in names if name == block.name)
         for channel, names in frame.active.memberships.items()
@@ -67,10 +68,15 @@ def only_block(frame: inbox_frame.Frame, found: Grove, digit: str) -> inbox_fram
     )
 
 
-def in_grove_order(entries: abc.Sequence[Entry], found: Grove, digit: str) -> list[Entry]:
+def in_grove_order(
+    entries: abc.Sequence[Entry],
+    found: Grove,
+    digit: str,
+    attached: abc.Mapping[str, str] | None = None,
+) -> list[Entry]:
     """*entries* with a zoomed block's rows grouped by tree, as the grove lists them: the lead
     tree first, then by letter, each tree's lemons in their key order (`5h`, `5.h1`, `5.h2`).
-    Headers stay above the rows.
+    Headers stay above the rows. *attached* maps a lemon item to its lemon, after which it stays.
     """
     block = next((b for b in found.blocks if b.digit == digit), None)
     if block is None:
@@ -80,10 +86,19 @@ def in_grove_order(entries: abc.Sequence[Entry], found: Grove, digit: str) -> li
         block.trees, key=lambda t: (not t.lead, found.arrangement.trees[(block.name, t.key)].letter)
     )
     place = {lemon.channel: i for i, lemon in enumerate(lemon for t in trees for lemon in t.lemons)}
+    attached = attached or {}
     rows = [e for e in entries if isinstance(e, sections.Row)]
+
+    def position(row: sections.Row) -> float:
+        channel = row.notification.channel
+        # a lemon item stays right after its lemon; the sort is stable, so items keep their order
+        if (lemon := attached.get(channel)) in place:
+            return place[lemon] + 0.5
+        return place.get(channel, len(place))
+
     return [
         *(e for e in entries if isinstance(e, sections.Header)),
-        *sorted(rows, key=lambda r: place.get(r.notification.channel, len(place))),
+        *sorted(rows, key=position),
     ]
 
 
