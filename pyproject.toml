@@ -28,6 +28,10 @@ openclaw = [
     "cryptography>=42",
     "websockets>=15",
 ]
+# Push notifications from the web grove (`lemonaid grove serve`) to a phone that installed it.
+push = [
+    "cryptography>=42",
+]
 
 [project.urls]
 Homepage = "https://github.com/petergaultney/lemonaid"

@@ -213,7 +213,11 @@ def talk(channel: str) -> dict:
             )
     except OSError as error:
         entries, problem = [], str(error)
-    return {"entries": [entry._asdict() for entry in entries], "conversation_problem": problem}
+    return {
+        "entries": [entry._asdict() for entry in entries],
+        "conversation_problem": problem,
+        "news": row.created_at,  # the report this conversation answers, for `read`
+    }
 
 
 def _mail(channel: str, text: str) -> str:
