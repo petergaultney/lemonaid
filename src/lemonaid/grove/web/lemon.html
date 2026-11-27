@@ -10,11 +10,13 @@ html,body { margin:0; height:100%; overflow:hidden; overscroll-behavior:none; ba
 body { font:13px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display:flex; flex-direction:column; }
 a { color:#8ab4f8; }
 header { display:flex; gap:12px; align-items:center; padding:4px 10px; background:#161b24; white-space:nowrap; overflow:hidden; }
+header .home { display:flex; }
+header .home img { width:22px; height:22px; }
 header .chip { background:#f2d94e; color:#0b0e13; padding:1px 6px; font-weight:800; overflow:hidden; text-overflow:ellipsis; }
 header .status { font-weight:700; }
 header .bid { color:#7c8696; overflow:hidden; text-overflow:ellipsis; }
 header #edit { margin-left:auto; font:inherit; color:#8ab4f8; background:none; border:1px solid #2d3442; border-radius:6px; padding:2px 10px; }
-/* A phone's buttons, in a bar at the bottom by the thumb; a wider screen keeps the header's link. */
+/* A phone's buttons, in a bar at the bottom by the thumb; a wider screen keeps the header's icon link. */
 nav.tabs { display:none; gap:10px; padding:8px 10px calc(8px + env(safe-area-inset-bottom)); background:#161b24; }
 nav.tabs > * { display:flex; align-items:center; justify-content:center; min-height:44px; padding:0 16px; font:inherit; font-size:15px; font-weight:700; background:#2d3442; color:#e6ebf2; border:0; border-radius:8px; text-decoration:none; }
 nav.tabs .home { padding:0 9px; background:none; border:2px solid #2d3442; }
@@ -83,7 +85,7 @@ form button { font:inherit; background:#f2d94e; color:#0b0e13; border:0; padding
   body.chat-tab #brief, body.brief-tab #chat { display:none; }
 }
 </style></head><body class="chat-tab">
-<header><a class="home" href="./" onclick="event.preventDefault(); window.groveHome()">grove</a><span id="dot" title="mid-turn" hidden></span><span class="chip" id="name"></span><span class="status" id="status"></span><span class="bid" id="bid"></span><button id="edit" type="button" hidden>edit</button></header>
+<header><a class="home" href="./" onclick="event.preventDefault(); window.groveHome()" title="back to the grove"><img src="icon.svg" alt="lemonaid"></a><span id="dot" title="mid-turn" hidden></span><span class="chip" id="name"></span><span class="status" id="status"></span><span class="bid" id="bid"></span><button id="edit" type="button" hidden>edit</button></header>
 <main>
 <section id="brief" tabindex="-1"></section>
 <div id="divider" title="drag to size the brief"></div>
