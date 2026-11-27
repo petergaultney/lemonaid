@@ -19,6 +19,7 @@ from ..brief import (
     waiters,
 )
 from ..messages import mailbox_command
+from ..plugins import running
 from ..sources import host
 from . import (
     briefs_cli,
@@ -102,7 +103,7 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
         source, given = found
         try:
             target = host.check(source, given.args)
-        except host.Failed as error:
+        except running.Failed as error:
             raise Problem(f"{source.name}: {error}") from None
 
         return Subscription(source.name, target, given.me or me, interval=1, args=given.args)

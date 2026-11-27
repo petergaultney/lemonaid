@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from lemonaid.doc_plugins import run
+from lemonaid.plugins import processes
 
 from .shared import fake
 
@@ -10,10 +11,10 @@ _DOC = Path("notes.md")
 def test_an_unchanged_text_is_answered_without_asking_the_plugin():
     plugin = fake()
     first = run.call(plugin, "body", _DOC, "prose\n%% Sam: why?\n")
-    run.stop_all()
+    processes.close()
 
     assert run.call(plugin, "body", _DOC, "prose\n%% Sam: why?\n") == first
-    assert plugin not in run._running
+    assert processes.Launch(run._KIND, plugin) not in processes._running
 
 
 def test_each_document_and_reader_keeps_only_its_latest_answer():

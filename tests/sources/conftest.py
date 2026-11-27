@@ -1,5 +1,6 @@
 import pytest
 
+from lemonaid.plugins import processes
 from lemonaid.sources import host
 
 
@@ -8,11 +9,11 @@ def fake_source_dir(tmp_path, monkeypatch):
     home = tmp_path / "fake-source"
     home.mkdir()
     monkeypatch.setenv("FAKE_SOURCE_DIR", str(home))
-    host.close()
-    host._host.failed_at.clear()
+    processes.close()
+    processes._failed_at.clear()
     host.check.cache_clear()
     yield home
-    host.close()
-    host._host.failed_at.clear()
-    host._host.ready.clear()
+    processes.close()
+    processes._failed_at.clear()
+    host._ready.clear()
     host.check.cache_clear()

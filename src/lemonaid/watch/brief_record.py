@@ -12,6 +12,7 @@ from ..brief import attached, doc_table, identity, lemon, store, verbs_cli, wait
 from ..codex import channels
 from ..inbox import db
 from ..messages import mailbox_command
+from ..plugins import running
 from ..sources import host
 from . import record_context, registry
 
@@ -55,7 +56,7 @@ def _identity(
             source, given = found
             try:
                 target = host.check(source, given.args)
-            except host.Failed:
+            except running.Failed:
                 return None
             return (source.name, False, target, repo, given.me, False, ())
         parser = _WatchParser(allow_abbrev=False)

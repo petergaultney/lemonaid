@@ -35,30 +35,19 @@ def _table(tables: dict, name: str) -> str:
 def parse(entries: object, tables: dict, taken: frozenset[str]) -> tuple[Source, ...]:
     """Sources in their configured order. *tables* is the whole config file; *taken* are the
     names lemonaid's own `watch` kinds use."""
-    if not isinstance(entries, list):
-        print("Warning: [watch] sources must be a list of tables", file=sys.stderr)
-        return parse(list(DEFAULT_ENTRIES), tables, taken)
 
-    found: list[Source] = []
-    for entry in entries:
-        name = entry.get("name") if isinstance(entry, dict) else None
-        run = entry.get("command") if isinstance(entry, dict) else None
-        if not (isinstance(name, str) and isinstance(run, str) and run.strip()):
-            print(
-                f"Warning: [[watch.sources]] {entry!r} needs a name and a command; ignored",
-                file=sys.stderr,
-            )
-        elif not _NAME.fullmatch(name) or name in taken:
-            print(
-                f"Warning: [[watch.sources]] {name!r} must be lowercase letters, digits and"
-                " dashes, and not a kind lemonaid watches itself; ignored",
-                file=sys.stderr,
-            )
-        elif any(s.name == name for s in found):
-            print(f"Warning: [[watch.sources]] {name!r} is named twice", file=sys.stderr)
-        else:
-            found.append(Source(command.Plugin(name, command.argv(run)), _table(tables, name)))
-    return tuple(found)
+    def bad_name(name: str) -> str:
+        if _NAME.fullmatch(name) and name not in taken:
+            return ""
+
+        return (
+            "must be lowercase letters, digits and dashes, and not a kind lemonaid watches itself"
+        )
+
+    return tuple(
+        Source(found, _table(tables, found.name))
+        for found in command.parse(entries, "watch.sources", DEFAULT_ENTRIES, bad_name)
+    )
 
 
 def defaults() -> tuple[Source, ...]:

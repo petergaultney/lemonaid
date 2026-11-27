@@ -10,7 +10,7 @@ import pytest
 
 from lemonaid.brief import attached, identity, store, waiters
 from lemonaid.inbox import db
-from lemonaid.plugins import command, running
+from lemonaid.plugins import command, processes, running
 from lemonaid.sources import host, plugin, problems
 from lemonaid.watch import delivery, notes, scouts, source_events, subscriptions, waits
 
@@ -38,7 +38,7 @@ def _poller(tmp_path, delivered: list, *args: str, lemon_id="", deliver=None):
 
 def test_check_names_the_target_or_refuses_with_the_plugins_usage():
     assert host.check(FAKE, ("item:news",)) == ("news",)
-    with pytest.raises(host.Refused, match="not an item: nope"):
+    with pytest.raises(running.Refused, match="not an item: nope"):
         host.check(FAKE, ("nope",))
 
 
@@ -145,7 +145,7 @@ def test_a_wake_without_a_cursor_is_delivered_and_the_cursor_kept(tmp_path, monk
     delivered: list = []
     poll = _poller(tmp_path, delivered)
     poll.path.write_text('{"seen": 0}')
-    monkeypatch.setattr(host, "ask", lambda *args: "wake\ntext event\nevery 10\n")
+    monkeypatch.setattr(processes, "ask", lambda *args: "wake\ntext event\nevery 10\n")
 
     poll()
 
@@ -157,7 +157,7 @@ def test_a_wake_without_a_cursor_is_delivered_and_the_cursor_kept(tmp_path, monk
 def test_a_plugin_that_dies_is_started_again_and_polled_for_every_subscription(
     tmp_path, fake_source_dir, monkeypatch, early
 ):
-    monkeypatch.setattr(host, "RETRY_AFTER", 0.5)
+    monkeypatch.setattr(processes, "RETRY_AFTER", 0.5)
     delivered: dict[str, list] = {"news": [], "sport": []}
     polls = {
         name: _poller(tmp_path, delivered[name], f"item:{name}", lemon_id=f"lemon.{name}")
@@ -167,10 +167,10 @@ def test_a_plugin_that_dies_is_started_again_and_polled_for_every_subscription(
     for name, poll in polls.items():
         poll.wake_with(wakes[name])
         poll()
-    started = host._host.running[FAKE]
+    started = processes._running[host.launch(FAKE)]
     started._proc.kill()  # between requests: its notice reader finds it gone
     deadline = time.monotonic() + 5
-    while host._host.running.get(FAKE) is started:
+    while processes._running.get(host.launch(FAKE)) is started:
         assert time.monotonic() < deadline
         time.sleep(0.02)
     if early:
@@ -198,8 +198,8 @@ def test_a_plugin_that_will_not_start_is_not_started_again_at_once(monkeypatch):
 
     monkeypatch.setattr(running, "Running", refuse)
     for _ in range(2):
-        with pytest.raises(host.Failed):
-            host.ask(FAKE, "check", [], "")
+        with pytest.raises(running.Failed):
+            processes.ask(host.launch(FAKE), "check", [], "")
 
     assert len(starts) == 1
 

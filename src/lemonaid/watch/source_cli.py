@@ -15,6 +15,7 @@ import time
 from collections import abc
 
 from ..config import load_config
+from ..plugins import running
 from ..sources import host, plugin
 from . import (
     brief_record,
@@ -56,7 +57,7 @@ def _run(source: plugin.Source, a: argparse.Namespace) -> int:
     given = plugin.words(a.args)
     try:
         target = host.check(source, given.args)
-    except host.Failed as error:
+    except running.Failed as error:
         print(f"lemonaid watch {source.name}: {error}", file=sys.stderr)
         return 2
 
