@@ -366,6 +366,7 @@ const refresh = async () => {
     call("talk", [channel]).then(c => {
       at.talk = performance.now(); showTalk(c); at.drawn = performance.now();
       window.groveTalks.keep(channel, c);
+      if (!c.error && !c.conversation_problem) seen(c.news);  // what it just drew, if in view
     }),
   ];
   const failed = (await Promise.allSettled(shown)).find(result => result.status === "rejected");
@@ -496,6 +497,14 @@ const listen = () => {
 // What this phone kept of the conversation, drawn while the page asks for what changed (talks.js).
 const kept = window.groveTalks.kept(channel);
 if (kept) showTalk(kept);
+// Drawing a lemon's conversation while in view reads its news up to the report it answers: the inbox marks it read, and its notification goes (sw.js).
+const seen = news => {
+  if (document.visibilityState !== "visible") return;
+  call("read", [channel, news]).catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistration()
+    .then(r => r && r.getNotifications({tag: channel})).then(ns => (ns || []).forEach(n => n.close())).catch(() => {});
+};
+addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
 refresh();
 listen();
 setInterval(() => { if (told.readyState !== EventSource.OPEN) refresh(); }, 4000);

@@ -26,6 +26,8 @@ from ...log import get_logger
 from ...openclaw import gateway
 from ..window import api, data, edits
 from . import attachments, brief_page, changes, lemon, notes, pages
+from .push import calls as push_calls
+from .push import pusher
 
 _log = get_logger("grove.web")
 
@@ -71,6 +73,27 @@ class _WebApi(api.Api):
 
     def detach(self, found_id: str) -> str:
         return attachments.drop(found_id)
+
+    def push_key(self) -> dict:
+        return push_calls.key()
+
+    def push_device(self, endpoint: str) -> bool:
+        return push_calls.device(endpoint)
+
+    def push_subscribe(self, subscription: dict) -> str:
+        return push_calls.subscribe(subscription)
+
+    def push_unsubscribe(self, endpoint: str) -> str:
+        return push_calls.unsubscribe(endpoint)
+
+    def push_test(self, endpoint: str) -> str:
+        return push_calls.test(endpoint)
+
+    def read(self, channel: str, news: float) -> None:
+        """Mark the lemon read, as opening its page does, unless it has reported since *news*,
+        the report the page last drew (`talk`'s `news`)."""
+        with db.connect() as conn:
+            db.mark_read_through(conn, channel, news)
 
     def vaults(self) -> list[str]:
         return [root.name for root in self._shared.config.brief.vaults]
@@ -122,6 +145,12 @@ _CALLS = frozenset(
         "look",
         "pins",
         "plant",
+        "push_device",
+        "push_key",
+        "push_subscribe",
+        "push_test",
+        "push_unsubscribe",
+        "read",
         "reframe",
         "refusal",
         "say",
@@ -302,35 +331,39 @@ def _handler(
     return Handler
 
 
-def _reload(shared: api.Shared, seen: changes.Changes) -> None:
+def _reload(shared: api.Shared, seen: changes.Changes, told: pusher.Pusher) -> None:
     try:
         shared.grove = data.load(shared.config)
         seen.saw(data.shown(shared.grove))
+        told.saw(shared.grove)
     except Exception:  # a refresh thread's top: log it and keep the last grove
         _log.exception("can't load the grove")
 
 
-def _refresher(shared: api.Shared, seen: changes.Changes) -> None:
+def _refresher(shared: api.Shared, seen: changes.Changes, told: pusher.Pusher) -> None:
     while True:
         time.sleep(REFRESH_SECONDS)
-        _reload(shared, seen)
+        _reload(shared, seen, told)
 
 
 def serve(config: Config, host: str, port: int, app: str) -> None:
     gateway.hold()
     shared, seen = api.Shared(config), changes.Changes()
-    _reload(shared, seen)
+    told = pusher.Pusher()
+    _reload(shared, seen, told)
     nothing = lambda: None  # noqa: E731
     calls = _WebApi(
         shared,
         pr.Cache(pr.configured(config.brief.pr_state)).get,
         hide=nothing,
-        refresh=lambda: threading.Thread(target=_reload, args=(shared, seen), daemon=True).start(),
+        refresh=lambda: threading.Thread(
+            target=_reload, args=(shared, seen, told), daemon=True
+        ).start(),
         leave=nothing,
         stick=nothing,
         drag=nothing,
     )
-    threading.Thread(target=functools.partial(_refresher, shared, seen), daemon=True).start()
+    threading.Thread(target=functools.partial(_refresher, shared, seen, told), daemon=True).start()
     with http.server.ThreadingHTTPServer(
         (host, port), _handler(calls, pages.served(config.web, app), seen)
     ) as server:

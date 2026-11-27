@@ -17,6 +17,8 @@ _FILES = {
     "icon-192.png": "image/png",
     "icon-512.png": "image/png",
     "icon-maskable.png": "image/png",  # Android's: fills the shape it crops an icon to
+    "badge.png": "image/png",  # a notification's small icon: Android draws only its shape, in white
+    "sw.js": "text/javascript",  # the service worker, which shows push notifications
 }
 _MANIFEST = "manifest.webmanifest"  # what a phone installs the grove as
 _LINKS = (
@@ -64,11 +66,15 @@ def lemon(keys: web_config.WebConfig) -> str:
 
 
 def groups(keys: web_config.WebConfig) -> str:
-    return _phone(keys, "groups.html")
+    return _phone(keys, "groups.html", ("bar.js",))
 
 
 def vaults(keys: web_config.WebConfig) -> str:
     return _phone(keys, "vaults.html")
+
+
+def settings(keys: web_config.WebConfig) -> str:
+    return _phone(keys, "settings.html", ("bar.js",))
 
 
 def _manifest(app: str) -> bytes:
@@ -85,6 +91,7 @@ def served(keys: web_config.WebConfig, app: str) -> dict[str, tuple[bytes, str]]
         "lemon": (lemon(keys).encode(), html),
         "groups": (groups(keys).encode(), html),
         "vaults": (vaults(keys).encode(), html),
+        "settings": (settings(keys).encode(), html),
         **{name: (here.joinpath(name).read_bytes(), kind) for name, kind in _FILES.items()},
         _MANIFEST: (_manifest(app), "application/manifest+json"),
     }

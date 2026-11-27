@@ -1,0 +1,122 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+<title>lemonaid settings</title>
+<style>
+html,body { margin:0; height:100%; overflow:hidden; overscroll-behavior:none; background:#0b0e13; color:#e6ebf2; }
+body { font:15px/1.4 "SF Mono", Menlo, monospace; display:flex; flex-direction:column; position:fixed; inset:0; }
+a { color:inherit; text-decoration:none; }
+header { flex-shrink:0; display:flex; align-items:center; padding:8px 14px; background:#161b24; }
+header b { background:#f2d94e; color:#0b0e13; padding:1px 8px; }
+main { flex:1; min-height:0; overflow-y:auto; padding:8px 14px; }
+h2 { margin:18px 0 4px; font-size:13px; color:#7c8696; font-weight:400; text-transform:lowercase; }
+h2:first-child { margin-top:4px; }
+.row:active { background:#161b24; }
+.row > span:last-child { color:#5a6270; font-size:22px; }
+.row { display:flex; justify-content:space-between; align-items:center; min-height:48px; border-top:1px solid #1d232e; }
+label { display:flex; gap:12px; align-items:center; min-height:48px; border-top:1px solid #1d232e; }
+input[type=checkbox] { width:22px; height:22px; accent-color:#f2d94e; }
+.sub { color:#7c8696; font-size:13px; }
+button { width:100%; min-height:48px; margin-top:12px; border:0; border-radius:8px; background:#2d3442; color:#e6ebf2; font:inherit; font-weight:700; }
+button:disabled { opacity:0.4; }
+#said { margin-top:12px; color:#7c8696; min-height:1.4em; }
+#said.problem { color:#e5534b; }
+</style>
+</head><body>
+<header><b>settings</b></header>
+<main>
+  <h2>notifications</h2>
+  <label><input type="checkbox" id="on"><span>On for this device<br><span class="sub">The server tells this phone when a lemon has something new to say, even with the app closed. Opening the lemon's page reads it.</span></span></label>
+  <button id="test" disabled>Send a test</button>
+  <div id="said"></div>
+  <h2>elsewhere</h2>
+  <a class="row" href="vaults"><span>Vaults<br><span class="sub">Which vaults this device opens notes in.</span></span><span>›</span></a>
+  <a class="row" href="grove"><span>Canvas<br><span class="sub">The full grove, made for a pointer and a keyboard.</span></span><span>›</span></a>
+</main>
+<nav id="nav"></nav>
+<script>
+// This device's settings. Push notifications are off until it turns them on here (push/calls.py). The service
+// worker (sw.js) shows them, and the server keeps this device's subscription.
+const $ = id => document.getElementById(id);
+const call = async (name, ...args) => {
+  const r = await fetch(`api/${name}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(args)});
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+};
+const say = (text, problem = false) => { $("said").textContent = text; $("said").className = problem ? "problem" : ""; };
+const unb64 = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - s.length % 4) % 4)), c => c.charCodeAt(0));
+let KEY = "", worker = null;
+
+const draw = on => { $("on").checked = on; $("test").disabled = !on; };
+
+async function subscription() {
+  return worker ? worker.pushManager.getSubscription() : null;
+}
+
+async function turnOn() {
+  if (await Notification.requestPermission() !== "granted") throw new Error("Notifications aren't allowed for this site; allow them in the browser's site settings.");
+  const sub = await subscription() || await worker.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: unb64(KEY)});
+  say(await call("push_subscribe", sub.toJSON()));
+}
+
+async function turnOff() {
+  const sub = await subscription();
+  if (!sub) return say("off");
+  const said = await call("push_unsubscribe", sub.endpoint);
+  await sub.unsubscribe();
+  say(said);
+}
+
+async function start() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    $("on").disabled = true;
+    return say("This browser can't get push notifications here: it needs HTTPS (or localhost) and Web Push.", true);
+  }
+  const found = await call("push_key");
+  if (found.problem) { $("on").disabled = true; return say(found.problem, true); }
+  KEY = found.key;
+  worker = await navigator.serviceWorker.register("sw.js");
+  await navigator.serviceWorker.ready;
+  const sub = await subscription();
+  draw(Boolean(sub && Notification.permission === "granted" && await call("push_device", sub.endpoint)));
+}
+
+$("on").addEventListener("change", async e => {
+  const on = e.target.checked;
+  e.target.disabled = true;
+  try {
+    await (on ? turnOn() : turnOff());
+    draw(on);
+  } catch (error) {
+    draw(!on);
+    say(String(error.message || error), true);
+  }
+  e.target.disabled = false;
+});
+$("test").addEventListener("click", async () => {
+  const sub = await subscription();
+  try { say(sub ? await call("push_test", sub.endpoint) : "this device isn't on"); } catch (error) { say(String(error.message || error), true); }
+});
+start().catch(error => say(String(error.message || error), true));
+
+// The bar at the bottom, as on the list of groups (bar.js); its lemonaid button goes to that list.
+window.groveUp = () => { location.href = "groups"; return true; };
+let blocks = [], pins = [];
+const drawBar = () => { $("nav").innerHTML = window.groveBar.draw(blocks, pins, "the groups").html; };
+const refreshBar = async () => {
+  try {
+    const [data, pinned] = await Promise.all([call("data"), call("pins")]);
+    if (!data.error) blocks = data.blocks;
+    pins = pinned;
+  } catch (error) {
+    if (window.groveNote) window.groveNote("problem", {message: String(error)});
+  }
+  drawBar();
+};
+addEventListener("resize", drawBar);
+window.groveHold(el => {
+  const l = blocks.flatMap(b => b.trees.flatMap(t => t.lemons)).find(l => l.channel === el.dataset.channel);
+  if (l) window.groveEdit({channel: l.channel, name: l.name, pinned: pins.includes(l.channel)});
+});
+refreshBar();
+</script>
+</body></html>

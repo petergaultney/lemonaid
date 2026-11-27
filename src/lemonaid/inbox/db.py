@@ -781,6 +781,18 @@ def mark_read(conn: sqlite3.Connection, notification_id: int) -> None:
     conn.commit()
 
 
+def mark_read_through(conn: sqlite3.Connection, channel: str, news: float) -> int:
+    """Mark *channel* read if it is unread and hasn't reported since *news* (its `created_at`
+    when the user saw it). One statement, so a report arriving meanwhile keeps it unread."""
+    cursor = conn.execute(
+        "UPDATE notifications SET status = 'read', read_at = ?"
+        " WHERE channel = ? AND status = 'unread' AND created_at <= ?",
+        (time.time(), channel, news),
+    )
+    conn.commit()
+    return cursor.rowcount
+
+
 def mark_unread(conn: sqlite3.Connection, notification_id: int) -> None:
     """Return a session to the inbox's unread group at its existing age.
 

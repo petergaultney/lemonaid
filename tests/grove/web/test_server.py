@@ -357,3 +357,31 @@ def test_a_call_larger_than_any_attachment_is_refused_unread(served, monkeypatch
 
     assert _post(f"{served}/api/search", ["x" * 200])[0] == 413
     assert _post(f"{served}/api/search", ["barn"]) == (200, ["barn"])
+
+
+def test_a_page_turns_push_notifications_on_through_named_calls():
+    assert {
+        "push_device",
+        "push_key",
+        "push_subscribe",
+        "push_test",
+        "push_unsubscribe",
+        "read",
+    } <= server._CALLS
+
+
+def test_opening_a_lemons_page_reads_the_news_it_drew_and_no_later():
+    with db.connect() as conn:
+        db.add(conn, "claude:ada", "done with the fix", "ada", {})
+        drawn = db.get_by_channel(conn, "claude:ada").created_at
+    window = dict.fromkeys(("hide", "leave", "stick", "drag", "refresh"), lambda: None)
+    calls = server._WebApi(api.Shared(Config()), pr.no_state, **window)
+
+    calls.read("claude:ada", drawn - 1)  # it reported again after the page drew
+    with db.connect() as conn:
+        assert db.get_by_channel(conn, "claude:ada", unread_only=False).is_unread
+
+    calls.read("claude:ada", drawn)
+    calls.read("claude:nobody", drawn)
+    with db.connect() as conn:
+        assert db.get_by_channel(conn, "claude:ada", unread_only=False).is_read

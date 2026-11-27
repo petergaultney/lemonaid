@@ -415,3 +415,15 @@ def test_a_new_process_connects_while_another_holds_a_write_lock(tmp_path):
     finally:
         writer.rollback()
         writer.close()
+
+
+def test_mark_read_through_keeps_a_report_newer_than_what_was_seen_unread(tmp_path):
+    with db.connect(tmp_path / "test.db") as conn:
+        seen = db.add(conn, channel="claude:ada", message="first", name="ada", metadata={})
+        db.add(conn, "claude:ada", "second", "ada", {}, created_at=seen.created_at + 5)
+
+        assert db.mark_read_through(conn, "claude:ada", seen.created_at) == 0
+        assert db.get_by_channel(conn, "claude:ada", unread_only=False).is_unread
+
+        assert db.mark_read_through(conn, "claude:ada", seen.created_at + 5) == 1
+        assert db.get_by_channel(conn, "claude:ada", unread_only=False).is_read

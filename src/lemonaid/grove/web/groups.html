@@ -8,24 +8,13 @@ html,body { margin:0; height:100%; overflow:hidden; overscroll-behavior:none; ba
 body { font:15px/1.4 "SF Mono", Menlo, monospace; display:flex; flex-direction:column; position:fixed; inset:0; }
 a { color:inherit; text-decoration:none; }
 /* What only informs is at the top; what you press is in the bar at the bottom, by your thumb. */
-header, nav { flex-shrink:0; }
+header { flex-shrink:0; }
 header { display:grid; grid-template-columns:1fr auto; gap:2px 12px; align-items:center; padding:8px 14px; background:#161b24; }
-header .canvas { grid-row:1 / 3; grid-column:2; color:#8ab4f8; }
-header .canvas a + a { margin-left:12px; }
+header .more { grid-row:1 / 3; grid-column:2; display:flex; padding:6px; margin:-6px; color:#c9d1dc; }
 header .chip { align-self:flex-start; max-width:100%; box-sizing:border-box; background:#f2d94e; color:#0b0e13; padding:1px 8px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 #sum { color:#7c8696; font-size:13px; }
 /* The list starts at the bottom, its most pressing row lowest, and scrolls up. */
 main { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; display:flex; flex-direction:column-reverse; padding-bottom:4px; }
-nav:empty { display:none; }
-nav { display:flex; gap:8px; padding:8px 10px calc(8px + env(safe-area-inset-bottom)); background:#161b24; }
-nav > * { flex:1 1 0; min-width:0; display:flex; align-items:center; justify-content:center; min-height:48px; box-sizing:border-box; border-radius:8px; font-weight:700; }
-nav > a { background:#2d3442; }
-nav > a.home { flex:0 0 52px; background:none; border:2px solid #2d3442; }
-nav > a.home img { width:30px; height:30px; }
-nav > a.home.none { opacity:0.4; }
-nav .lemon { font-size:12px; line-height:1.25; text-align:center; border-bottom:3px solid transparent; }
-nav .lemon .busy { display:inline-block; width:7px; height:7px; margin:0 4px 1px 0; border-radius:50%; background:#e6ebf2; animation:pulse 1.6s ease-in-out infinite; }
-nav .label { min-width:0; padding:0 6px; overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow-wrap:anywhere; }
 .chips { flex:0 0 auto; display:flex; gap:4px; }
 .chips span { display:flex; align-items:center; gap:4px; padding:1px 7px; border-radius:10px; font-size:13px; font-weight:700; }
 .chips .idle { color:#5a6270; font-weight:500; }
@@ -47,14 +36,14 @@ nav .label { min-width:0; padding:0 6px; overflow:hidden; display:-webkit-box; -
 .problem { color:#e5534b; padding:14px; }
 </style>
 </head><body>
-<header><span class="chip" id="title"></span><span class="canvas"><a href="vaults">vaults</a><a href="grove">canvas</a></span><span id="sum"></span></header>
+<header><span class="chip" id="title"></span><a class="more" href="settings" title="settings" aria-label="settings"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="8.6" stroke-width="3.2" stroke-dasharray="3.38 3.38"/><circle cx="12" cy="12" r="5.6" stroke-width="3.6"/></svg></a><span id="sum"></span></header>
 <main id="list"></main>
 <nav id="nav"></nav>
 <script>
 // A phone's grove: the groups, then the lemons of one, each opening its lemon's page. The group shown
 // is in the address, so the browser's back button leaves it, and coming back from a lemon's page by
 // its "grove" link shows the group that lemon was opened from.
-const STATUS = {alert:"#e5534b", blocked:"#f2c14e", merge:"#5fbf6a", approve:"#c58af9", review:"#a8794f", running:"#39b5a8", done:"#5a8dee"};
+const STATUS = window.groveBar.STATUS;
 const RANK = ["alert", "blocked", "merge", "approve", "review", "running", "done"];
 const OPEN = "lemonaid-group";
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"})[c]);
@@ -64,8 +53,6 @@ const ORDER = [...RANK.filter(s => s !== "done"), "", "done"];  // what a lemon 
 const rank = l => ORDER.indexOf(STATUS[l.status] ? l.status : "");
 const remember = name => { try { name === null ? sessionStorage.removeItem(OPEN) : sessionStorage.setItem(OPEN, name); } catch {} };
 const remembered = () => { try { return sessionStorage.getItem(OPEN); } catch { return null; } };
-const RECENT = "lemonaid-recent";  // the bar's unpinned places, by channel, on this device
-const SLOT = 88;  // a bar button's narrowest, with its gap
 let DATA = null, PINS = [], drawn = "", inBar = [];  // inBar: the bar's lemons as last drawn  // PINS: the inbox's pinned channels, in its order
 
 function opened() {
@@ -109,42 +96,17 @@ function lemonRows(b) {
   }).join("");
 }
 
-const placed = () => { try { return JSON.parse(localStorage.getItem(RECENT)) || []; } catch { return []; } };
-const place = channels => { try { localStorage.setItem(RECENT, JSON.stringify(channels)); } catch {} };
-
-// The bar's lemons: the pinned ones in the inbox's order, then the ones that last had a message, each
-// keeping its place while it is among them, so a lemon that newly has one takes the place of the one
-// that has gone longest without. A pinned lemon the grove doesn't show keeps its place empty.
-function barLemons(count) {
-  const all = DATA.blocks.flatMap(lemonsOf);
-  const pins = PINS.slice(0, count).map(channel => all.find(l => l.channel === channel) || null);
-  const room = count - pins.length;
-  const recent = all.filter(l => !PINS.includes(l.channel)).sort((x, y) => y.updated - x.updated).slice(0, room);
-  const before = placed();
-  const kept = Array.from({length: room}, (_, i) => recent.find(l => l.channel === before[i]) || null);
-  const newcomers = recent.filter(l => !kept.includes(l));
-  const places = kept.map(l => l || newcomers.shift() || null);
-  place(places.map(l => l ? l.channel : ""));
-  return [...pins, ...places];
-}
-
-function bar(b) {
-  const count = Math.max(2, Math.min(7, Math.floor((innerWidth - 80) / SLOT)));
-  inBar = barLemons(count);
-  const lemons = inBar.map(l => !l ? "<span></span>"
-    : `<a class="lemon" href="lemon?channel=${encodeURIComponent(l.channel)}" data-channel="${esc(l.channel)}" data-hold style="border-bottom-color:${STATUS[l.status] || "transparent"}"><span class="label">${l.working ? '<i class="busy" title="mid-turn"></i>' : ""}${l.unread ? '<span class="unread">●</span>' : ""}${esc(l.emoji)}${esc(l.name)}</span></a>`);
-  let last = null;
-  try { last = localStorage.getItem("lemonaid-last-lemon"); } catch {}
-  const home = `<a class="home${b || last ? "" : " none"}" href="#" title="${b ? "the groups" : "the last lemon"}" onclick="event.preventDefault(); window.groveKey()"><img src="icon.svg" alt="lemonaid"></a>`;
-  return [home, ...lemons].join("");
-}
-
 function draw() {
   if (!DATA) return;
   const b = opened();
   remember(b ? named(b) : null);
   const title = b ? named(b) : "lemonaid";
-  const nav = DATA.error ? "" : bar(b);
+  let nav = "";
+  if (!DATA.error) {
+    let last = null;
+    try { last = localStorage.getItem("lemonaid-last-lemon"); } catch {}
+    ({html: nav, lemons: inBar} = window.groveBar.draw(DATA.blocks, PINS, b ? "the groups" : last ? "the last lemon" : ""));
+  }
   const body = DATA.error ? `<div class="problem">${esc(DATA.error)}</div>` : b ? lemonRows(b) : groupRows();
   const page = [title, DATA.summary || "", nav, body, b ? b.color : ""].join("\u0000");
   if (page === drawn) return;
@@ -172,6 +134,15 @@ async function refresh() {
   }
   draw();
   readAhead();
+  sweep();
+}
+
+// Closes the notifications of lemons read since, which a push couldn't clear while the phone was off.
+function sweep() {
+  if (!DATA || DATA.error || !("serviceWorker" in navigator)) return;
+  const read = new Set(DATA.blocks.flatMap(lemonsOf).filter(l => !l.unread).map(l => l.channel));
+  navigator.serviceWorker.getRegistration().then(r => r ? r.getNotifications() : [])
+    .then(ns => ns.filter(n => read.has(n.tag)).forEach(n => n.close())).catch(() => {});
 }
 
 // The bar's lemons and the lemon last opened, read ahead so their pages draw at once (talks.js).
