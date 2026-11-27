@@ -28,6 +28,7 @@ from . import (
     web_config,
 )
 from .inbox import context_use, openers, snooze_time
+from .skills import source_config
 from .usage import settings
 
 
@@ -453,6 +454,7 @@ class Config:
     restore: restore_config.RestoreConfig = field(default_factory=restore_config.RestoreConfig)
     slack: slack_config.SlackConfig = field(default_factory=slack_config.SlackConfig)
     web: web_config.WebConfig = field(default_factory=web_config.WebConfig)
+    skill_sources: tuple[source_config.Source, ...] = ()
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -932,6 +934,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         messages=messages_config.parse(data.get("messages", {})),
         po_box=po_box_config.parse(data.get("po-box", {})),
         docs=docs_config.parse(data.get("docs", {})),
+        skill_sources=source_config.parse(data.get("skills", {})),
         tasks=tasks_config.parse(data.get("tasks", {})),
         restore=restore_config.parse(data.get("restore", {})),
         codex=codex_config.parse(data.get("codex", {})),

@@ -57,11 +57,18 @@ def packaged_names(packaged_dir: pathlib.Path) -> list[str]:
     return sorted(p.parent.name for p in packaged_dir.glob("*/SKILL.md"))
 
 
-def render(packaged_dir: pathlib.Path, user_dir: pathlib.Path, name: str, harness: str) -> Rendered:
+def render(
+    packaged_dir: pathlib.Path,
+    user_dir: pathlib.Path,
+    name: str,
+    harness: str,
+    label: str = "packaged",
+) -> Rendered:
+    """*packaged_dir* is lemonaid's packaged skills or another source's, which *label* names."""
     packaged = packaged_dir / name / "SKILL.md"
     if not packaged.is_file():
         raise Problem(
-            f"no packaged skill {name!r}; packaged: {', '.join(packaged_names(packaged_dir))}"
+            f"no {label} skill {name!r}; {label}: {', '.join(packaged_names(packaged_dir))}"
         )
 
     overlay, replacement = user_dir / name / "overlay.md", user_dir / name / "SKILL.md"
@@ -72,11 +79,11 @@ def render(packaged_dir: pathlib.Path, user_dir: pathlib.Path, name: str, harnes
         return Rendered(
             name,
             for_harness(replacement.read_text(), harness),
-            f"{replacement} (replaces packaged)",
+            f"{replacement} (replaces {label})",
         )
 
     if not overlay.exists():
-        return Rendered(name, for_harness(packaged.read_text(), harness), "packaged")
+        return Rendered(name, for_harness(packaged.read_text(), harness), label)
 
     added = overlay.read_text()
     if any(key in frontmatter.fields(overlay) for key in _SKILL_KEYS):
@@ -90,5 +97,5 @@ def render(packaged_dir: pathlib.Path, user_dir: pathlib.Path, name: str, harnes
     return Rendered(
         name,
         for_harness(f"{packaged.read_text().rstrip()}\n\n{added.strip()}\n", harness),
-        f"packaged + {overlay}",
+        f"{label} + {overlay}",
     )
