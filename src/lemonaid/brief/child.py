@@ -122,7 +122,10 @@ def render(
         "date": today.isoformat(),
         "lemon_id": lemon_id,
         "wordybin": identity.brief_name(lemon_id) or lemon_id,
-        "relay_name": signature.spaced(identity.brief_name(lemon_id) or lemon_id),
+        "spaced_name": signature.spaced(identity.brief_name(lemon_id) or lemon_id),
+        "relay_name": signature.spaced(
+            identity.brief_name(lemon_id) or lemon_id
+        ),  # templates' old name
         "parent_id": parent_id,
         "tell": _tell(parent_id, values.get("author", "")),
         **values,

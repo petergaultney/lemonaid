@@ -2,13 +2,16 @@
 
 import time
 
+from lemonaid.doc_plugins import plugin
 from lemonaid.watch import doc_events, doc_wait, turns
 
 
 def test_an_event_waits_out_the_lemons_turn_and_goes_once_it_ends(tmp_path):
     doc = tmp_path / "draft.md"
     doc.write_text("body\n")
-    w = doc_events.open_watch(tmp_path / "state", doc, "Ada", [], edits=False, quiet=0)
+    w = doc_events.open_watch(
+        tmp_path / "state", doc, "Ada", [], edits=False, quiet=0, plugins=plugin.defaults()
+    )
     doc.write_text('body\n\n{{authorId="human" author="Human">>first<<}}\n')
     asked = []
 

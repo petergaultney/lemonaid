@@ -5,8 +5,8 @@ import urllib.parse
 from collections import abc
 from pathlib import Path
 
-from lemonaid.watch import relay_comments
-
+from ..doc_plugins import document
+from ..plugins.command import Plugins
 from . import doc_table
 
 _FENCE = re.compile(r" {0,3}(?P<mark>`{3,}|~{3,})")
@@ -54,8 +54,9 @@ def section(text: str, heading: str) -> str | None:
     return None if body is None else "\n".join(body).strip()
 
 
-def reader(vaults: abc.Collection[Path]) -> abc.Callable[[str], str | None]:
-    """A function from a Needs bullet to the section it links to, or None when it links to none."""
+def reader(vaults: abc.Collection[Path], plugins: Plugins) -> abc.Callable[[str], str | None]:
+    """A function from a Needs bullet to the section it links to, or None when it links to none.
+    The section is read without comments; if a plugin fails, with them."""
 
     def read(bullet: str) -> str | None:
         for match in doc_table.LINK.finditer(bullet):
@@ -70,7 +71,8 @@ def reader(vaults: abc.Collection[Path]) -> abc.Callable[[str], str | None]:
                 continue
 
             if found is not None:
-                return relay_comments.body_without_threads(found).strip()
+                body = document.body(plugins, path, found)
+                return (found if body is None else body).strip()
 
         return None
 

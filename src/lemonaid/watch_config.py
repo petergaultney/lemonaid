@@ -1,9 +1,12 @@
-"""Configurable review-thread filters, role wake lists and GitHub outage debounce for watchers."""
+"""Configurable review-thread filters, role wake lists, GitHub outage debounce and document
+plugins for watchers."""
 
 import sys
 from collections import abc
 from dataclasses import dataclass, field
 
+from .doc_plugins import plugin
+from .plugins import command
 from .watch import roles
 
 
@@ -21,6 +24,7 @@ class WatchConfig:
     roles: dict[str, frozenset[str]] = field(default_factory=dict)  # see watch/roles.py
     github_debounce: float = 600.0  # seconds GitHub must stay unreachable before a lemon hears
     reconcile: bool = True  # see watch/reconcile.py
+    doc_plugins: tuple[command.Plugin, ...] = field(default_factory=plugin.defaults)
 
 
 _CASELESS_HOSTS = frozenset({"github.com"})  # hosts whose logins are unique regardless of case
@@ -82,6 +86,14 @@ def _reconcile(value: object) -> bool:
     return value
 
 
+def _doc_plugins(data: object) -> tuple[command.Plugin, ...]:
+    if not isinstance(data, dict):
+        print("Warning: [watch.doc] must be a table", file=sys.stderr)
+        return plugin.defaults()
+
+    return plugin.parse(data.get("plugins", list(plugin.DEFAULT_ENTRIES)))
+
+
 def parse(data: dict) -> WatchConfig:
     pr = data.get("pr", {})
     values: dict[str, bool] = {}
@@ -110,4 +122,5 @@ def parse(data: dict) -> WatchConfig:
         roles=_roles(data.get("roles", {})),
         github_debounce=_debounce(data.get("github_debounce", WatchConfig.github_debounce)),
         reconcile=_reconcile(data.get("reconcile", WatchConfig.reconcile)),
+        doc_plugins=_doc_plugins(data.get("doc", {})),
     )

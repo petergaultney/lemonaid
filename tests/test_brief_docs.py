@@ -61,7 +61,7 @@ def test_docs_reject_boolean_column_and_invalid_watch_mode():
     rows, problems = doc_table.parse(
         ["| Document | Purpose | Watch |", "|---|---|---|", "| /tmp/doc.md | Review | yes |"]
     )
-    assert not rows and "Relay comments or All edits" in problems[0]
+    assert not rows and "Comments or All edits" in problems[0]
 
 
 def test_non_vault_docs_render_file_links_and_round_trip(tmp_path):
@@ -79,7 +79,7 @@ def test_doc_add_cli_uses_enum_choices():
     )
     assert args.watch is doc_table.Watch.ALL_EDITS
     args = parser.parse_args(["doc", "add", "--self", "/tmp/design.md", "Design"])
-    assert args.watch is doc_table.Watch.RELAY_COMMENTS
+    assert args.watch is doc_table.Watch.COMMENTS
 
 
 @pytest.mark.parametrize("operation", ["add", "remove"])

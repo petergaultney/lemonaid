@@ -4,6 +4,7 @@ import urllib.parse
 from pathlib import Path
 
 from lemonaid.brief import doc_warnings, linked_asks, now, questions, status
+from lemonaid.doc_plugins import plugin
 
 _DOC = """\
 # Decisions
@@ -49,7 +50,7 @@ def test_a_linked_bullet_gets_its_section_as_an_entry(tmp_path: Path):
     (tmp_path / "decisions.md").write_text(_DOC)
     needs = _needs(f"- {_link(tmp_path, 'Retry policy')}: which one?")
 
-    [item] = questions.items(needs, {}, linked_asks.reader([tmp_path]))
+    [item] = questions.items(needs, {}, linked_asks.reader([tmp_path], plugin.defaults()))
 
     assert item.label == "Retry policy"
     assert item.entry.startswith("Which one?")
@@ -60,7 +61,9 @@ def test_a_questions_entry_wins_over_the_link(tmp_path: Path):
     (tmp_path / "decisions.md").write_text(_DOC)
     needs = _needs(f"- {_link(tmp_path, 'Retry policy')}")
 
-    [item] = questions.items(needs, {"Retry policy": "mine"}, linked_asks.reader([tmp_path]))
+    [item] = questions.items(
+        needs, {"Retry policy": "mine"}, linked_asks.reader([tmp_path], plugin.defaults())
+    )
 
     assert item.entry == "mine"
 
@@ -70,7 +73,11 @@ def test_a_missing_heading_gives_no_entry_and_a_check_warning(tmp_path: Path):
     brief = f"# T\n\nStatus: blocked\n\n## Now\n\n### Needs\n\n- {_link(tmp_path, 'Gone')}\n"
 
     assert (
-        questions.items(_needs(f"- {_link(tmp_path, 'Gone')}"), {}, linked_asks.reader([tmp_path]))
+        questions.items(
+            _needs(f"- {_link(tmp_path, 'Gone')}"),
+            {},
+            linked_asks.reader([tmp_path], plugin.defaults()),
+        )
         == ()
     )
     assert [w for w in doc_warnings.warnings(brief, [tmp_path]) if "no heading" in w]
@@ -116,7 +123,7 @@ def test_a_linked_section_shows_highlights_without_comment_blocks(tmp_path: Path
     )
     needs = _needs(f"- {_link(tmp_path, 'Retry policy')}: which one?")
 
-    [item] = questions.items(needs, {}, linked_asks.reader([tmp_path]))
+    [item] = questions.items(needs, {}, linked_asks.reader([tmp_path], plugin.defaults()))
 
     assert "{" not in item.entry
     assert item.entry.startswith("Keep the old one here.")

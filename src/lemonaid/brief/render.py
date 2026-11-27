@@ -15,6 +15,7 @@ from collections import abc
 from pathlib import Path
 
 from ..config import PlaceRoot
+from ..doc_plugins import configured
 from . import display, identity, linked_asks, now, pr, project, questions, status, store, target
 
 _GENERIC_TITLE_PREFIX = re.compile(r"^brief:\s*", re.IGNORECASE)
@@ -183,7 +184,7 @@ def _section(
         tail,
         parsed.needs_label,
         parsed.needs,
-        questions.items(parsed.needs, explained, linked_asks.reader(vaults)),
+        questions.items(parsed.needs, explained, linked_asks.reader(vaults, configured.plugins())),
         questions.unmatched(parsed.needs, explained),
         project.label(roots, lemon.place, lemon.cwd, parts.area) if lemon else parts.area,
         lemon_id=_lemon_id(brief.text),

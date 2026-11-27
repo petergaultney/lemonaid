@@ -833,6 +833,21 @@ These filters do not affect submitted review bodies or PR conversation comments.
 | `github_debounce` | `600` | Seconds GitHub reads must keep failing, with none succeeding, before a lemon is told once that GitHub can't be reached. |
 | `reconcile` | `true` | Whether `lemonaid watch reconcile` runs, including the pass the first command after an install starts. `false` turns both off; scouts still start from the Stop check, SessionStart, `tell` and the inbox. See [watch](watch.md#reconciling-scouts). |
 
+## `[[watch.doc.plugins]]`
+
+The commands that read comments in documents for `watch doc`, in order. Without an entry, Relay Comments is the only plugin; a list replaces it, and `[watch.doc] plugins = []` turns every plugin off. See [document plugins](doc-plugins.md) for the protocol.
+
+| Key | Description |
+|-----|-------------|
+| `name` | Keys the plugin's reported threads in each waiter's cursor. |
+| `command` | The plugin, split as a shell would split it; no shell runs it. A bare name installed beside lemonaid is found there. |
+
+```toml
+[[watch.doc.plugins]]
+name = "relay-comments"
+command = "lemonaid-relay-comments"
+```
+
 ## `[watch.roles.<role>]`
 
 `lemonaid watch --self` wakes a lemon for a PR's events by its role on that PR: `author`, `reviewer`, `parent` or `mention` (see [watch](watch.md#roles)). `wake` replaces a role's whole list of event kinds: `state`, `head`, `ready`, `draft`, `decision`, `comments`, `conflict`, `ci-failed`, `ci-passed` and `ci-green`. An unknown role or kind is a warning, and the default list stands.

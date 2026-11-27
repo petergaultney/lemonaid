@@ -5,6 +5,7 @@ import time
 
 import pytest
 
+from lemonaid.doc_plugins import plugin
 from lemonaid.watch import delivery, doc_events, turns
 
 _ASK = '{{authorId="1" author="Sam">>is this true?<<}}'
@@ -39,7 +40,9 @@ def test_state_files_keep_their_names(doc, state_dir):
 
 
 def test_a_new_thread_is_delivered_once(doc, state_dir):
-    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    w = doc_events.open_watch(
+        state_dir, doc, _ME, [], edits=False, quiet=45, plugins=plugin.defaults()
+    )
     doc.write_text(doc.read_text() + _ASK)
     sent: list[str] = []
 
@@ -52,10 +55,13 @@ def test_a_new_thread_is_delivered_once(doc, state_dir):
 
 def test_a_restarted_waiter_does_not_report_an_untouched_thread(doc, state_dir):
     doc.write_text(doc.read_text() + _ASK)
-    doc_events.poll(doc_events.open_watch(state_dir, doc, _ME, [], False, 45), _collect([]))
+    doc_events.poll(
+        doc_events.open_watch(state_dir, doc, _ME, [], False, 45, plugins=plugin.defaults()),
+        _collect([]),
+    )
     sent: list[str] = []
 
-    restarted = doc_events.open_watch(state_dir, doc, _ME, [], False, 45)
+    restarted = doc_events.open_watch(state_dir, doc, _ME, [], False, 45, plugins=plugin.defaults())
 
     assert doc_events.poll(restarted, _collect(sent)) is doc_events.Outcome.NOTHING
     assert sent == []
@@ -63,7 +69,7 @@ def test_a_restarted_waiter_does_not_report_an_untouched_thread(doc, state_dir):
 
 def test_a_reported_thread_that_gains_a_block_is_reported_again(doc, state_dir):
     doc.write_text(doc.read_text() + _ASK)
-    w = doc_events.open_watch(state_dir, doc, _ME, [], False, 45)
+    w = doc_events.open_watch(state_dir, doc, _ME, [], False, 45, plugins=plugin.defaults())
     doc_events.poll(w, _collect([]))
     doc.write_text(doc.read_text() + '{{author="Sam">>also this<<}}')
     sent: list[str] = []
@@ -74,14 +80,16 @@ def test_a_reported_thread_that_gains_a_block_is_reported_again(doc, state_dir):
 
 def test_a_failed_delivery_leaves_the_thread_unreported(doc, state_dir):
     doc.write_text(doc.read_text() + _ASK)
-    w = doc_events.open_watch(state_dir, doc, _ME, [], False, 45)
+    w = doc_events.open_watch(state_dir, doc, _ME, [], False, 45, plugins=plugin.defaults())
 
     assert doc_events.poll(w, _collect([], ok=False)) is doc_events.Outcome.FAILED
     assert doc_events.poll(w, _collect([])) is doc_events.Outcome.DELIVERED
 
 
 def test_a_body_edit_is_reported_once_it_has_been_quiet(doc, state_dir):
-    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    w = doc_events.open_watch(
+        state_dir, doc, _ME, [], edits=True, quiet=0, plugins=plugin.defaults()
+    )
     doc.write_text(doc.read_text() + "A new line.\n")
     sent: list[str] = []
 
@@ -93,9 +101,11 @@ def test_a_body_edit_is_reported_once_it_has_been_quiet(doc, state_dir):
 
 
 def test_an_edit_made_while_no_waiter_ran_is_reported(doc, state_dir):
-    doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0, plugins=plugin.defaults())
     doc.write_text(doc.read_text() + "Edited offline.\n")
-    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    w = doc_events.open_watch(
+        state_dir, doc, _ME, [], edits=True, quiet=0, plugins=plugin.defaults()
+    )
     sent: list[str] = []
 
     doc_events.poll(w, _collect(sent))
@@ -104,7 +114,9 @@ def test_an_edit_made_while_no_waiter_ran_is_reported(doc, state_dir):
 
 
 def test_adding_a_comment_is_not_a_body_edit(doc, state_dir):
-    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    w = doc_events.open_watch(
+        state_dir, doc, _ME, [], edits=True, quiet=0, plugins=plugin.defaults()
+    )
     doc.write_text(doc.read_text() + '{{author="Author (MotorHoe)">>my own note<<}}')
     sent: list[str] = []
 
@@ -116,7 +128,9 @@ def test_adding_a_comment_is_not_a_body_edit(doc, state_dir):
 
 def test_a_doc_that_does_not_exist_yet_is_reported_when_it_is_created(tmp_path, state_dir):
     doc = tmp_path / "later.md"
-    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    w = doc_events.open_watch(
+        state_dir, doc, _ME, [], edits=True, quiet=0, plugins=plugin.defaults()
+    )
     sent: list[str] = []
 
     assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
@@ -132,9 +146,11 @@ def test_a_doc_that_does_not_exist_yet_is_reported_when_it_is_created(tmp_path, 
 
 def test_a_doc_created_while_no_waiter_ran_is_reported(tmp_path, state_dir):
     doc = tmp_path / "later.md"
-    doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0, plugins=plugin.defaults())
     doc.write_text("# Review\n")
-    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    w = doc_events.open_watch(
+        state_dir, doc, _ME, [], edits=True, quiet=0, plugins=plugin.defaults()
+    )
     sent: list[str] = []
 
     doc_events.poll(w, _collect(sent))
@@ -144,7 +160,9 @@ def test_a_doc_created_while_no_waiter_ran_is_reported(tmp_path, state_dir):
 
 
 def test_a_large_body_edit_is_cut_to_the_batch_limit(doc, state_dir):
-    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    w = doc_events.open_watch(
+        state_dir, doc, _ME, [], edits=True, quiet=0, plugins=plugin.defaults()
+    )
     doc.write_text("\n".join(f"{i} " + "x" * 7990 for i in range(30)))
     sent: list[str] = []
 
@@ -156,7 +174,9 @@ def test_a_large_body_edit_is_cut_to_the_batch_limit(doc, state_dir):
 
 
 def test_a_comment_and_a_large_edit_each_keep_a_share_of_the_batch(doc, state_dir):
-    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    w = doc_events.open_watch(
+        state_dir, doc, _ME, [], edits=True, quiet=0, plugins=plugin.defaults()
+    )
     big = "\n".join(f"{i} " + "x" * 7990 for i in range(30))
     doc.write_text(big)
     sent: list[str] = []
@@ -171,7 +191,9 @@ def test_a_comment_and_a_large_edit_each_keep_a_share_of_the_batch(doc, state_di
 
 
 def test_two_new_threads_are_counted_as_two_events(doc, state_dir):
-    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    w = doc_events.open_watch(
+        state_dir, doc, _ME, [], edits=False, quiet=45, plugins=plugin.defaults()
+    )
     doc.write_text(doc.read_text() + _ASK + '\n\n{{authorId="2" author="Kit">>and this?<<}}')
     sent: list[str] = []
 
@@ -204,6 +226,7 @@ def _openclaw_watch(state_dir, doc, tmp_path, clock):
         writer="openclaw-agent:main:x",
         own_root=tmp_path / "own",
         latest_turn=lambda: clock.turn,
+        plugins=plugin.defaults(),
     )
 
 

@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from lemonaid.doc_plugins import plugin
 from lemonaid.hooks import own_change
 from lemonaid.watch import doc_events, own_edits, own_pushes
 
@@ -34,6 +35,7 @@ def _watch(state_dir, doc, harness):
         quiet=0,
         writer=f"{harness}-{_SESSION}",
         own_root=state_dir,
+        plugins=plugin.defaults(),
     )
 
 

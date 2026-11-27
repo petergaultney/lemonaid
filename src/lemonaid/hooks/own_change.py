@@ -16,6 +16,7 @@ import pathlib
 import sys
 
 from ..config import load_config
+from ..doc_plugins import configured
 from ..watch import own_edits, own_pushes, subscriptions
 from . import session_brief, session_gate, tool_calls
 
@@ -43,9 +44,9 @@ def record(data: dict, harness: str, own_root: pathlib.Path) -> None:
 
         key = own_edits.tool_key(call, doc)
         if event == "PreToolUse":
-            own_edits.before_edit(own_root, writer, key, doc)
+            own_edits.before_edit(own_root, writer, key, doc, configured.plugins())
         elif event == "PostToolUse":
-            own_edits.after_edit(own_root, writer, key, doc)
+            own_edits.after_edit(own_root, writer, key, doc, configured.plugins())
     if event == "PostToolUse" and any(
         own_pushes.is_push(s) for s in tool_calls.strings(data.get("tool_input"))
     ):

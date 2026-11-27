@@ -5,6 +5,7 @@ import time
 import typing as ty
 from collections import abc
 
+from ..plugins.command import Plugins
 from . import delivery, doc_events, turns, watch_list
 
 
@@ -63,6 +64,8 @@ def wait_list(
     cursor_key: str | None = None,
     latest_turn: turns.Turns | None = None,
     writer: str = "",
+    *,
+    plugins: Plugins,
 ) -> None:
     attempt = _deliverer(deliver, once=False, latest_turn=latest_turn)
     watches: dict[str, doc_events.DocWatch] = {}
@@ -86,6 +89,7 @@ def wait_list(
                 writer,
                 cursor_key=cursor_key,
                 latest_turn=latest_turn,
+                plugins=plugins,
             )
             for d in docs
         }

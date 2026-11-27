@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .. import pr_states, pr_url, watch_config
 from ..config import load_config
+from ..doc_plugins import configured
 from ..launch import end
 from ..log import get_logger
 from ..slack import permalink, signed_out
@@ -174,6 +175,7 @@ def open_poller(
             writer,
             cursor_key=me,
             latest_turn=latest_turn,
+            plugins=configured.plugins(),
         )
         watch.all_threads = True
         watch.settled_quiet = spec.quiet

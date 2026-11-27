@@ -2,14 +2,18 @@
 
 from pathlib import Path
 
-from ..watch import relay_comments
+from ..doc_plugins import configured, document
+from ..plugins.command import Plugins
 
 
-def read(path: Path) -> frozenset[str]:
+def read(path: Path, plugins: Plugins | None = None) -> frozenset[str]:
+    """*plugins* default to the configured ones."""
     try:
-        return frozenset(relay_comments.last_authors(path.read_text()))
+        text = path.read_text()
     except (OSError, UnicodeError):
         return frozenset()
+
+    return document.last_authors(configured.plugins() if plugins is None else plugins, path, text)
 
 
 class Cache:

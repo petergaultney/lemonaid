@@ -1,7 +1,8 @@
 # Watching documents, PRs, repos, files and commands
 
-`lemonaid watch doc` blocks until someone responds to a Markdown document through
-Relay Comments (inline CriticMarkup blocks written by an Obsidian plugin), and
+`lemonaid watch doc` blocks until someone responds to a document through
+comments (Relay Comments by default: inline CriticMarkup blocks written by an Obsidian
+plugin; other formats through [document plugins](doc-plugins.md)), and
 then wakes the lemon that wrote it. It uses no model turns while it waits: it reads the file
 every second.
 
@@ -673,7 +674,7 @@ Brief-ID: notifications.NoteBee
 | Document | Purpose | Watch |
 |---|---|---|
 | `~/notes/design/notifications.md` | Discuss notification behavior | All edits |
-| `~/notes/reports/notification-results.md` | Questions about the results | Relay comments |
+| `~/notes/reports/notification-results.md` | Questions about the results | Comments |
 
 ## Goal
 
@@ -748,8 +749,8 @@ watched for another reason asks nothing.
 
 The **Watch** column is an enum, not a boolean. Its current values are:
 
-- **Relay comments:** unanswered Relay comment threads only.
-- **All edits:** Relay comments and body edits, after the document’s quiet period.
+- **Comments:** unanswered comment threads only, of whatever kind the [document plugins](doc-plugins.md) read. `Relay comments`, its name before plugins, still reads as `Comments`.
+- **All edits:** comments and body edits, after the document’s quiet period.
 
 The inbox viewer makes document paths clickable, even in backticks. Vault
 documents open through Obsidian links; other paths use file URLs and the system
@@ -762,7 +763,7 @@ clickable on every line.
 New modes can be added to this enum. `Edits` columns and boolean values are not
 accepted. An add/remove operation refuses to rewrite an invalid Docs table,
 preserving every existing row until the table is corrected. The command defaults
-to `Relay comments`; select the other mode with
+to `Comments`; select the other mode with
 `--watch "All edits"`.
 
 ### Maintain the brief
@@ -778,7 +779,7 @@ lemonaid brief check --self
 ```
 
 `--review` with a path also lists that doc under Docs with Watch `All edits`, or upgrades its
-`Relay comments` row, because reviewers write findings and verdicts in the doc's body.
+`Comments` row, because reviewers write findings and verdicts in the doc's body.
 `brief new --child --pr <url> --output-doc <path>` fills an empty Review cell in that PR's
 row in the parent's and `--author`'s briefs.
 

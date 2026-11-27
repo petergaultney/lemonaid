@@ -120,7 +120,10 @@ def test_openclaw_delivery_runs_one_idempotent_turn(fake_openclaw):
     assert params["sessionKey"] == "agent:main:x"
     assert params["idempotencyKey"] == hashlib.sha1(b"agent:main:x\0an event").hexdigest()
     assert params["message"].startswith("watch-doc event: an event\n")
-    assert 'author="Ada" authorId="agent:main:x"' in params["message"]
+    assert (
+        "signing each reply Ada; where a reply records an author ID, use agent:main:x"
+        in (params["message"])
+    )
 
 
 @pytest.mark.parametrize(
