@@ -17,7 +17,7 @@ from lemonaid.inbox.tui.rows import brief_cards
 from lemonaid.inbox.tui.watchers import watcher_hooks
 from lemonaid.lemon_watchers import watcher
 from lemonaid.messages import recipient
-from lemonaid.watch import wait_state
+from lemonaid.watch import scout_roster, wait_state
 
 from .tmux_world import (
     WHERE,
@@ -117,8 +117,12 @@ def _on_b_tty(world: World) -> None:
     with db.connect() as conn:
         brief = attached.by_channel(conn, [channel("OLD")])[channel("OLD")]
     lemon_id = identity.read(brief.read_text())
-    # A scout pushing into a dead session counts as listening until it notices.
-    wait("OLD's scout to stop", lambda: not wait_state.is_armed(lemon_id))
+    # A scout pushing into a dead session counts as listening until it notices and the scout
+    # host, on its next tick, drops its registration.
+    wait(
+        "OLD's scout to stop",
+        lambda: not wait_state.is_armed(lemon_id) and scout_roster.read(lemon_id) is None,
+    )
     old, b = inbox_row("OLD"), inbox_row("B")
     assert old is not None and b is not None
     location = {
