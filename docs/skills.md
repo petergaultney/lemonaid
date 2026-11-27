@@ -36,6 +36,30 @@ An overlay is read when a lemon loads the skill, often long before the situation
 To add a reminder to the watcher event where it applies, such as a child going `done`, use
 an [event note](event-notes.md) as well.
 
+## Skills from other sources
+
+Other tools can ship skills that `lemonaid skills install` installs the same way, overlays and harness sections included. A source is a directory of `<name>/SKILL.md`, written like lemonaid's packaged skills, named under `[[skills.sources]]` in one of three ways:
+
+```toml
+[[skills.sources]]
+name = "my-plugin"
+command = "my-plugin skills-dir"     # prints the directory: a plugin says where its own skills are
+
+[[skills.sources]]
+name = "team"
+path = "~/src/team-skills"
+
+[[skills.sources]]
+name = "from-a-repo"
+fetch = "git clone --depth 1 https://example.com/skills.git {dir}"
+update = "git -C {dir} pull --ff-only"
+```
+
+- `fetch` runs once, when lemonaid's directory for the source (`<state dir>/skill-sources/<name>`) doesn't exist yet; `skills install --update` runs `update` first. lemonaid runs these commands without a shell and knows nothing about git; any command that fills `{dir}` works.
+- A source's `skills.toml` may list `optional = ["review-guide"]`: those install only when named (`lemonaid skills install review-guide`), so adding a source doesn't start a workflow nobody chose.
+- Skill names are shared by every harness. A name lemonaid or an earlier source already has is refused, with a warning, rather than replaced.
+- `lemonaid skills list` shows each skill, its source, and whether it is optional or installed.
+
 ## After an upgrade
 
 Run `lemonaid skills install` after installing or upgrading lemonaid. If you forget, `lma`
@@ -45,7 +69,7 @@ rendered directory. If they did, it re-renders the skills you installed, overlay
 and shows one line saying which. If a refresh fails, the line says so and points at
 `lemonaid skills install`. No other command or hook checks.
 
-That refresh only rewrites skills already installed, and never creates or changes a
+It checks each configured source the same way, with its own stamp, running a `command` source's command but never fetching or updating one. That refresh only rewrites skills already installed, and never creates or changes a
 harness entry, so a skill newly packaged by an upgrade needs `lemonaid skills install`. So
 does an overlay edit, which the stamp doesn't cover.
 

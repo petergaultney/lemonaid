@@ -723,6 +723,20 @@ Commands Enter may run for a row that names a file, by name: a row with metadata
 editor = "my-editor open {path} --focus"
 ```
 
+## `[[skills.sources]]`
+
+Directories of skills for `lemonaid skills install` besides lemonaid's packaged ones; see [skills](skills.md#skills-from-other-sources).
+
+| Key | Description |
+|-----|-------------|
+| `name` | The source's name in `skills list`; not `lemonaid`. |
+| `path` | The directory. |
+| `command` | A command that prints the directory. |
+| `fetch` | A command that fills `{dir}`, a directory lemonaid keeps for the source, run when it doesn't exist yet. |
+| `update` | With `fetch`: a command run on `{dir}` by `skills install --update`. |
+
+Each entry has exactly one of `path`, `command` and `fetch`. No shell runs the commands.
+
 ## `[[places.roots]]`
 
 Each root declares the shell commands that acquire and release directories under one path; [places.md](places.md) describes them all.

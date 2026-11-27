@@ -151,7 +151,7 @@ def test_user_file_mistakes_are_refused(homes):
     assert "sets the skill's name or description" in frontmatter.stderr
     assert both.returncode == 2
     assert "has both overlay.md and SKILL.md" in both.stderr
-    assert _install("nope").stderr.startswith("no packaged skill 'nope'")
+    assert _install("nope").stderr.startswith("no skill 'nope'")
 
 
 def test_a_rendered_directory_lemonaid_did_not_create_is_left_alone(homes):

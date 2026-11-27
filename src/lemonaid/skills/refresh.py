@@ -1,19 +1,22 @@
-"""Re-render installed skills when the packaged ones change, so an upgrade reaches every lemon.
+"""Re-render installed skills when their source changes, so an upgrade reaches every lemon.
 
 The inbox TUI runs this once at startup, for each harness's rendered directory. The stamp is each packaged SKILL.md's mtime and
 size: a reinstall or a `git pull` in an editable checkout rewrites those files, which is
 enough without knowing lemonaid's version. Only skills already installed are rewritten;
 linking a harness entry stays `lemonaid skills install`'s job. Overlay edits are not
-watched, and take effect on the next `skills install`.
+watched, and take effect on the next `skills install`. Each `[[skills.sources]]` entry is
+checked the same way, with its own stamp; a fetched source is not fetched or updated here.
 """
 
 import os
 import pathlib
 import shutil
 import typing as ty
+from collections import abc
 
 from .. import log
-from . import compose, install
+from ..config import load_config
+from . import compose, install, sources
 
 _logger = log.get_logger("skills.refresh")
 
@@ -26,24 +29,30 @@ class Refreshed(ty.NamedTuple):
 
 
 def _stamp(packaged_dir: pathlib.Path) -> str:
+    """A source's other directories, such as `.git` or `docs`, hold no skill and don't count."""
     return "".join(
         f"{e.name} {s.st_mtime_ns} {s.st_size}\n"
         for e in sorted(os.scandir(packaged_dir), key=lambda e: e.name)
-        if e.is_dir()
+        if e.is_dir() and os.path.isfile(os.path.join(e.path, "SKILL.md"))
         for s in [os.stat(os.path.join(e.path, "SKILL.md"))]
     )
 
 
 def _rerender(
-    packaged_dir: pathlib.Path, user_dir: pathlib.Path, rendered_dir: pathlib.Path, harness: str
+    packaged_dir: pathlib.Path,
+    user_dir: pathlib.Path,
+    rendered_dir: pathlib.Path,
+    harness: str,
+    names: abc.Collection[str] | None,
+    label: str,
 ) -> Refreshed:
     rewritten, failed = [], []
     for name in compose.packaged_names(packaged_dir):
-        if not install.is_rendered(rendered_dir, name):
+        if not install.is_rendered(rendered_dir, name) or (names is not None and name not in names):
             continue
 
         try:
-            r = compose.render(packaged_dir, user_dir, name, harness)
+            r = compose.render(packaged_dir, user_dir, name, harness, label)
             if (rendered_dir / name / "SKILL.md").read_text() != r.text:
                 install.write_rendered(rendered_dir, name, r.text)
                 _logger.info("refreshed %s from %s", name, r.source)
@@ -55,13 +64,19 @@ def _rerender(
 
 
 def refresh_if_stale(
-    packaged_dir: pathlib.Path, user_dir: pathlib.Path, rendered_dir: pathlib.Path, harness: str
+    packaged_dir: pathlib.Path,
+    user_dir: pathlib.Path,
+    rendered_dir: pathlib.Path,
+    harness: str,
+    names: abc.Collection[str] | None = None,
+    source: str = "",
 ) -> Refreshed:
     """Never raises for a file it can't read or write. The stamp is kept only when every
-    skill refreshed, so a failure is reported again at the next check."""
+    skill refreshed, so a failure is reported again at the next check. *source* names a
+    configured source, which keeps its own stamp and refreshes only the *names* it owns."""
     try:
         stamp = _stamp(packaged_dir)
-        stamp_path = rendered_dir / _STAMP
+        stamp_path = rendered_dir / (f".{source}-stamp" if source else _STAMP)
         try:
             if stamp_path.read_text() == stamp:
                 return Refreshed([], [])
@@ -69,7 +84,9 @@ def refresh_if_stale(
         except (FileNotFoundError, UnicodeError):
             pass  # no stamp, or a damaged one: stale either way, and rewritten below
 
-        result = _rerender(packaged_dir, user_dir, rendered_dir, harness)
+        result = _rerender(
+            packaged_dir, user_dir, rendered_dir, harness, names, source or "packaged"
+        )
         if not result.failed:
             rendered_dir.mkdir(parents=True, exist_ok=True)
             tmp = rendered_dir / f".{_STAMP}.{os.getpid()}"
@@ -108,12 +125,38 @@ def _migrate_single_copy() -> None:
             (root / _STAMP).unlink(missing_ok=True)
 
 
+def _configured() -> list[tuple[sources.Located, list[str]]]:
+    """Each configured source found, with the skill names it owns; none is fetched."""
+    located = sources.locate(
+        [s for s in load_config().skill_sources if not s.fetch or sources.fetched_dir(s).is_dir()],
+        report=_logger.warning,
+    )
+    owners = sources.catalog(located, _logger.warning)
+    return [
+        (source, [n for n, owner in owners.items() if owner is source])
+        for source in located
+        if source.name != sources.PACKAGED
+    ]
+
+
 def refresh_installed() -> Refreshed:
     _migrate_single_copy()
+    configured = _configured()
     results = [
         refresh_if_stale(
             compose.PACKAGED_DIR, compose.default_user_dir(), install.default_rendered_dir(h), h
         )
+        for h in install.harness_skill_dirs()
+    ] + [
+        refresh_if_stale(
+            source.dir,
+            compose.default_user_dir(),
+            install.default_rendered_dir(h),
+            h,
+            names,
+            source.name,
+        )
+        for source, names in configured
         for h in install.harness_skill_dirs()
     ]
     return Refreshed(
