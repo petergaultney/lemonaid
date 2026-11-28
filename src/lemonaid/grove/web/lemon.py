@@ -148,6 +148,7 @@ def view(
         "status": own.state if own else "",
         "brief_id": identity.brief_name(own.lemon_id) if own and own.lemon_id else "",
         "pinned": pinned,
+        "unread": row.is_unread,
         "color": color if grouped else "",
         "ink": colors.ink_on(color) if color and grouped else "",
         "working": turns.mid_turn(row, time.time()),
@@ -160,7 +161,7 @@ def view(
 
 def mark(channel: str) -> str:
     """What changes whenever the lemon's page would: its conversation, its brief's file, or
-    whether it is mid-turn."""
+    whether it is mid-turn or unread."""
     with db.connect() as conn:
         row = db.get_by_channel(conn, channel, unread_only=False)
         brief = attached.by_channel(conn, [channel]).get(channel)
@@ -175,7 +176,7 @@ def mark(channel: str) -> str:
         written = brief.stat().st_mtime_ns if brief else 0
     except OSError:
         written = 0
-    return f"{talked}|{written}|{turns.mid_turn(row, time.time())}"
+    return f"{talked}|{written}|{turns.mid_turn(row, time.time())}|{row.is_unread}"
 
 
 _read: dict[str, tuple[str, list[conversation.entry.Entry]]] = {}  # by channel, with its mark
@@ -261,3 +262,18 @@ def say(channel: str, text: str, config: Config, attached: abc.Sequence[str] = (
         with db.connect() as conn:
             db.mark_all_read_for_channel(conn, channel)
     return problem
+
+
+def set_read(channel: str, read: bool) -> str:
+    """Mark the lemon read or unread by hand; returns why it couldn't, or "". Unread keeps its
+    age, as the inbox's mark-unread does, and neither one is news a device is pushed."""
+    with db.connect() as conn:
+        row = db.get_by_channel(conn, channel, unread_only=False)
+        if row is None:
+            return f"No live lemon on {channel}"
+
+        if read:
+            db.mark_all_read_for_channel(conn, channel)
+        elif row.is_read:
+            db.mark_unread(conn, row.id)
+    return ""

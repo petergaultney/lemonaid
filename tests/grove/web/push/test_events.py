@@ -13,12 +13,18 @@ def _news(before, after):
     ]
 
 
-def test_a_lemon_going_unread_notifies_and_staying_unread_doesnt():
-    read = shared.lemon("claude:ada")
-    unread = dataclasses.replace(read, unread=True)
+def test_a_lemon_that_reports_while_read_notifies_and_staying_unread_doesnt():
+    read = dataclasses.replace(shared.lemon("claude:ada"), updated=10.0)
+    reported = dataclasses.replace(read, unread=True, updated=20.0)
 
-    assert _news([read], [unread]) == ["claude:ada"]
-    assert _news([unread], [unread]) == []
+    assert _news([read], [reported]) == ["claude:ada"]
+    assert _news([reported], [reported]) == []
+
+
+def test_a_lemon_marked_unread_by_hand_doesnt_notify():
+    read = dataclasses.replace(shared.lemon("claude:ada"), updated=10.0)
+
+    assert _news([read], [dataclasses.replace(read, unread=True)]) == []
 
 
 def test_a_new_report_while_still_unread_notifies_again():

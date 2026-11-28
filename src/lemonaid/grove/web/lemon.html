@@ -294,7 +294,7 @@ const briefColumns = () => {
 // Its edits (edit.js); archived, it is gone from the grove, so the page goes back to it.
 let shownView = null;
 $("edit").addEventListener("click", () => window.groveEdit(
-  {channel, name: shownView.name, pinned: shownView.pinned},
+  {channel, name: shownView.name, pinned: shownView.pinned, unread: shownView.unread},
   done => done.gone ? window.groveHome() : refresh(),
 ));
 const showView = v => {
@@ -506,9 +506,10 @@ else $("name").textContent = window.groveTalks.keptName(channel);
 const kept = window.groveTalks.kept(channel);
 if (kept) { talkAt = window.groveTalks.keptAt(channel); showTalk(kept); }
 // Drawing a lemon's conversation while in view reads its news up to the report it answers: the inbox marks it read, and its notification goes (sw.js).
+const readNews = window.groveReadNews();
 const seen = news => {
-  if (document.visibilityState !== "visible") return;
-  call("read", [channel, news]).catch(() => {});
+  if (document.visibilityState !== "visible" || !readNews.due(news)) return;
+  call("read", [channel, news]).then(() => readNews.done(news)).catch(() => {});
   if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistration()
     .then(r => r && r.getNotifications({tag: channel})).then(ns => (ns || []).forEach(n => n.close())).catch(() => {});
 };

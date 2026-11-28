@@ -68,6 +68,9 @@ class _WebApi(api.Api):
     def say(self, channel: str, text: str, attached: abc.Sequence[str] = ()) -> str:
         return lemon.say(channel, text, self._shared.config, attached)
 
+    def lemon_read(self, channel: str, read: bool) -> str:
+        return lemon.set_read(channel, bool(read))
+
     def attach(self, name: str, mime: str, content: str) -> dict | str:
         return attachments.save(name, mime, content)
 
@@ -141,6 +144,7 @@ _CALLS = frozenset(
         "lemon",
         "lemon_edit",
         "lemon_edit_info",
+        "lemon_read",
         "log",
         "look",
         "pins",

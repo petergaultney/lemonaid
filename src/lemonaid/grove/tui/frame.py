@@ -38,7 +38,10 @@ def summary(grove: Grove) -> str:
     lemons = [lemon for block in grove.blocks for tree in block.trees for lemon in tree.lemons]
     working = sum(lemon.working for lemon in lemons)
     trees = sum(len(block.trees) for block in grove.blocks)
-    return f"{len(lemons)} lemons on {trees} trees · {working} mid-turn"
+    unread = sum(lemon.unread for lemon in lemons)
+    return f"{len(lemons)} lemons on {trees} trees · {working} mid-turn" + (
+        f" · {unread} unread" if unread else ""
+    )
 
 
 def attention(grove: Grove) -> Text:

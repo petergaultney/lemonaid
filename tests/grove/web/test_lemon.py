@@ -277,3 +277,36 @@ def test_a_lemon_in_a_group_by_its_briefs_lemon_id_gets_the_color(worker):
         groups.store.add(conn, groups.store.create(conn, "g"), [lemon_id])
 
     assert lemon.view(CHANNEL, Config(), pr.no_state, color="#336699")["color"] == "#336699"
+
+
+def _unread(channel=CHANNEL):
+    with db.connect() as conn:
+        return db.get_by_channel(conn, channel, unread_only=False).is_unread
+
+
+def test_a_lemon_is_marked_unread_by_hand_without_moving_its_age(worker):
+    assert lemon.set_read(CHANNEL, True) == ""
+    with db.connect() as conn:
+        before = db.get_by_channel(conn, CHANNEL, unread_only=False).created_at
+
+    assert lemon.set_read(CHANNEL, False) == ""
+
+    assert _unread()
+    with db.connect() as conn:
+        assert db.get_by_channel(conn, CHANNEL, unread_only=False).created_at == before
+    assert lemon.set_read(CHANNEL, True) == ""
+    assert not _unread()
+
+
+def test_marking_a_lemon_that_is_gone_says_so():
+    assert "No live lemon" in lemon.set_read("claude:nope", True)
+
+
+def test_the_page_is_told_when_its_lemon_is_marked_read_or_unread(worker):
+    before = lemon.mark(CHANNEL)
+
+    lemon.set_read(CHANNEL, False)
+    unread = lemon.mark(CHANNEL)
+    lemon.set_read(CHANNEL, True)
+
+    assert len({before, unread, lemon.mark(CHANNEL)}) == 2

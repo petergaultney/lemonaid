@@ -15,10 +15,11 @@ nav > a { background:#2d3442; color:inherit; text-decoration:none; }
 nav > a.home { flex:0 0 52px; background:none; border:2px solid #2d3442; }
 nav > a.home img { width:30px; height:30px; }
 nav > a.home.none { opacity:0.4; }
-nav .lemon { font-size:12px; line-height:1.25; text-align:center; border-bottom:3px solid transparent; }
-nav .lemon .busy { display:inline-block; width:7px; height:7px; margin:0 4px 1px 0; border-radius:50%; background:#e6ebf2; animation:bar-pulse 1.6s ease-in-out infinite; }
+nav .lemon { position:relative; font-size:12px; line-height:1.25; text-align:center; color:#aab3c0; font-weight:600; border-bottom:3px solid transparent; }
+nav .lemon .busy { position:absolute; top:6px; left:6px; width:7px; height:7px; border-radius:50%; background:#e6ebf2; animation:bar-pulse 1.6s ease-in-out infinite; }
 nav .label { min-width:0; padding:0 6px; overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow-wrap:anywhere; }
-nav .unread { color:#f2d94e; }
+nav .lemon .badge { position:absolute; top:5px; right:5px; width:9px; height:9px; border-radius:50%; background:#f2d94e; }
+nav .lemon.new { color:#f4f6fa; font-weight:800; }
 @keyframes bar-pulse { 50% { opacity:0.35; } }
 </style>`);
 
@@ -45,7 +46,7 @@ nav .unread { color:#f2d94e; }
   const draw = (blocks, pins, home) => {
     const shown = lemons(blocks, pins, Math.max(2, Math.min(7, Math.floor((innerWidth - 80) / SLOT))));
     const buttons = shown.map(l => !l ? "<span></span>"
-      : `<a class="lemon" href="lemon?channel=${encodeURIComponent(l.channel)}" data-channel="${esc(l.channel)}" data-hold style="border-bottom-color:${STATUS[l.status] || "transparent"}"><span class="label">${l.working ? '<i class="busy" title="mid-turn"></i>' : ""}${l.unread ? '<span class="unread">●</span>' : ""}${esc(l.emoji)}${esc(l.name)}</span></a>`);
+      : `<a class="lemon${l.unread ? " new" : ""}" href="lemon?channel=${encodeURIComponent(l.channel)}" data-channel="${esc(l.channel)}" data-hold style="border-bottom-color:${STATUS[l.status] || "transparent"}">${l.working ? '<i class="busy" title="mid-turn"></i>' : ""}${l.unread ? '<i class="badge" title="unread"></i>' : ""}<span class="label">${esc(l.emoji)}${esc(l.name)}</span></a>`);
     const button = `<a class="home${home ? "" : " none"}" href="#" title="${esc(home)}" onclick="event.preventDefault(); window.groveKey()"><img src="icon.svg" alt="lemonaid"></a>`;
     return {html: [button, ...buttons].join(""), lemons: shown};
   };

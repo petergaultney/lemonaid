@@ -47,3 +47,9 @@ def test_a_phone_gets_the_groups_and_a_tablet_the_grove():
 def test_every_page_rewrites_vault_links_before_its_own_scripts_run():
     for page in (pages.lemon(web_config.WebConfig()), pages.vaults(web_config.WebConfig())):
         assert page.index("window.groveVaults =") < page.index("<script>", page.index("groveKeys"))
+
+
+def test_the_lemon_page_gets_the_scripts_it_calls_before_its_own():
+    page = pages.lemon(web_config.WebConfig())
+
+    assert page.index("window.groveReadNews = ") < page.index("window.groveReadNews()")
