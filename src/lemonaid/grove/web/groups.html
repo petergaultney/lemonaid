@@ -83,7 +83,7 @@ const urgency = b => [Math.min(ORDER.length, ...lemonsOf(b).map(rank)), -lemonsO
 const before = (x, y) => { for (const [a, c] of x.map((v, i) => [v, y[i]])) if (a !== c) return a < c ? -1 : 1; return 0; };
 
 function groupRows() {
-  return [...DATA.blocks].sort((x, y) => before(urgency(x), urgency(y))).map(b => `<a class="row" href="#group=${encodeURIComponent(named(b))}">
+  return [...DATA.blocks].sort((x, y) => before(urgency(x), urgency(y))).map(b => `<a class="row" href="#group=${encodeURIComponent(named(b))}"${b.group || b.home ? ` data-group="${esc(b.group || b.home)}" data-hold` : ""}>
     <span class="swatch" style="background:${esc(b.color)}"></span>
     <span class="main"><span class="name">${esc(named(b))}</span></span>${tally(b)}</a>`).join("");
 }
@@ -197,8 +197,9 @@ document.addEventListener("click", e => {
   const row = e.target.closest("[data-channel]");
   if (row && window.groveNote) window.groveNote("jump", {channel: row.dataset.channel});
 });
-// Holding a lemon, in a group or in the bar, opens its edits (edit.js); the grove's changes redraw it.
+// Holding a lemon, in a group or in the bar, or a group in the list, opens its edits (edit.js); the grove's changes redraw it.
 window.groveHold(el => {
+  if (el.dataset.group) return window.groveGroupEdit(el.dataset.group, refresh);
   const l = DATA && DATA.blocks.flatMap(lemonsOf).find(l => l.channel === el.dataset.channel);
   if (l) window.groveEdit({channel: l.channel, name: l.name, pinned: PINS.includes(l.channel), unread: l.unread});
 });
