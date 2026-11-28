@@ -4,6 +4,7 @@ import argparse
 import contextlib
 import io
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ from lemonaid.brief import (
     identity,
     now_edit,
     store,
+    verbs_cli,
     write_cli,
 )
 from lemonaid.inbox import db
@@ -202,16 +204,90 @@ def test_existing_unmatched_question_does_not_block_unrelated_verbs(capsys):
     assert "Status: running" in frontmatter.legacy(path.read_text())
     assert check.structure(path.read_text()) == [
         "`### old decision` in ## Questions has no matching bullet under ### Needs"
+        ' (remove it with `lemonaid brief section rm --self "old decision"`, or add a Needs bullet starting `old decision:`)'
     ]
 
 
-def test_edit_refuses_a_new_unmatched_question(capsys):
+def test_removing_a_needs_bullet_removes_the_question_it_explained(capsys):
     text = _BRIEF.replace("### Next", "### Needs you\n\n- merge #12\n\n### Next", 1).replace(
         "## Goal", "## Questions\n\n### merge #12\n\n- Context\n\n## Goal"
     )
     path = _attached(text)
 
-    refused = _run(capsys, "bullet", "rm", "--channel", "codex:t1", "merge #12")
+    done = _run(capsys, "bullet", "rm", "--channel", "codex:t1", "merge #12")
+
+    assert done["error"] is None
+    assert "## Questions" not in path.read_text()
+    assert check.structure(path.read_text()) == []
+
+
+def test_rewriting_now_without_its_needs_removes_the_paired_question(capsys):
+    text = _BRIEF.replace("### Next", "### Needs you\n\n- Sam: pick one\n\n### Next", 1).replace(
+        "## Goal", "## Questions\n\n### Sam\n\n- Context\n\n## Goal"
+    )
+    path = _attached(text)
+
+    refused = _run(capsys, "now", "--channel", "codex:t1", "Verified the fix.")
+    assert "To keep them, include those headings" in refused["error"]
+    assert "- Sam: pick one" in path.read_text() and "### Sam" in path.read_text()
+
+    replaced = _run(capsys, "now", "--channel", "codex:t1", "--replace-all", "Verified the fix.")
+    assert replaced["error"] is None
+    assert "pick one" not in path.read_text() and "## Questions" not in path.read_text()
+
+
+def _asking(parent: str = "") -> str:
+    return _BRIEF.replace(
+        "### Next", "### Needs you\n\n- Choice: choose one\n\n### Next", 1
+    ).replace("## Goal", f"## Questions\n\n### Choice\n\nContext to retain.\n\n{parent}## Goal")
+
+
+def test_a_fenced_heading_never_removes_a_question_whose_bullet_remains():
+    path = _attached(_asking())
+    fenced = "```markdown\n### Running\n```\n\n- Choice: choose one"
+
+    verbs_cli.edit(path, lambda text: text.replace("- Choice: choose one", fenced))
+
+    assert "### Choice\n\nContext to retain." in path.read_text()
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda text: now_edit.remove(text, "Choice"),
+        lambda text: now_edit.replace_progress(text, "Verified.", replace_all=True),
+    ],
+)
+def test_removing_the_last_question_keeps_a_parent_line_after_it(change):
+    path = _attached(_asking("Parent: hq, 2026-09-30\n\n"))
+
+    assert verbs_cli.edit(path, change) == ""
+    assert "### Choice" not in path.read_text()
+    assert frontmatter.legacy(path.read_text()).count("Parent: hq") == 1
+
+
+def test_a_labelled_needs_bullet_takes_its_question_with_it():
+    path = _attached(
+        _BRIEF.replace("### Next", "- Needs you: Choice: choose one\n\n### Next", 1).replace(
+            "## Goal", "## Questions\n\n### Choice\n\nContext.\n\n## Goal"
+        )
+    )
+
+    assert (
+        verbs_cli.edit(
+            path, lambda text: now_edit.replace_progress(text, "Verified.", replace_all=True)
+        )
+        == ""
+    )
+    assert "### Choice" not in path.read_text()
+
+
+def test_edit_refuses_a_new_unmatched_question(capsys, monkeypatch):
+    path = _attached()
+    text = path.read_text()
+    monkeypatch.setattr(sys, "stdin", io.StringIO("### merge #12\n\n- Context\n"))
+
+    refused = _run(capsys, "section", "set", "--channel", "codex:t1", "Questions", "-")
 
     assert "`### merge #12` in ## Questions has no matching bullet" in refused["error"]
     assert path.read_text() == text
