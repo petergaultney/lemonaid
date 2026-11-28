@@ -28,6 +28,10 @@ other Status is printed and nothing is done. A turn in progress is cut short.
 A pane stays open when other jobs still run in it, when it is the last pane of its
 session, or when its session is protected; the output says which. A lemon alone in its
 tmux session is usually its place's lemon: `lemonaid place toss` cleans that up instead.
+
+An OpenClaw lemon has no harness or pane of its own: its doc watches stop, and its
+session is archived in OpenClaw, never deleted, so the transcript stays and a new message
+brings session and lemon back.
 """
 
 
@@ -62,6 +66,12 @@ def _print(result: dict, as_json: bool) -> None:
         *([f"stop its harness, pid {source['pid']}"] if source else []),
         *(["archive its inbox card"] if planned["card"] else []),
         *(f"stop its {waiter}" for waiter in planned["waiters"]),
+        *(f"stop watching {doc}" for doc in planned.get("doc_watches", [])),
+        *(
+            [f"archive its OpenClaw session {planned['openclaw_session']}, keeping the transcript"]
+            if planned.get("openclaw_session")
+            else []
+        ),
         "keep its brief, already in the attic"
         if planned["archived"]
         else f"move its brief {planned['brief']} to the attic",

@@ -1,11 +1,15 @@
 """Ending a lemon whose harness has already exited: its card, waiters and brief."""
 
+import subprocess
+
 from lemonaid.audit import events
 from lemonaid.brief import archive, child_place, children, lemon
 from lemonaid.config import Config
 from lemonaid.inbox import db, ended
 from lemonaid.launch.end import coordinator, plan
+from lemonaid.launch.end import openclaw as end_openclaw
 from lemonaid.launch.restart import state
+from lemonaid.watch import openclaw_cli, watch_list
 
 from . import shared
 
@@ -44,3 +48,48 @@ def test_ending_it_again_changes_nothing():
     _end(reviewer, author)
 
     assert _end(reviewer, author) == ["its brief was already in the attic"]
+
+
+def test_an_openclaw_lemon_stops_its_watches_and_archives_its_session(monkeypatch, tmp_path):
+    key = "agent:main:dashboard:5a1d"
+    worker, path = shared.lemon("worker", "done", channel=f"openclaw:{key}")
+    doc = tmp_path / "notes.md"
+    doc.write_text("# notes\n")
+    lists = tmp_path / "lists"
+    monkeypatch.setattr(watch_list, "default_lists_dir", lambda: lists)
+    watch_list.add(openclaw_cli.list_path(lists, key), doc)
+    ran, real = [], subprocess.run
+
+    def archive_session(argv, **kwargs):
+        if "sessions" not in argv:
+            return real(argv, **kwargs)
+
+        ran.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(end_openclaw.subprocess, "run", archive_session)
+    with db.connect() as conn:
+        planned = plan.build(conn, worker, Config())
+
+    assert (planned["source"], planned["openclaw_session"]) == (None, key)
+    assert planned["doc_watches"] == [str(doc.resolve())]
+
+    done_lines = coordinator.run(planned)
+
+    assert f"stopped watching {doc.resolve()}" in done_lines
+    assert f"archived its OpenClaw session {key}" in done_lines
+    assert [argv[1:] for argv in ran] == [["sessions", "archive", key]]
+    assert watch_list.read(openclaw_cli.list_path(lists, key)) == {}
+    assert not path.exists()
+
+
+def test_planning_an_openclaw_end_creates_no_watch_state(monkeypatch, tmp_path):
+    worker, _ = shared.lemon("worker", "done", channel="openclaw:agent:main:dashboard:5a1d")
+    lists = tmp_path / "lists"
+    monkeypatch.setattr(watch_list, "default_lists_dir", lambda: lists)
+
+    with db.connect() as conn:
+        planned = plan.build(conn, worker, Config())
+
+    assert planned["doc_watches"] == []
+    assert not lists.exists()

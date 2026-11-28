@@ -7,9 +7,10 @@ from collections import abc
 from ...brief import archive, status
 from ...config import Config
 from ...inbox import db
+from ...openclaw import sessions
 from ...watch import lemon_restart, registry
 from ..restart import planning
-from . import closing, done
+from . import closing, done, openclaw
 
 
 def _harness(row: db.Notification | None) -> planning.Owned | None:
@@ -47,7 +48,8 @@ def build(
         raise ValueError(f"{found.lemon_id}'s Status is {state}, not {' or '.join(expected)}")
 
     row = db.get_by_channel(conn, found.channel, unread_only=False) if found.channel else None
-    owned = _harness(row)
+    session_key = sessions.session_key(found.channel) if found.channel else ""
+    owned = None if session_key else _harness(row)
     return {
         "kind": "end",
         "lemon_id": found.lemon_id,
@@ -65,6 +67,10 @@ def build(
         "closing": (
             closing.preview(owned.pane, config.places.protected_sessions)
             if owned
+            else "nothing to stop or close: OpenClaw runs its session only during a turn"
+            if session_key
             else "leave its pane as it is: its harness has already exited"
         ),
+        "openclaw_session": session_key,
+        "doc_watches": openclaw.watched(session_key) if session_key else [],
     }
