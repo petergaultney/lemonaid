@@ -86,8 +86,8 @@ def test_a_lowercase_name_from_the_command_is_capitalized_and_one_without_a_lett
 @pytest.mark.parametrize(
     ("brief_id", "name", "description"),
     [
-        ("SkullHen.mc-tars", "SkullHen", "mc-tars"),
-        ("mc-tars.SkullHen", "SkullHen", "mc-tars"),
+        ("SkullHen.billing-retries", "SkullHen", "billing-retries"),
+        ("billing-retries.SkullHen", "SkullHen", "billing-retries"),
         ("a-lemon.marvin", "marvin", "a-lemon"),
         ("_robot.center", "_robot", "center"),
         ("lemon-0123abcd", "", "lemon-0123abcd"),
@@ -100,8 +100,8 @@ def test_split_id_reads_both_orders(brief_id, name, description):
 
 
 def test_markdown_id_keeps_the_order_the_id_is_written_in():
-    assert identity.markdown_id("SkullHen.mc-tars") == "**SkullHen**.`mc-tars`"
-    assert identity.markdown_id("mc-tars.SkullHen") == "`mc-tars`.**SkullHen**"
+    assert identity.markdown_id("SkullHen.billing-retries") == "**SkullHen**.`billing-retries`"
+    assert identity.markdown_id("billing-retries.SkullHen") == "`billing-retries`.**SkullHen**"
 
 
 def test_a_reroll_refuses_a_name_whose_old_order_id_is_taken():

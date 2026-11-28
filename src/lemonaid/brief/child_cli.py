@@ -224,7 +224,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     group.add_argument(
         "--area",
         default="",
-        help="The part of the project the work is in (apps/unified-asset), shown after the project",
+        help="The part of the project the work is in (apps/checkout-flow), shown after the project",
     )
     group.add_argument("--pr", default="", help="A PR URL, or a number with --repo ($pr_*)")
     group.add_argument("--repo", default="", help="owner/name, for a --pr number")

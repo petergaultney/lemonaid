@@ -18,10 +18,10 @@ def test_navigation_keys_belong_to_the_inbox():
 
 def test_a_letter_is_the_groves_only_for_a_tree_in_the_zoomed_block():
     zoomed, _ = step(Where(), "1", BLOCKS, ARRANGEMENT)
-    assert _uses(letter("tars/postgres-core"), zoomed)
+    assert _uses(letter("billing/postgres-core"), zoomed)
     assert not _uses("j", zoomed)
     assert not _uses("j")
-    assert not _uses(letter("tars/postgres-core").upper(), zoomed)
+    assert not _uses(letter("billing/postgres-core").upper(), zoomed)
 
 
 def test_a_dot_is_the_groves_only_once_a_block_is_zoomed_and_then_takes_a_letter():

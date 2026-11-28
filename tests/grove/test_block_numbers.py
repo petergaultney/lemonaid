@@ -7,9 +7,9 @@ from tests.grove.shared import block
 
 def test_a_home_group_is_saved_and_cleared_and_a_group_must_exist():
     with db.connect() as conn:
-        groups.store.create(conn, "meyer")
-    assert block_numbers.set_home("meyer") == '"meyer" is in the home block'
-    assert state.load()["home"] == "meyer"
+        groups.store.create(conn, "ada")
+    assert block_numbers.set_home("ada") == '"ada" is in the home block'
+    assert state.load()["home"] == "ada"
     assert block_numbers.set_home("nobody") == "No group named 'nobody'"
     assert block_numbers.set_home("") == "the home block holds only lemons in no group"
     assert "home" not in state.load()

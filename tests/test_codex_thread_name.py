@@ -44,7 +44,7 @@ def test_a_prompt_gives_the_thread_the_lemon_s_name(stored, names):
     _lemon("Remote names")
     with db.connect() as conn:
         emoji.set_emoji(conn, _CHANNEL, "🦊")
-    stored[_THREAD] = "Accept Oria handoff brief"
+    stored[_THREAD] = "Accept Webapp handoff brief"
 
     _hook("UserPromptSubmit")
 
@@ -105,10 +105,10 @@ def test_a_thread_codex_does_not_know_is_not_named(names):
 
 def test_the_service_names_an_idle_lemon_s_thread_after_reading_it(stored):
     _lemon("Remote names")
-    stored[_THREAD] = "Accept Oria handoff brief"
+    stored[_THREAD] = "Accept Webapp handoff brief"
     sets: list[tuple[str, str]] = []
     records = {
-        _THREAD: codex_fakes.thread(_THREAD, name="Accept Oria handoff brief"),
+        _THREAD: codex_fakes.thread(_THREAD, name="Accept Webapp handoff brief"),
         "01a1f6f1-0000-7000-8000-000000000002": None,
     }
 

@@ -296,7 +296,7 @@ def test_fish_path_under_home(monkeypatch):
         staticmethod(lambda: __import__("pathlib").Path("/Users/sam")),
     )
     assert fish_path("/Users/sam/play/lemonaid") == "~/p/lemonaid"
-    assert fish_path("/Users/sam/work/ds-monorepo/libs/gent") == "~/w/d/l/gent"
+    assert fish_path("/Users/sam/work/my-monorepo/libs/gent") == "~/w/m/l/gent"
 
 
 def test_fish_path_shallow(monkeypatch):

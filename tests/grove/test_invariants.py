@@ -20,7 +20,7 @@ from lemonaid.grove.tui.frame import Grove, render
 from .shared import NOW, lemon
 
 _WORDS = ["stray", "Stray", "spatial", "Spatial", "élan", "inbox", "cards", "s", "lemon", "Lead"]
-_KEYS = ["~lead", ":x", "sess", "tars/core", "tars/ops", "edi/837", "q", "Q"]
+_KEYS = ["~lead", ":x", "sess", "billing/core", "billing/ops", "edi/837", "q", "Q"]
 _LETTERS = set("abcdefghijklmnopqrstuvwxyz")
 
 

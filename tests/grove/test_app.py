@@ -152,8 +152,8 @@ def test_an_edit_letter_in_select_mode_asks_for_its_edit():
 
 def test_a_click_on_a_tree_in_select_mode_chooses_it_and_edits_nothing():
     first, other = (
-        GROVE.arrangement.trees[("oria", key)].letter
-        for key in ("oria-hq", "tars/slow-first-queries")
+        GROVE.arrangement.trees[("shop", key)].letter
+        for key in ("shop-hq", "billing/slow-first-queries")
     )
     asked = []
 

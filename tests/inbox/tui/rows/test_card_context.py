@@ -13,7 +13,7 @@ _TIME = Text("15:32:47")
 
 
 def _places(tmp_path) -> PlacesConfig:
-    return PlacesConfig(roots=[PlaceRoot(path=tmp_path / "ds-monorepo")])
+    return PlacesConfig(roots=[PlaceRoot(path=tmp_path / "my-monorepo")])
 
 
 def _line(tmp_path, cwd, branch, area="", fields=("time", "project", "branch"), width=200):
@@ -23,16 +23,16 @@ def _line(tmp_path, cwd, branch, area="", fields=("time", "project", "branch"), 
 
 
 def test_a_place_under_a_root_shows_the_root_and_its_area(tmp_path):
-    cwd = tmp_path / "ds-monorepo" / "ua" / "fix"
+    cwd = tmp_path / "my-monorepo" / "cf" / "fix"
 
-    assert _line(tmp_path, cwd, "ua/fix", "apps/unified-asset") == (
-        "15:32:47 · ds-monorepo: apps/unified-asset · ua/fix"
+    assert _line(tmp_path, cwd, "cf/fix", "apps/checkout-flow") == (
+        "15:32:47 · my-monorepo: apps/checkout-flow · cf/fix"
     )
 
 
 def test_project_name_color_is_stable_and_only_styles_the_project_name(tmp_path):
-    cwd = tmp_path / "ds-monorepo" / "p"
-    where = card_context.project_part(_places(tmp_path), str(cwd), "main", "apps/ua")
+    cwd = tmp_path / "my-monorepo" / "p"
+    where = card_context.project_part(_places(tmp_path), str(cwd), "main", "apps/cf")
 
     def project_part():
         return card_context.parts(
@@ -42,15 +42,15 @@ def test_project_name_color_is_stable_and_only_styles_the_project_name(tmp_path)
     first = project_part().text
     second = project_part().text
 
-    assert first.plain == "ds-monorepo: apps/ua"
+    assert first.plain == "my-monorepo: apps/cf"
     assert first.spans == second.spans
-    assert first.spans[0].style == project_color("ds-monorepo")
-    assert (first.spans[0].start, first.spans[0].end) == (0, len("ds-monorepo"))
+    assert first.spans[0].style == project_color("my-monorepo")
+    assert (first.spans[0].start, first.spans[0].end) == (0, len("my-monorepo"))
     assert first.style.startswith("bold ")
 
 
 def test_project_colors_match_tmux_window_labels():
-    for name in ("ds-monorepo", "apps", "libs", "mops", "pantry"):
+    for name in ("my-monorepo", "apps", "libs", "webapp", "pantry"):
         assert project_color(name) == window_status.get_color(name)
     assert len({project_color(f"project-{n}") for n in range(50)}) > 6
 
@@ -70,32 +70,32 @@ def test_the_cwd_fallback_is_not_shown_twice(tmp_path):
 
 
 def test_fields_come_in_the_configured_order(tmp_path):
-    cwd = tmp_path / "ds-monorepo" / "x"
+    cwd = tmp_path / "my-monorepo" / "x"
 
-    assert _line(tmp_path, cwd, "x", fields=("branch", "project")) == "x · ds-monorepo"
+    assert _line(tmp_path, cwd, "x", fields=("branch", "project")) == "x · my-monorepo"
 
 
 def test_the_branch_is_cut_first(tmp_path):
-    cwd = tmp_path / "ds-monorepo" / "p"
-    line = _line(tmp_path, cwd, "protostellar/log-model-call-usage", "apps/ua", width=40)
+    cwd = tmp_path / "my-monorepo" / "p"
+    line = _line(tmp_path, cwd, "protostellar/log-model-call-usage", "apps/cf", width=40)
 
-    assert line == "15:32:47 · ds-monorepo: apps/ua · proto…"
+    assert line == "15:32:47 · my-monorepo: apps/cf · proto…"
 
 
 def test_a_branch_too_short_to_read_drops_out(tmp_path):
-    cwd = tmp_path / "ds-monorepo" / "p"
-    line = _line(tmp_path, cwd, "protostellar/log", "apps/ua", width=34)
+    cwd = tmp_path / "my-monorepo" / "p"
+    line = _line(tmp_path, cwd, "protostellar/log", "apps/cf", width=34)
 
-    assert line == "15:32:47 · ds-monorepo: apps/ua"
+    assert line == "15:32:47 · my-monorepo: apps/cf"
 
 
 def test_then_the_area_and_never_the_project_name(tmp_path):
-    cwd = tmp_path / "ds-monorepo" / "p"
+    cwd = tmp_path / "my-monorepo" / "p"
 
     assert (
-        _line(tmp_path, cwd, "b", "apps/unified-asset", width=28) == "15:32:47 · ds-monorepo: app…"
+        _line(tmp_path, cwd, "b", "apps/checkout-flow", width=28) == "15:32:47 · my-monorepo: app…"
     )
-    assert _line(tmp_path, cwd, "b", "apps/unified-asset", width=22) == "15:32:47 · ds-monorepo"
+    assert _line(tmp_path, cwd, "b", "apps/checkout-flow", width=22) == "15:32:47 · my-monorepo"
 
 
 def test_unknown_card_fields_are_dropped_with_a_warning(tmp_path, capsys):
@@ -107,9 +107,9 @@ def test_unknown_card_fields_are_dropped_with_a_warning(tmp_path, capsys):
 
 
 def test_the_time_goes_before_the_project_name_is_cut(tmp_path):
-    cwd = tmp_path / "ds-monorepo" / "p"
+    cwd = tmp_path / "my-monorepo" / "p"
 
-    assert _line(tmp_path, cwd, "b", "apps/unified-asset", width=15) == "ds-monorepo"
+    assert _line(tmp_path, cwd, "b", "apps/checkout-flow", width=15) == "my-monorepo"
 
 
 def test_a_narrow_card_keeps_a_project_name_that_fits_alone(tmp_path):

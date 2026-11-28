@@ -142,7 +142,7 @@ def add_target(parser: argparse.ArgumentParser) -> None:
     )
     target.add_argument("--id", type=int, help="The session a notification id belongs to")
     target.add_argument("--channel", help="An inbox channel, e.g. claude:1a2b3c4d")
-    target.add_argument("--lemon", help="A Lemon-ID or brief name, e.g. tars-views.QuickOdd")
+    target.add_argument("--lemon", help="A Lemon-ID or brief name, e.g. billing-views.QuickOdd")
     parser.add_argument("--json", action="store_true", help="Print the result as JSON")
 
 

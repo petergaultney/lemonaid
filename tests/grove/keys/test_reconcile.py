@@ -2,7 +2,7 @@ from lemonaid.grove.tui.keys import Where, reconcile
 
 from ..shared import block, tree
 
-BEFORE = (block("oria", "1", tree("a")), block("relay", "2", tree("b")))
+BEFORE = (block("shop", "1", tree("a")), block("relay", "2", tree("b")))
 
 
 def test_a_zoomed_block_that_ended_is_let_go():

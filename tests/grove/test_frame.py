@@ -12,7 +12,7 @@ from lemonaid.inbox import badges
 from .shared import NOW, block, lemon, tree
 
 BLOCKS = (
-    block("oria", "1", tree("oria-hq", lead=True), tree("tars/slow-first-queries")),
+    block("shop", "1", tree("shop-hq", lead=True), tree("billing/slow-first-queries")),
     block("relay", "2", tree("git-sync-wedge", lemon("claude:wedge", "CraneFly", "blocked"))),
 )
 GROVE = Grove(BLOCKS, *arrange.arrange(BLOCKS, {"plots": {}, "trees": {}}, NOW))
@@ -24,7 +24,7 @@ def screen_text(where: Where) -> str:
 
 def test_zoomed_out_shows_every_block_sign():
     shown = screen_text(Where())
-    assert "1 ORIA" in shown and "2 RELAY" in shown
+    assert "1 SHOP" in shown and "2 RELAY" in shown
 
 
 def test_the_grove_view_tags_each_tree_with_its_whole_key_and_a_block_with_its_letter():
@@ -54,7 +54,7 @@ def test_a_search_with_one_block_of_matches_zooms_to_it():
 
 
 def test_a_zoomed_block_that_is_gone_draws_the_overview():
-    assert "1 ORIA" in screen_text(Where(block="9", digits="9"))
+    assert "1 SHOP" in screen_text(Where(block="9", digits="9"))
 
 
 def test_a_pane_too_small_to_draw_says_so():

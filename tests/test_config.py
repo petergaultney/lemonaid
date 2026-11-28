@@ -96,9 +96,9 @@ def test_brief_cards_are_opt_in():
 
 
 def test_parse_named_tmux_window_processes():
-    config = _parse_config({"tmux-window": {"named_processes": ["mops-console"]}})
+    config = _parse_config({"tmux-window": {"named_processes": ["queue-console"]}})
 
-    assert config.tmux_window.named_processes == ("mops-console",)
+    assert config.tmux_window.named_processes == ("queue-console",)
 
 
 def test_named_tmux_window_processes_default_to_empty():

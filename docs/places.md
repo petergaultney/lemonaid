@@ -262,7 +262,7 @@ Protect long-lived workspaces explicitly by their exact tmux session names:
 
 ```toml
 [places]
-protected_sessions = ["hq", "ds-monorepo/main"]
+protected_sessions = ["hq", "my-monorepo/main"]
 ```
 
 Protected sessions are never closed, including through directory-key cleanup.

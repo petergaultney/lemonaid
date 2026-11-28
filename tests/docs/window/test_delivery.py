@@ -79,7 +79,7 @@ def test_a_resume_in_another_mode_starts_a_new_window():
     state = {**_state(), "mode": "packages"}
     window.given(state, "a.md#", 1.0, package=False)
 
-    assert window.begin(state, "resume", "classic", ["oria"]) is True
+    assert window.begin(state, "resume", "classic", ["webapp"]) is True
     assert (state["window"], state["mode"], state["delivered"]) == (2, "classic", {})
 
 

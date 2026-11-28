@@ -14,10 +14,10 @@ def _in(session: str, *lemons):
 BIG = _in("core", lemon("claude:a", "SwordAce"), lemon("codex:b", "WagonCoy"), lemon("codex:c"))
 LOOSE = tree("/work/notes", lemon("claude:notes"))
 OTHER = _in("other", lemon("claude:o"))
-BLOCKS = (block("oria", "1", BIG, LOOSE), block("relay", "2", OTHER))
+BLOCKS = (block("shop", "1", BIG, LOOSE), block("relay", "2", OTHER))
 ARRANGEMENT, _ = arrange.arrange(BLOCKS, {"plots": {}, "trees": {}}, NOW)
-CORE = ARRANGEMENT.trees[("oria", "core")].letter
-NOTES = ARRANGEMENT.trees[("oria", "/work/notes")].letter
+CORE = ARRANGEMENT.trees[("shop", "core")].letter
+NOTES = ARRANGEMENT.trees[("shop", "/work/notes")].letter
 
 
 def press(*typed: str, where: Where | None = None, blocks=BLOCKS, arrangement=ARRANGEMENT):

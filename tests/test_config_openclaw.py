@@ -11,16 +11,16 @@ def test_openclaw_config_defaults():
 
 def test_parse_openclaw_remote_host():
     """Parsing config with openclaw.remote_host sets the value."""
-    data = {"openclaw": {"remote_host": "lemon-grove"}}
+    data = {"openclaw": {"remote_host": "grove-host"}}
     config = _parse_config(data)
-    assert config.openclaw.remote_host == "lemon-grove"
+    assert config.openclaw.remote_host == "grove-host"
 
 
 def test_parse_openclaw_remote_host_user_at_host():
     """Parsing config with user@host format works."""
-    data = {"openclaw": {"remote_host": "lemonlime@lemon-grove"}}
+    data = {"openclaw": {"remote_host": "lemonlime@grove-host"}}
     config = _parse_config(data)
-    assert config.openclaw.remote_host == "lemonlime@lemon-grove"
+    assert config.openclaw.remote_host == "lemonlime@grove-host"
 
 
 def test_parse_openclaw_missing_section():

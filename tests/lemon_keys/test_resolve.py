@@ -5,14 +5,14 @@ from lemonaid.lemon_keys import lookup
 from ..grove.shared import NOW, block, lemon, tree
 
 AUTHOR, REVIEWER = lemon("claude:author", "SwordAce"), lemon("codex:reviewer", "WagonCoy")
-PAIR = tree("tars/postgres-core", AUTHOR, REVIEWER)
+PAIR = tree("billing/postgres-core", AUTHOR, REVIEWER)
 BLOCKS = (
-    block("oria-postgres", "1", PAIR, tree("tars/postgres-ops", lemon("claude:ops"))),
+    block("shop-postgres", "1", PAIR, tree("billing/postgres-ops", lemon("claude:ops"))),
     block("lemonaid", "5", tree("wezterm", lemon("claude:wezterm", status="done"))),
 )
 ARRANGEMENT, _ = arrange.arrange(BLOCKS, {"plots": {}, "trees": {}}, NOW)
 EVERYTHING = lookup.every(BLOCKS, ARRANGEMENT)
-LETTER = ARRANGEMENT.trees[("oria-postgres", "tars/postgres-core")].letter
+LETTER = ARRANGEMENT.trees[("shop-postgres", "billing/postgres-core")].letter
 
 
 def channels(typed: str) -> list[str]:

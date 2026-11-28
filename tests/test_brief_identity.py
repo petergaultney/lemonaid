@@ -35,8 +35,8 @@ def test_new_brief_stores_a_slugged_id():
 def test_new_id_uses_filename_slug_without_date_and_trims_at_hyphen(monkeypatch):
     monkeypatch.setattr(store.os, "urandom", lambda size: bytes.fromhex("bdbb"))
     assert (
-        store.new_lemon_id(store.briefs_dir() / "2026-09-25-mc-tars-no-mops-leases.md")
-        == "SkullHen.mc-tars-no-mops-leases"
+        store.new_lemon_id(store.briefs_dir() / "2026-09-25-billing-retries.md")
+        == "SkullHen.billing-retries"
     )
     long_name = "2026-09-25-one-two-three-four-five-six-seven-eight-nine-ten-eleven.md"
     slug = store.new_lemon_id(store.briefs_dir() / long_name).split(".", 1)[1]

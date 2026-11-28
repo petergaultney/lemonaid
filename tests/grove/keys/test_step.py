@@ -4,20 +4,20 @@ from lemonaid.grove.tui.keys import Where, names, step
 from ..shared import NOW, block, lemon, tree
 
 AUTHOR, REVIEWER = lemon("claude:author", "SwordAce"), lemon("codex:reviewer", "WagonCoy")
-BIG = tree("tars/postgres-core", AUTHOR, REVIEWER, lemon("codex:third", "GlobeAim"))
+BIG = tree("billing/postgres-core", AUTHOR, REVIEWER, lemon("codex:third", "GlobeAim"))
 PAIR = tree(
-    "tars/postgres-ops", lemon("claude:ops", "CycleKeg"), lemon("codex:ops-review", "VoiceSay")
+    "billing/postgres-ops", lemon("claude:ops", "CycleKeg"), lemon("codex:ops-review", "VoiceSay")
 )
-LEAD = tree("tars/postgres-report", lemon("claude:lead", "DizzyWin"), lead=True)
+LEAD = tree("billing/postgres-report", lemon("claude:lead", "DizzyWin"), lead=True)
 BLOCKS = (
-    block("oria-postgres", "1", LEAD, BIG, PAIR),
+    block("shop-postgres", "1", LEAD, BIG, PAIR),
     *(block(f"group-{n}", str(n), tree(f"t{n}")) for n in range(2, 12)),
 )
 ARRANGEMENT, _ = arrange.arrange(BLOCKS, {"plots": {}, "trees": {}}, NOW)
 
 
 def letter(key: str) -> str:
-    return ARRANGEMENT.trees[("oria-postgres", key)].letter
+    return ARRANGEMENT.trees[("shop-postgres", key)].letter
 
 
 def press(*typed: str, where: Where | None = None) -> tuple[Where, str]:
@@ -36,17 +36,17 @@ def test_a_second_digit_reaches_a_two_digit_block():
 
 
 def test_l_jumps_to_the_lead():
-    assert letter("tars/postgres-report") == "l"
+    assert letter("billing/postgres-report") == "l"
     assert press("1", "l")[1] == "claude:lead"
 
 
 def test_a_trees_letter_takes_its_first_lemon_whatever_its_size():
-    assert press("1", letter("tars/postgres-ops"))[1] == "claude:ops"
-    assert press("1", letter("tars/postgres-core"))[1] == "claude:author"
+    assert press("1", letter("billing/postgres-ops"))[1] == "claude:ops"
+    assert press("1", letter("billing/postgres-core"))[1] == "claude:author"
 
 
 def test_a_dot_the_letter_and_a_place_take_the_rest():
-    ops, core = letter("tars/postgres-ops"), letter("tars/postgres-core")
+    ops, core = letter("billing/postgres-ops"), letter("billing/postgres-core")
     assert press("1", ".", ops, "1")[1] == "codex:ops-review"
     where, channel = press("1", ".", core)
     assert where.tree == core and not where.dot and not channel
@@ -60,7 +60,7 @@ def test_a_dot_alone_waits_for_a_letter():
 
 
 def test_a_capital_picks_nothing():
-    where, channel = press("1", letter("tars/postgres-core").upper())
+    where, channel = press("1", letter("billing/postgres-core").upper())
     assert not channel and not where.tree and where.note
 
 
@@ -70,7 +70,7 @@ def test_a_dot_before_a_block_explains_itself():
 
 
 def test_escape_backs_out_one_level_at_a_time():
-    where, _ = press("1", ".", letter("tars/postgres-core"), "escape")
+    where, _ = press("1", ".", letter("billing/postgres-core"), "escape")
     assert where.block == "1" and not where.tree
     assert press("escape", where=where)[0] == Where()
 

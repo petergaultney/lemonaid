@@ -55,15 +55,15 @@ def test_a_refused_tree_is_drawn_red_with_its_reason_in_alert():
 
 
 def test_a_block_dragged_onto_another_reddens_the_ground_it_would_take():
-    oria, relay = GROVE.arrangement.plots["oria"], GROVE.arrangement.plots["relay"]
-    digit = next(b.digit for b in GROVE.blocks if b.name == "oria")
+    shop, relay = GROVE.arrangement.plots["shop"], GROVE.arrangement.plots["relay"]
+    digit = next(b.digit for b in GROVE.blocks if b.name == "shop")
     grabbed = garden.grab(GROVE, keys.Where(), _SIZE, (0, 0), (digit,))
     assert grabbed is not None
-    drag = dataclasses.replace(grabbed, moved=(relay.x - oria.x, relay.y - oria.y))
+    drag = dataclasses.replace(grabbed, moved=(relay.x - shop.x, relay.y - shop.y))
     assert drop.refused(GROVE, drag) == "another block's ground is there"
     dragged = drop.dragged(GROVE, drag)
     shown = drop.shown_refused(GROVE, drag)
-    assert shown == refusal.Refusal(plot=dragged.arrangement.plots["oria"])
+    assert shown == refusal.Refusal(plot=dragged.arrangement.plots["shop"])
 
     plain = render(dragged, keys.Where(), *_SIZE, 0.0)
     red = render(dragged, keys.Where(), *_SIZE, 0.0, refused=shown)

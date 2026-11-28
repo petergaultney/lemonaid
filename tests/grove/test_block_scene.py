@@ -11,7 +11,7 @@ _SIZE = (200, 64)
 
 def test_each_list_is_titled_with_its_trees_tag_then_its_place_key_muted():
     grove = block(
-        "g", "1", tree("tars/one"), tree("tars/two", lemon("claude:a"), lemon("claude:b"))
+        "g", "1", tree("billing/one"), tree("billing/two", lemon("claude:a"), lemon("claude:b"))
     )
     arrangement, _ = arrange.arrange((grove,), {"plots": {}, "trees": {}}, NOW)
     c = canvas.blank(160, 45)
@@ -40,7 +40,7 @@ def test_a_list_clamped_away_from_its_tree_leaves_no_second_copy_of_the_title():
         "g",
         "1",
         tree("inbox/brief-first", lemon("claude:a")),
-        tree("tars/two", lemon("claude:b"), lemon("claude:c")),
+        tree("billing/two", lemon("claude:b"), lemon("claude:c")),
     )
     arrangement, _ = arrange.arrange((grove,), {"plots": {}, "trees": {}}, NOW)
     c = canvas.blank(60, 14)
@@ -55,7 +55,7 @@ def test_a_list_that_cannot_hang_from_its_tag_is_reported_astray():
         "g",
         "1",
         tree("inbox/brief-first", lemon("claude:a")),
-        tree("tars/two", lemon("claude:b"), lemon("claude:c")),
+        tree("billing/two", lemon("claude:b"), lemon("claude:c")),
     )
     arrangement, _ = arrange.arrange((grove,), {"plots": {}, "trees": {}}, NOW)
     roomy: list[str] = []

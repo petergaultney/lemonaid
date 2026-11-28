@@ -46,20 +46,20 @@ def test_groups_with_the_same_hash_slot_neighbourhood_get_apart_colors() -> None
 
 
 def test_a_groups_color_depends_on_the_set_of_groups_not_their_order() -> None:
-    names = ["oria", "mops", "relay", "watchers", "lemonaid"]
+    names = ["webapp", "billing", "relay", "watchers", "lemonaid"]
 
     assert palette.assign_groups(names, {}) == palette.assign_groups(reversed(names), {})
 
 
 def test_a_group_alone_keeps_its_hash_slot() -> None:
-    assert palette.assign_groups(["oria"], {}) == {"oria": palette.color_for("oria")}
+    assert palette.assign_groups(["webapp"], {}) == {"webapp": palette.color_for("webapp")}
 
 
 def test_a_pinned_color_wins_and_others_keep_clear_of_it() -> None:
-    pinned = palette.color_for("mops")
+    pinned = palette.color_for("billing")
 
-    given = palette.assign_groups(["oria", "mops"], {"mops": pinned, "gone": "#ffffff"})
+    given = palette.assign_groups(["webapp", "billing"], {"billing": pinned, "gone": "#ffffff"})
 
-    assert given["mops"] == pinned
+    assert given["billing"] == pinned
     assert "gone" not in given
-    assert palette.distance(given["oria"], pinned) >= palette.GROUP_MIN_DISTANCE
+    assert palette.distance(given["webapp"], pinned) >= palette.GROUP_MIN_DISTANCE
