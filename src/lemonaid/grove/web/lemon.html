@@ -335,11 +335,22 @@ const showTalk = c => {
                    pending.map(p => [new Date(p.at).toISOString(), renderPending(p)])))
     + (working ? `<div class="entry working"><i></i><i></i><i></i>working...</div>` : "");
   if (html !== shownLog) {
-    const log = $("log"), atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-    log.innerHTML = shownLog = html;
-    if (atEnd) log.scrollTop = log.scrollHeight;
+    $("log").innerHTML = shownLog = html;
+    followEnd();
   }
 };
+// The log follows its end until the reader scrolls up. Anything that changes its height without a
+// scroll (new entries, images loading, the keyboard resizing the page, the log being shown again
+// after the brief tab) moves it back to the end rather than leaving the reader mid-history.
+let following = true;
+const followEnd = () => { if (following) $("log").scrollTop = $("log").scrollHeight; };
+const toEnd = () => { following = true; followEnd(); };
+$("log").addEventListener("scroll", () => {
+  const log = $("log");
+  if (log.clientHeight) following = log.scrollHeight - log.scrollTop - log.clientHeight < 40;  // a hidden log reports 0
+});
+new ResizeObserver(followEnd).observe($("log"));
+$("log").addEventListener("load", followEnd, true);  // images don't bubble; capture sees them
 // The brief is local and quick; the conversation may come from another process, so each
 // shows as soon as it arrives.
 // The first refresh notes when each part arrived and the conversation was drawn, in ms since the
@@ -397,7 +408,7 @@ const send = async () => {
       pending = [...pending, {text, files, at: Date.now(), seen}];
       savePending(pending);
       shownLog = null;
-      $("log").scrollTop = $("log").scrollHeight;
+      toEnd();
     }
   } catch (error) {  // the request may have reached the server, so resending could say it twice
     $("said").textContent = `${error}; check the conversation before sending again`;
@@ -448,7 +459,10 @@ const showTab = tab => {
   document.body.className = `${tab}-tab`;
   for (const each of document.querySelectorAll(".tabs button[data-tab]")) each.classList.toggle("on", each.dataset.tab === tab);
 };
-for (const button of document.querySelectorAll(".tabs button[data-tab]")) button.addEventListener("click", () => { showTab(button.dataset.tab); if (button.dataset.tab === "chat") toBox(); });
+for (const button of document.querySelectorAll(".tabs button[data-tab]")) button.addEventListener("click", () => {
+  showTab(button.dataset.tab);
+  if (button.dataset.tab === "chat") { toBox(); toEnd(); }
+});
 // The prefix key's brief key (prefix.js): the brief, focused so the arrow keys scroll it.
 document.addEventListener("grove-brief", () => { showTab("brief"); $("brief").focus(); });
 // The brief's share of the width, dragged on the divider and kept in this browser.
