@@ -93,7 +93,6 @@ def test_talk_reads_a_conversation_again_only_once_it_changed(worker, monkeypatc
 
 
 def test_an_openclaw_turn_that_failed_changes_its_page(monkeypatch):
-    monkeypatch.setattr(turns, "_failed", {})
     monkeypatch.setattr(lemon.conversation.openclaw, "mark", lambda *_args: "history")
     with db.connect() as conn:
         db.register_working(conn, "openclaw:agent:main:probe", "", name="probe")

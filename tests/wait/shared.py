@@ -12,7 +12,16 @@ def eventually(predicate):
         time.sleep(0.01)
 
 
-def start(tmp_path, text, deliver, notes=None, quiet=0.05, latest_turn=None, writer=""):
+def start(
+    tmp_path,
+    text,
+    deliver,
+    notes=None,
+    quiet=0.05,
+    latest_turn=None,
+    writer="",
+    edits_by_turn=False,
+):
     path = tmp_path / "brief.md"
     path.write_text(text)
     mailbox = store.mailbox_for_id("task.IndexElf")
@@ -35,6 +44,7 @@ def start(tmp_path, text, deliver, notes=None, quiet=0.05, latest_turn=None, wri
                 quiet=quiet,
                 notes=lambda: notes or {},
                 latest_turn=latest_turn,
+                edits_by_turn=edits_by_turn,
             )
         except delivery.Failed as error:
             errors.append(error)

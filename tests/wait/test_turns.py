@@ -39,7 +39,12 @@ def test_a_body_change_made_during_the_turn_wakes_nobody_and_a_later_comment_doe
     turn = [turns.Turn(False, 0, 0)]
     sent = []
     _path, _inbox, root, stop, thread, errors = shared.start(
-        tmp_path, text, sent.append, latest_turn=lambda: turn[0], writer="openclaw-agent:main:x"
+        tmp_path,
+        text,
+        sent.append,
+        latest_turn=lambda: turn[0],
+        writer="openclaw-agent:main:x",
+        edits_by_turn=True,
     )
     try:
         shared.eventually(lambda: (root / "doc").exists())
@@ -67,7 +72,12 @@ def test_a_body_edit_made_before_the_turn_is_still_reported_after_it(tmp_path, m
     turn = [turns.Turn(False, 0, 0)]
     sent = []
     _path, _inbox, root, stop, thread, errors = shared.start(
-        tmp_path, text, sent.append, latest_turn=lambda: turn[0], writer="openclaw-agent:main:x"
+        tmp_path,
+        text,
+        sent.append,
+        latest_turn=lambda: turn[0],
+        writer="openclaw-agent:main:x",
+        edits_by_turn=True,
     )
     try:
         shared.eventually(lambda: (root / "doc").exists())
@@ -81,6 +91,33 @@ def test_a_body_edit_made_before_the_turn_is_still_reported_after_it(tmp_path, m
         thread.join(5)
         assert not thread.is_alive() and not errors
         assert len(sent) == 1 and "A human's instruction." in sent[0]
+    finally:
+        stop.set()
+        thread.join(5)
+
+
+def test_where_a_hook_records_own_edits_a_change_during_the_turn_is_reported(tmp_path, monkeypatch):
+    monkeypatch.setattr(scout_pollers, "_THREAD_SETTLE", 0.1)
+    doc = tmp_path / "draft.md"
+    doc.write_text("body\n")
+    text = (
+        shared.BRIEF + f"- `lemonaid watch doc --wait {doc} --quiet .02 --interval .01 --edits`\n"
+    )
+    turn = [turns.Turn(False, 0, 0)]
+    sent = []
+    _path, _inbox, root, stop, thread, errors = shared.start(
+        tmp_path, text, sent.append, latest_turn=lambda: turn[0], writer="openclaw-agent:main:x"
+    )
+    try:
+        shared.eventually(lambda: (root / "doc").exists())
+        time.sleep(0.3)  # the scout sees the body before the turn
+        turn[0] = turns.Turn(True, time.time(), 0)
+        doc.write_text("body\n\nSomeone else's paragraph.\n")
+        time.sleep(0.5)
+        turn[0] = turns.Turn(False, turn[0].started, time.time())
+        thread.join(5)
+        assert not thread.is_alive() and not errors
+        assert len(sent) == 1 and "body of" in sent[0]
     finally:
         stop.set()
         thread.join(5)

@@ -12,7 +12,7 @@ from lemonaid.brief import store as brief_store
 from lemonaid.front_end import chat
 from lemonaid.inbox import db
 from lemonaid.messages import cli, recipient, store, tell_delivery, waiter
-from lemonaid.openclaw import sessions
+from lemonaid.openclaw import run_records, sessions
 from lemonaid.watch import hosted_scout, openclaw_scout, scout_roster, wait_cli, wait_state
 
 KEY = "agent:garden:matrix:channel:!g4rd3n:grove.example"
@@ -174,9 +174,28 @@ def test_ensure_keeps_a_scout_already_serving_the_session(monkeypatch):
 def test_a_session_counts_as_mid_turn_from_the_moment_the_scout_sends_it_a_batch(
     fake_openclaw,
 ):
+    with db.connect() as conn:
+        db.add(conn, channel=CHANNEL, message="hi")
     found = openclaw_scout.harness(CHANNEL)
     assert found.latest_turn() is None  # the fake gateway lists no turn
 
     found.deliver("mail from HQ")
 
     assert found.latest_turn().running is True
+
+
+def test_a_turn_that_ended_before_its_send_was_recorded_stays_over():
+    with db.connect() as conn:
+        db.add(conn, channel=CHANNEL, message="hi")
+        run_records.ended(conn, KEY, "r1", 101.0)  # the turn sent at 100 has already run
+
+        assert run_records.sent(conn, KEY, 100.0) == 0
+        assert db.get_by_channel(conn, CHANNEL, unread_only=False).turn_at is None
+
+
+def test_own_edits_count_by_turn_only_without_the_plugin(fake_openclaw, monkeypatch):
+    assert openclaw_scout.harness(CHANNEL).edits_by_turn is True
+
+    monkeypatch.setattr(openclaw_scout.plugin_install, "installed", lambda: True)
+
+    assert openclaw_scout.harness(CHANNEL).edits_by_turn is False

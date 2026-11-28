@@ -54,7 +54,8 @@ class _Harness(ty.NamedTuple):
     writer: str
     session: session_socket.Session | None
     sources: tuple[tuple[Path, ...], tuple[int, ...]] = ((), ())  # whose changes wake the scout
-    latest_turn: turns.Turns | None = None  # where no hook records the lemon's own edits
+    latest_turn: turns.Turns | None = None  # holds batches while the lemon is mid-turn
+    edits_by_turn: bool = False  # no hook records its own edits, so its turns' changes count
 
 
 def _harness(registration: scout_roster.Registration) -> _Harness | str:
@@ -69,7 +70,12 @@ def _harness(registration: scout_roster.Registration) -> _Harness | str:
     if registration.channel.startswith(sessions.PREFIX):
         found = openclaw_scout.harness(registration.channel)
         return _Harness(
-            found.deliver, found.alive, found.writer, None, latest_turn=found.latest_turn
+            found.deliver,
+            found.alive,
+            found.writer,
+            None,
+            latest_turn=found.latest_turn,
+            edits_by_turn=found.edits_by_turn,
         )
 
     session = push_scout.session(registration.channel.removeprefix("claude:"), wait=30)
@@ -180,6 +186,7 @@ def run(
                         harness.sources[1],
                     ),
                     latest_turn=harness.latest_turn,
+                    edits_by_turn=harness.edits_by_turn,
                 )
     except waiter.AlreadyArmed as error:
         _log.info("scout for %s waits: %s", lemon_id, error)

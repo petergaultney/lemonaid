@@ -1,0 +1,13 @@
+{
+  "id": "lemonaid",
+  "name": "lemonaid",
+  "description": "Tells lemonaid when a session's turns run and end, and what its tool calls change.",
+  "categories": ["developer-tools"],
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false
+  }
+}

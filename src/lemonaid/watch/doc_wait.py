@@ -66,7 +66,10 @@ def wait_list(
     writer: str = "",
     *,
     plugins: Plugins,
+    edits_by_turn: bool = True,
 ) -> None:
+    """With *latest_turn*, nothing is delivered while the lemon is mid-turn; with *edits_by_turn*
+    too, a body change seen during its turn counts as its own edit."""
     attempt = _deliverer(deliver, once=False, latest_turn=latest_turn)
     watches: dict[str, doc_events.DocWatch] = {}
     while True:
@@ -88,7 +91,7 @@ def wait_list(
                 quiet,
                 writer,
                 cursor_key=cursor_key,
-                latest_turn=latest_turn,
+                latest_turn=latest_turn if edits_by_turn else None,
                 plugins=plugins,
             )
             for d in docs

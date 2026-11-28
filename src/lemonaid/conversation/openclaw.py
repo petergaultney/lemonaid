@@ -10,7 +10,7 @@ import datetime
 import json
 from collections import abc
 
-from ..openclaw import gateway, turns
+from ..openclaw import failures, gateway
 from . import entry
 
 _TIMEOUT_SECONDS = 30
@@ -163,7 +163,7 @@ def with_failures(entries: abc.Iterable[entry.Entry], session_key: str) -> list[
 
     failed = [
         (when, entry.Entry(entry.FAILED, failure.why or "the turn failed", _at(failure.at_ms)))
-        for failure in turns.failed(session_key)
+        for failure in failures.read(session_key)
         if (when := datetime.datetime.fromtimestamp(failure.at_ms / 1000, datetime.UTC)) >= oldest
     ]
     merged = [

@@ -126,7 +126,6 @@ def _handed(monkeypatch, said) -> list[dict]:
 
 def test_a_turn_that_failed_is_handed_on_as_failed_without_its_message(monkeypatch):
     handed = _handed(monkeypatch, lambda *args: "Ready to merge?")
-    monkeypatch.setattr(observe.turns, "_failed", {})
     observe.turns.note(
         {
             "sessionKey": "agent:main:x",

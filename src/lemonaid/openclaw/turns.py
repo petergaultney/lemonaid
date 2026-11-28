@@ -1,6 +1,5 @@
 """The OpenClaw turns running and failed, as the gateway's events say while a held connection
-(`gateway.hold`) reads them. The gateway keeps no record of a turn that failed before its
-lemon wrote anything, so its conversation alone would show the lemon saying nothing.
+(`gateway.hold`) reads them. Failures go to `failures`.
 
 A run sends `agent` events while it works and ends with a `lifecycle` event whose phase is
 `end` or `error`; an `error` may be followed by a retry of the same run.
@@ -8,15 +7,14 @@ A run sends `agent` events while it works and ends with a `lifecycle` event whos
 
 import threading
 import time
-import typing as ty
 from collections import abc
 
-_KEPT = 5  # failed turns kept for each session
+from . import failures
+
 _TERMINAL = frozenset({"end", "error"})
 _RECORD_EVERY_MS = 60_000  # a running turn's record is renewed this often, so it never goes stale
 
 _lock = threading.Lock()
-_failed: dict[str, dict[str, "Failure"]] = {}  # session key: by run id, oldest first
 _ended: dict[str, int] = {}  # session key: when its last turn ended, in ms
 _recorded: dict[str, int] = {}  # session key: when its running turn was last recorded, in ms
 _started: dict[str, int] = {}  # session key: when its running turn began, in ms
@@ -26,11 +24,6 @@ _started: dict[str, int] = {}  # session key: when its running turn began, in ms
 Record = abc.Callable[[str, float | None, float, float], None]
 
 
-class Failure(ty.NamedTuple):
-    at_ms: int
-    why: str
-
-
 def note(payload: dict) -> None:
     """Keep a failed turn from an `agent` event's payload; anything else is no failure."""
     data = payload.get("data") or {}
@@ -38,17 +31,7 @@ def note(payload: dict) -> None:
     if payload.get("stream") != "lifecycle" or data.get("phase") != "error" or not key:
         return
 
-    with _lock:
-        runs = _failed.setdefault(key, {})
-        runs.setdefault(run, Failure(int(payload.get("ts") or 0), str(data.get("error") or "")))
-        for old in list(runs)[:-_KEPT]:
-            del runs[old]
-
-
-def failed(session_key: str) -> list[Failure]:
-    """The session's failed turns seen since this process started, oldest first."""
-    with _lock:
-        return list(_failed.get(session_key, {}).values())
+    failures.record(key, run, int(payload.get("ts") or 0), str(data.get("error") or ""))
 
 
 def track(payload: dict, record: Record) -> None:
