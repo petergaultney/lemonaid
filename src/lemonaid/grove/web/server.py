@@ -25,7 +25,7 @@ from ...inbox import db, pins
 from ...log import get_logger
 from ...openclaw import gateway
 from ..window import api, data, edits
-from . import attachments, brief_page, changes, lemon, notes, pages
+from . import attachments, brief_page, changes, group_edit, lemon, notes, pages
 from .push import calls as push_calls
 from .push import pusher
 
@@ -127,6 +127,12 @@ class _WebApi(api.Api):
             row = db.get_by_channel(conn, channel, unread_only=False)
         return {"said": said, "gone": row is None or row.is_archived}
 
+    def group_edit_info(self, name: str) -> dict:
+        return group_edit.info(name)
+
+    def group_edit(self, action: str, name: str, answer: str) -> str:
+        return group_edit.make(action, name, answer)
+
 
 # What a browser may call, named one by one so a method added to the native window isn't served
 # by accident. The window's own placing (dismiss, drag, stick, to_terminal) and open_link are the
@@ -139,6 +145,8 @@ _CALLS = frozenset(
         "detach",
         "edit",
         "edit_info",
+        "group_edit",
+        "group_edit_info",
         "jump",
         "keep",
         "lemon",

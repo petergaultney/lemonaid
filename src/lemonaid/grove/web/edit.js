@@ -96,6 +96,37 @@
     s.querySelectorAll("[data-action]").forEach(b => { b.onclick = () => begin(b.dataset.action, lemon, after); });
   };
 
+  // Holding a group in the list: rename it, recolor it, or delete it (its lemons stay), which asks
+  // once more first. *after()* runs once what an edit did is read and closed.
+  window.groveGroupEdit = (name, after = () => {}) => {
+    const make = async (action, answer) => {
+      let said;
+      try { said = await ask("group_edit", [action, name, answer]); } catch (e) { return say(failure(e), true); }
+      say(said, false, after);
+    };
+    const field = (kind, value, hint) => {
+      const s = open(`<div class="title">${esc(name)}</div><input value="${esc(value)}" placeholder="${esc(hint)}" spellcheck="false" autocapitalize="off" enterkeyhint="done">`
+        + `<button class="go" data-go>${kind}</button><button class="quiet" data-close>Cancel</button>`);
+      const input = s.querySelector("input"), go = () => make(kind.toLowerCase(), input.value.trim());
+      s.querySelector("[data-go]").onclick = go;
+      input.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); go(); } };
+      input.focus();
+      input.select();
+    };
+    const sure = info => {
+      const s = open(`<div class="title">${esc(name)}</div><div class="said">Delete this group? ${info.members} lemon${info.members === 1 ? "" : "s"} in it will be left as they are.</div>`
+        + '<button class="go" data-go>Delete</button><button class="quiet" data-close>Cancel</button>');
+      s.querySelector("[data-go]").onclick = () => make("delete", "");
+    };
+    ask("group_edit_info", [name]).then(info => {
+      if (info.problem) return say(info.problem, true);
+      const s = open(`<div class="title">${esc(info.name)}</div><button data-action="rename">Rename</button><button data-action="color">Color</button><button data-action="delete">Delete</button><button class="quiet" data-close>Cancel</button>`);
+      s.querySelector('[data-action="rename"]').onclick = () => field("Rename", info.name, "a new name");
+      s.querySelector('[data-action="color"]').onclick = () => field("Color", info.color, "#rrggbb or a name like teal; empty clears");
+      s.querySelector('[data-action="delete"]').onclick = () => sure(info);
+    }).catch(e => say(failure(e), true));
+  };
+
   // Holding anything marked data-hold calls *held(element)* in place of the browser's own menu for
   // it, and the tap that ends the hold doesn't follow its link. Moving the finger, as to scroll, isn't
   // a hold.
