@@ -69,6 +69,21 @@ def hosted_codex_home() -> Path | None:
     return path if path.is_relative_to(agents) else None
 
 
+SESSION_KEY_ENV = (
+    "OPENCLAW_SESSION_KEY"  # set on every command a session runs, by a patched gateway
+)
+
+
+def hosted_key() -> str:
+    """The OpenClaw session running this process, from its environment, or ""."""
+    return os.environ.get(SESSION_KEY_ENV, "").strip()
+
+
+def hosted() -> bool:
+    """Whether an OpenClaw session runs this process, whatever its model's runtime."""
+    return bool(hosted_key()) or hosted_codex_home() is not None
+
+
 def hosted_agent() -> str:
     """The id of the OpenClaw agent running this process, or "" outside OpenClaw."""
     home = hosted_codex_home()
