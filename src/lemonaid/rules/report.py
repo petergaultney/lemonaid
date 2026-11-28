@@ -9,6 +9,7 @@ from . import hits, rule_text, snapshot
 from .patterns import Pattern
 
 _AROUND = 150  # characters of context on each side of a match
+_WHOSE = {False: "Your", True: "Your last turn's"}
 
 
 def excerpt(text: str, found: re.Match[str]) -> str:
@@ -54,8 +55,9 @@ def body(hit: hits.Hit, pattern: Pattern, held: int) -> str:
     )
 
 
-def telling(pattern: Pattern) -> str:
-    """What a lemon is told when a `tell` pattern matches the message it ended its turn with."""
+def telling(pattern: Pattern, after_turn: bool = False) -> str:
+    """What a lemon is told when a `tell` pattern matches the message it ended its turn with:
+    before the turn ends, or *after_turn* where nothing can hold it."""
     rule = rule_text.read(pattern.rule_file, pattern.rule_starts)
     quoted = (
         "\n".join(f"> {line}" if line else ">" for line in rule.splitlines())
@@ -64,13 +66,15 @@ def telling(pattern: Pattern) -> str:
     )
     return "\n".join(
         [
-            f"Your final message matches `{pattern.id}`, a sign it may break this rule "
-            f"from {_cited(pattern)}:",
+            f"{_WHOSE[after_turn]} final message matches "
+            f"`{pattern.id}`, a sign it may break this rule from {_cited(pattern)}:",
             "",
             quoted,
             "",
             pattern.say,
-            "If your message doesn't break the rule, end your turn as it was.",
+            "If it didn't break the rule, there is nothing to do."
+            if after_turn
+            else "If your message doesn't break the rule, end your turn as it was.",
         ]
     )
 

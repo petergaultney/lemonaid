@@ -76,43 +76,61 @@ def _is_report_address(conn: sqlite3.Connection, address: str, channel: str) -> 
         return False
 
 
-def _check(data: dict, harness: str, config: rules_config.RulesConfig, now: float) -> str:
+def check(
+    channel: str,
+    harness: str,
+    cwd: str,
+    transcript: str,
+    said: str,
+    config: rules_config.RulesConfig,
+    now: float,
+) -> list[Pattern]:
+    """Log and report what the message *said* to end a turn on *channel* matches; the `tell`
+    patterns among the matches."""
     if config.patterns is None:
-        return ""
+        return []
 
     patterns = snapshot.load(config.patterns)
     if not patterns:
-        return ""
+        return []
 
-    cwd = data.get("cwd") or ""
-    text = capped(_final_message(data, harness))
+    text = capped(said)
     found, too_slow = matches(patterns, text, cwd)
     for pattern in too_slow:
         _log.warning("skipped %s, out of time on a final message in %s", pattern.id, cwd)
-    if not found or (harness == "claude" and print_mode.is_print_session()):
-        return ""
+    if not found:
+        return []
 
-    channel = session_brief.channel(harness, data.get("session_id"))
     with db.connect() as conn:
         if config.report_to and _is_report_address(conn, config.report_to, channel):
             _log.info("not checking %s, the report address's own session", channel)
-            return ""
+            return []
 
     for pattern, match in found:
         hit = hits.Hit(
-            channel,
-            pattern.id,
-            pattern.mode,
-            harness,
-            cwd,
-            data.get("transcript_path") or "",
-            report.excerpt(text, match),
+            channel, pattern.id, pattern.mode, harness, cwd, transcript, report.excerpt(text, match)
         )
         outcome = hits.record(hit, now, bool(config.report_to))
         _log.info("%s matched the end of %s's turn: %s", pattern.id, channel, outcome.outcome)
         if outcome.outcome == hits.REPORTED:
             report.send(config.report_to, channel, report.body(hit, pattern, outcome.held))
-    return "\n\n".join(report.telling(pattern) for pattern, _ in found if pattern.mode == "tell")
+    return [pattern for pattern, _ in found if pattern.mode == "tell"]
+
+
+def _check(data: dict, harness: str, config: rules_config.RulesConfig, now: float) -> str:
+    if config.patterns is None or (harness == "claude" and print_mode.is_print_session()):
+        return ""
+
+    told = check(
+        session_brief.channel(harness, data.get("session_id")),
+        harness,
+        data.get("cwd") or "",
+        data.get("transcript_path") or "",
+        _final_message(data, harness),
+        config,
+        now,
+    )
+    return "\n\n".join(report.telling(pattern) for pattern in told)
 
 
 def reason_to_block(data: dict, harness: str) -> str:

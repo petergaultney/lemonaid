@@ -5,10 +5,10 @@ import sqlite3
 import time
 from collections import abc
 
-from .. import auto_read
-from ..conversation import openclaw as conversation
+from .. import auto_read, rules_config
 from ..inbox import db
 from ..log import get_logger
+from ..rules import end_of_turn, report
 from . import sessions
 
 _log = get_logger("openclaw.turn_end")
@@ -38,21 +38,34 @@ def _mark(conn: sqlite3.Connection, channel: str, status: str) -> int:
     return cursor.rowcount
 
 
+def _check_rules(
+    session_key: str, channel: str, said: str, rules: rules_config.RulesConfig
+) -> None:
+    """Report what *said* matches; a `tell` pattern's rule goes to the lemon as its next turn,
+    since its turn is already over."""
+    with db.connect() as conn:
+        row = db.get_by_channel(conn, channel, unread_only=False)
+    cwd = str(row.metadata.get("cwd") or "") if row else ""
+    told = end_of_turn.check(
+        channel, "openclaw", cwd, f"OpenClaw session {session_key}", said, rules, time.time()
+    )
+    if told:
+        report.send(
+            channel, channel, "\n\n".join(report.telling(each, after_turn=True) for each in told)
+        )
+
+
 def settle(
     session_key: str,
-    cli: str,
+    said: str,
     patterns: abc.Sequence[re.Pattern[str]],
-    started: float,
+    rules: rules_config.RulesConfig,
     failed: bool,
 ) -> None:
-    """Only a message the lemon wrote since *started* can match *patterns*, so a turn that
-    failed before writing one isn't judged by the turn before it."""
+    """*said* is the turn's final message, or "" when it has none or it can't be read. Runs on
+    a process's main thread, where the rule check's regex time limit works."""
     channel = sessions.channel(session_key)
-    said = ""
-    if patterns and not failed:
-        try:
-            said = conversation.final_message(session_key, cli, started)
-        except OSError as error:
-            _log.warning("can't read %s's final message: %s", session_key, error)
     with db.connect() as conn:
-        _mark(conn, channel, auto_read.status_after_turn(patterns, channel, said))
+        _mark(conn, channel, auto_read.status_after_turn(patterns, channel, "" if failed else said))
+    if said and not failed:
+        _check_rules(session_key, channel, said, rules)

@@ -54,6 +54,10 @@ no_match = ["The user merged it.", "I resolved the merge conflict."]
 - **`report`**: the match is logged and reported. The lemon hears nothing.
 - **`tell`**: as `report`, and the lemon is also told the rule and `say`. The `Stop` hook holds its stop once with them as the reason, in both harnesses, so it can correct itself before you act on its message. A second stop goes through, as lemonaid's waiter check does.
 
+### OpenClaw lemons
+
+OpenClaw has no stop to hold, so `lemonaid openclaw observe` runs the check when a turn ends, on the turn's final message. A match is logged and reported as above, with the session key in place of a transcript. A `tell` pattern sends the rule and `say` to the lemon with `lemonaid tell` once its turn is over, and its scout delivers them as its next turn. A failed turn isn't checked.
+
 Lemonaid reads only `mode`. Who moves a pattern from `report` to `tell`, and on what evidence, is up to whoever keeps the file.
 
 ## What a report says

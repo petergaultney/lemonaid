@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ..front_end import chat
 from ..inbox import db
-from . import lemons, observe, sessions, sync
+from . import hook, lemons, observe, sessions, sync
 from .notify import dismiss_session, handle_dismiss, handle_notification, handle_register
 
 
@@ -215,5 +215,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help=f"seconds between syncs (default {observe.EVERY_SECONDS:g})",
     )
     observe_parser.set_defaults(func=cmd_observe)
+
+    hook.add_parser(openclaw_subparsers)
 
     openclaw_parser.set_defaults(func=lambda a: openclaw_parser.print_help())
