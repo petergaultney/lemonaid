@@ -148,6 +148,7 @@ def test_push_output_from_a_command_that_did_not_push_is_ignored(tmp_path):
         ("git push", True),
         ("git -C ../x push --force-with-lease origin HEAD", True),
         ("git --no-pager push", True),
+        ("git --git-dir /tmp/r.git --work-tree /x push origin b", True),
         ("git fetch origin push-fix", False),
         ("echo git; push", False),
     ],
@@ -210,6 +211,17 @@ def test_a_doc_in_the_attached_brief_is_recorded_between_waits(
         ("git push origin --quiet", True),
         ("git push origin b 2>/dev/null", True),
         ("git push origin b >/dev/null 2>&1", True),
+        ('git commit -m "Subject\n\nBody" && ' + _QUIET + " origin b", True),
+        ("# don't\n" + 'git commit -m "a\nb" && ' + _QUIET + " origin b", True),
+        ("cat <<EOF\nit's\nEOF\n" + _QUIET + " origin b", True),
+        ("git push \\\n  -q origin b", True),
+        ("git push origin b # don't\nls -q", False),
+        ('git commit -m "a\n' + _QUIET + '" && git push origin b', False),
+        ("git stash push -q -m wip", False),
+        ("git -c a.b=c --no-pager push -q origin b", True),
+        ("git --git-dir /tmp/r.git push -q origin b", True),
+        ("git --work-tree /x --namespace n push -q origin b", True),
+        ("cat <<'EOF'\n" + _QUIET + " origin b\nEOF", False),
     ],
 )
 def test_a_push_hides_its_heads_when_quiet_or_stderr_is_discarded(command, hidden):
@@ -308,7 +320,45 @@ def test_a_claude_push_with_stderr_discarded_is_still_refused():
         (_QUIET + ' "/tmp/remote  repo.git" HEAD', 'git push "/tmp/remote  repo.git" HEAD'),
         (_QUIET + " origin HEAD --push-option='note -q text'", None),
         (_QUIET + "u origin b; ls -q", "git push -u origin b; ls -q"),
+        (
+            'git commit -m "Subject\n\nBody" && ' + _QUIET + " origin b",
+            'git commit -m "Subject\n\nBody" && git push origin b',
+        ),
+        (
+            "git --git-dir /tmp/r.git push -q origin b",
+            "git --git-dir /tmp/r.git push origin b",
+        ),
+        ("git -C /x --work-tree /y push -qu origin b", "git -C /x --work-tree /y push -u origin b"),
     ],
 )
 def test_a_rewrite_changes_nothing_but_the_quiet_flag_or_is_not_made(command, rewritten):
     assert own_pushes.loud(command) == rewritten
+
+
+_HEREDOC_BODY = 'git commit -m "Subject\nBody" && ' + _QUIET + " origin HEAD\n"
+
+
+@pytest.mark.parametrize("opener", ["<<EOF", "<<'EOF'", '<< "EOF"', "<<-EOF"])
+def test_a_heredoc_body_is_text_the_hook_leaves_alone(opener):
+    command = f"cat {opener}\n{_HEREDOC_BODY}EOF\n"
+    event = {
+        "session_id": _SESSION,
+        "hook_event_name": "PreToolUse",
+        "tool_input": {"command": command},
+    }
+
+    assert own_change.refusal(event) == ""
+    assert own_change.rewrite(event, "claude") is None
+
+
+def test_a_rewrite_after_a_heredoc_keeps_the_heredoc_body():
+    heredoc = f"cat <<'EOF' > notes.md\n{_HEREDOC_BODY}EOF\n"
+    event = {
+        "session_id": _SESSION,
+        "hook_event_name": "PreToolUse",
+        "tool_input": {"command": heredoc + _QUIET + " origin b"},
+    }
+
+    output = own_change.rewrite(event, "claude")
+
+    assert output["hookSpecificOutput"]["updatedInput"]["command"] == heredoc + "git push origin b"
