@@ -1,7 +1,7 @@
 """Which lemons have something new to tell the user between two reads of the grove: those that
-went unread, or reported again while still unread. Opening a lemon's page marks it read, so it
-notifies again only once it has news after that. A lemon read anywhere, such as in the desktop
-inbox, has its notification cleared from the devices it went to."""
+reported since they were last drawn. Opening a lemon's page marks it read, so it notifies again
+only once it has news after that. A lemon read anywhere, such as in the desktop inbox, has its
+notification cleared from the devices it went to."""
 
 import typing as ty
 import urllib.parse
@@ -48,7 +48,8 @@ def said(entries: abc.Iterable[abc.Mapping[str, str]], limit: int = 180) -> str:
 
 
 def _news(before: Lemon | None, after: Lemon) -> bool:
-    return after.unread and (before is None or not before.unread or after.updated > before.updated)
+    """A lemon marked unread by hand keeps the time it last reported, so it isn't news."""
+    return after.unread and (before is None or after.updated > before.updated)
 
 
 def between(before: abc.Mapping[str, Lemon], after: abc.Mapping[str, Lemon]) -> list[Event]:

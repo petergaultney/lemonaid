@@ -52,8 +52,8 @@ def _device(name):
     return webpush.Subscription(f"https://push.example/{name}", "pub", "sec")
 
 
-_READ = shared.lemon("claude:ada")
-_UNREAD = dataclasses.replace(_READ, unread=True)
+_READ = dataclasses.replace(shared.lemon("claude:ada"), updated=10.0)
+_UNREAD = dataclasses.replace(_READ, unread=True, updated=20.0)  # a report, not a hand-marked unread
 
 
 def _grove(lemon):

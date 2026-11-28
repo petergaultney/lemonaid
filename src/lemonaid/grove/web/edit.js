@@ -79,12 +79,20 @@
     if (action === "rename") { input.focus(); input.select(); }
   }
 
-  // *lemon* is {channel, name, pinned}; *after({said, gone})* runs once what an edit did is read
+  // *lemon* is {channel, name, pinned, unread}; *after({said, gone})* runs once what an edit did is read
   // and closed.
   window.groveEdit = (lemon, after = () => {}) => {
     const s = open(`<div class="title">${esc(lemon.name)}</div>`
+      + `<button data-read>${lemon.unread ? "Mark read" : "Mark unread"}</button>`
       + EDITS.map(([action, label]) => `<button data-action="${action}">${action === "pin" ? (lemon.pinned ? "Unpin" : "Pin") : label}</button>`).join("")
       + '<button class="quiet" data-close>Cancel</button>');
+    s.querySelector("[data-read]").onclick = async () => {
+      let problem;
+      try { problem = await ask("lemon_read", [lemon.channel, Boolean(lemon.unread)]); } catch (e) { return say(failure(e), true); }
+      if (problem) return say(problem, true);
+      close();
+      after({said: "", gone: false});
+    };
     s.querySelectorAll("[data-action]").forEach(b => { b.onclick = () => begin(b.dataset.action, lemon, after); });
   };
 

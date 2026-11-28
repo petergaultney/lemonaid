@@ -662,7 +662,7 @@ function drawFocus() {
       ctx.beginPath(); ctx.moveTo(fruit.x + fruit.w / 2, fruit.y + fruit.h / 2); ctx.lineTo(x - CW * 0.4, ry + RH * k / 2); ctx.stroke();
     }
     txtAt(` ${key || " "} `, x, ry, ask ? "#0b0e13" : TEXT, ask ? c : TAG, 800, k);
-    txtAt(l.status === "done" ? "∘" : "●", x + cw * (key.length + 3), ry, c, null, 800, k);
+    txtAt(l.unread ? "◉" : l.status === "done" ? "∘" : "●", x + cw * (key.length + 3), ry, l.unread ? "#f2d94e" : c, null, 800, k);
     const at = key.length + 5, room = Math.floor((right - x) / cw) - at - (ask ? ask.length + 1 : 0), name = (l.emoji ? l.emoji + " " : "") + (l.name || l.session);
     txtAt(name.length > room ? name.slice(0, Math.max(0, room - 1)) + "…" : name, x + cw * at, ry, TEXT, null, 700, k);
     if (ask) txtAt(ask, right + CW - cw * (ask.length + 1), ry, c, null, 700, k);
@@ -786,7 +786,7 @@ function drawList(b, t, x, y, w, parts) {
     listMarks.push({x: left - CW, y: ly, w: right - left + 2 * CW, h: RH, lemon: l});
     if (l.pinned) { ctx.fillStyle = "#c9d1d9"; ctx.fillRect(x + CW * 0.25, ly + RH * 0.15, CW * 0.5, RH * 0.7); }  // in the left border, as the terminal marks a pin
     txt(key, left + CW * (3 - key.length), ly, STATUS[l.status] || "#c9d1d9", null, 800);  // as the terminal grove colors it
-    txt(l.status === "done" ? "∘" : "●", left + CW * 4, ly, c, null, 800);
+    txt(l.unread ? "◉" : l.status === "done" ? "∘" : "●", left + CW * 4, ly, l.unread ? "#f2d94e" : c, null, 800);
     if (flipped) return otherPage(l, left + CW * 6, right, ly);
 
     const name = l.name || l.session, room = nameW - (l.emoji ? 2 : 0);
@@ -990,7 +990,7 @@ setInterval(pulse, 70);
 
 function status() {
   const lemons = DATA.blocks.flatMap(b => b.trees.flatMap(t => t.lemons)), trees = DATA.blocks.reduce((n, b) => n + b.trees.length, 0);
-  document.getElementById("sum").textContent = DATA.summary ?? `${lemons.length} lemons on ${trees} trees · ${lemons.filter(l => l.working).length} mid-turn`;
+  document.getElementById("sum").textContent = DATA.summary ?? `${lemons.length} lemons on ${trees} trees · ${lemons.filter(l => l.working).length} mid-turn${lemons.some(l => l.unread) ? ` · ${lemons.filter(l => l.unread).length} unread` : ""}`;
   // The terminal grove's attention chips, as Python renders them (draw/bars.py).
   const esc = s => s.replace(/[&<>]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;"}[c]));
   document.getElementById("attention").innerHTML = (DATA.attention || []).map(([text, color, fill, bold]) =>
