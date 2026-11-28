@@ -6,20 +6,25 @@ read it; none of them observe OpenClaw themselves. Another source of OpenClaw's 
 replace this module without changing those readers.
 """
 
+import json
 import sqlite3
+import subprocess
+import sys
 import threading
 import time
 import typing as ty
 
 from ..config import load_config
+from ..conversation import openclaw as conversation
 from ..front_end import chat
 from ..inbox import db
 from ..log import get_logger
-from . import gateway, sessions, sync, turn_end, turns
+from . import gateway, sessions, sync, turns
 
 _log = get_logger("openclaw.observe")
 
 EVERY_SECONDS = 60.0
+_SETTLE_SECONDS = 60.0
 
 
 def _discover(cli: str, days: float) -> None:
@@ -31,12 +36,31 @@ def _discover(cli: str, days: float) -> None:
 
 def _settle(session_key: str, cli: str, started: float) -> None:
     """Runs on a thread of its own: it asks the gateway, whose answer the connection's reader,
-    which saw the turn end, would have to read."""
+    which saw the turn end, would have to read. The rest runs in `openclaw hook turn-end`,
+    whose main thread the rule check's regex time limit needs."""
+    failed = any(f.at_ms >= started * 1000 for f in turns.failed(session_key))
+    config = load_config()
+    said = ""
+    if (config.inbox.auto_read or config.rules.patterns) and not failed:
+        try:
+            said = conversation.final_message(session_key, cli, started)
+        except OSError as error:
+            _log.warning("can't read %s's final message: %s", session_key, error)
+    payload = {"session_key": session_key, "said": said, "failed": failed}
     try:
-        failed = any(f.at_ms >= started * 1000 for f in turns.failed(session_key))
-        turn_end.settle(session_key, cli, load_config().inbox.auto_read, started, failed)
-    except sqlite3.Error:
-        _log.exception("can't mark %s's finished turn", session_key)
+        done = subprocess.run(
+            [sys.executable, "-m", "lemonaid", "openclaw", "hook", "turn-end"],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            timeout=_SETTLE_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        _log.warning("can't settle %s's finished turn: %s", session_key, error)
+        return
+
+    if done.returncode != 0:
+        _log.warning("settling %s's finished turn exited %d", session_key, done.returncode)
 
 
 def _recorder(cli: str) -> turns.Record:
