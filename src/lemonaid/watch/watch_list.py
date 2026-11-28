@@ -60,6 +60,11 @@ def _try_flock(path: pathlib.Path) -> ty.IO[str] | None:
     return f
 
 
+def peek(list_path: pathlib.Path) -> dict[str, float]:
+    """The list without taking its lock, so a read-only caller creates nothing."""
+    return _read(list_path)
+
+
 def read(list_path: pathlib.Path) -> dict[str, float]:
     with _locked(list_path):
         return _read(list_path)

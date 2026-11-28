@@ -16,7 +16,7 @@ from ...config import load_config
 from ...inbox import db, ended
 from ...watch import lemon_restart, registry, stopping
 from ..restart import pane, process, state
-from . import closing, plan
+from . import closing, openclaw, plan
 
 _COMMAND = "lemonaid lemon end"
 
@@ -61,11 +61,17 @@ def _brief(path: Path, channel: str) -> str:
     return f"archived its brief to {moved}"
 
 
+def _session(planned: dict) -> list[str]:
+    key = planned.get("openclaw_session") or ""
+    return [*openclaw.stop_watches(key), openclaw.archive(key)] if key else []
+
+
 def _finish(planned: dict) -> list[str]:
     one = lemon_restart.Lemon(planned["lemon_id"], planned["channel"], Path(planned["brief"]))
     return [
         *_card(planned["channel"], planned["by"]),
         *_waiters(one, planned["by"]),
+        *_session(planned),
         _brief(one.brief, one.channel),
     ]
 

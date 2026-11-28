@@ -66,6 +66,11 @@ OpenClaw runs a session's turns one at a time, and no hook records the files a t
 
 When the command that starts the scout host runs inside a systemd service (as the gateway's shell commands do), the host gets a transient user unit of its own, so a gateway restart doesn't stop it.
 
+
+### Ending a lemon
+
+`lemonaid lemon end <Lemon-ID>` ends an OpenClaw lemon whose brief says `done`, as it does any other: its inbox card is archived and its brief goes to the attic. It has no harness process or pane of its own to stop, since the gateway runs a session only during a turn. Instead its doc watches stop, and its session is archived in OpenClaw (`openclaw sessions archive`), never deleted, so the transcript stays. A new message in the session restores it and brings the lemon back. Run it on the gateway's machine; if the gateway can't archive the session, the rest still happens and the output says so.
+
 ## How It Works
 
 1. **Session registration** - Register from within the TUI using `!lemonaid openclaw register`
