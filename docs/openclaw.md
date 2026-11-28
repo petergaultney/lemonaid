@@ -54,7 +54,7 @@ To keep it current, run
 lemonaid openclaw observe [--days 90] [--every 60]
 ```
 
-on the machine running the gateway, as a systemd user service beside the gateway's. It syncs once a minute until stopped, and logs a sync that fails rather than exiting. It also keeps a connection to the gateway open and records each session's turn from its events, so every grove shows an OpenClaw lemon as working from its turn's first event until it ends or fails; a dropped connection is opened again on the next round. This needs the `openclaw` extra. Nothing else runs the sync: the web grove (`lemonaid grove serve`) shows what it finds, but serving the grove doesn't start it, and observing doesn't need the grove.
+on the machine running the gateway, as a systemd user service beside the gateway's. It syncs once a minute until stopped, and logs a sync that fails rather than exiting. It also keeps a connection to the gateway open and records each session's turn from its events, so every grove shows an OpenClaw lemon as working from its turn's first event until it ends or fails; a dropped connection is opened again on the next round. When a turn ends or fails, its lemon's row goes unread, as a Claude lemon's does when it stops, unless the turn's final message matches `[inbox] auto_read`; either way the lemon's age counts from then. This needs the `openclaw` extra. Nothing else runs the sync: the web grove (`lemonaid grove serve`) shows what it finds, but serving the grove doesn't start it, and observing doesn't need the grove.
 
 ### Briefs, mail and watchers
 

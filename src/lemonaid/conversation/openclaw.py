@@ -114,6 +114,24 @@ def mark(session_key: str, cli: str) -> str:
     )
 
 
+def final_message(session_key: str, cli: str, since: float) -> str:
+    """The text of the session's newest message if it is the lemon's and was written at or after
+    *since* (seconds), or "". Raises OSError when the gateway can't answer."""
+    found = gateway.call(
+        cli, "chat.history", {"sessionKey": session_key, "limit": 1}, _TIMEOUT_SECONDS
+    )
+    newest = (found.get("messages") or [{}])[-1]
+    try:
+        written = int(str(newest.get("timestamp"))) / 1000
+    except ValueError:
+        return ""
+
+    if written < since:
+        return ""
+
+    return "\n".join(each.text for each in _entries(newest, "") if each.role == entry.LEMON)
+
+
 def read(
     session_key: str, cli: str, limit: int, named: abc.Callable[[str], str]
 ) -> list[entry.Entry]:

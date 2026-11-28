@@ -170,3 +170,32 @@ def test_a_message_shows_the_files_sent_with_it_even_with_no_text(tmp_path):
         ("look", (("photo.png", 2048), ("notes.txt", 26))),
         ("", (("photo.png", 2048),)),
     ]
+
+
+def test_final_message_is_the_lemons_newest_text(tmp_path):
+    said = {
+        "role": "assistant",
+        "content": [
+            {"type": "toolCall", "name": "exec", "arguments": {"command": "ls"}},
+            {"type": "text", "text": "(quiet)"},
+        ],
+        "timestamp": "5000",
+    }
+
+    assert openclaw.final_message(KEY, _cli(tmp_path, {"messages": [said]}), 0.0) == "(quiet)"
+
+
+def test_final_message_is_empty_when_the_newest_message_is_someone_elses(tmp_path):
+    asked = {"role": "user", "content": "how warm is it?", "timestamp": "5000"}
+
+    assert openclaw.final_message(KEY, _cli(tmp_path, {"messages": [asked]}), 0.0) == ""
+
+
+def test_final_message_is_empty_when_written_before_the_turn_started(tmp_path):
+    said = {
+        "role": "assistant",
+        "content": [{"type": "text", "text": "(quiet)"}],
+        "timestamp": "1000",
+    }
+
+    assert openclaw.final_message(KEY, _cli(tmp_path, {"messages": [said]}), 2.0) == ""

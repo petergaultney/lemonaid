@@ -10,6 +10,14 @@ class _Stop(Exception):
     pass
 
 
+class _Inline:
+    def __init__(self, target, args, daemon):
+        self._run = lambda: target(*args)
+
+    def start(self):
+        self._run()
+
+
 def _observed(monkeypatch, refresh, rounds: int, listen=None) -> list[float]:
     slept = []
 
@@ -74,6 +82,42 @@ def test_a_turn_that_cant_be_recorded_is_logged_not_raised(monkeypatch, caplog):
 
     monkeypatch.setattr(observe.db, "record_turn_times", locked)
 
-    observe._record_turn("agent:main:x", 1.0, 1.0, 0)
+    observe._recorder("openclaw")("agent:main:x", 1.0, 1.0, 0)
 
     assert "agent:main:x" in caplog.text
+
+
+def test_only_a_turn_that_ended_is_settled(monkeypatch):
+    settled = []
+    monkeypatch.setattr(observe.db, "record_turn_times", lambda *args: 1)
+    monkeypatch.setattr(observe.turn_end, "settle", lambda key, *rest: settled.append((key, *rest)))
+    monkeypatch.setattr(observe.threading, "Thread", _Inline)
+    record = observe._recorder("openclaw")
+
+    record("agent:main:running", 5.0, 1.0, 0)
+    record("agent:main:ended", None, 1.0, 9.0)
+
+    assert [each[:2] for each in settled] == [("agent:main:ended", "openclaw")]
+    assert settled[0][3:] == (1.0, False)
+
+
+def test_a_turn_that_failed_is_settled_as_failed(monkeypatch):
+    settled = []
+    monkeypatch.setattr(observe.db, "record_turn_times", lambda *args: 1)
+    monkeypatch.setattr(observe.turn_end, "settle", lambda *args: settled.append(args[-1]))
+    monkeypatch.setattr(observe.threading, "Thread", _Inline)
+    monkeypatch.setattr(observe.turns, "_failed", {})
+    observe.turns.note(
+        {
+            "sessionKey": "agent:main:x",
+            "runId": "r1",
+            "ts": 2000,
+            "stream": "lifecycle",
+            "data": {"phase": "error", "error": "model down"},
+        }
+    )
+
+    observe._recorder("openclaw")("agent:main:x", None, 1.0, 2.0)
+    observe._recorder("openclaw")("agent:main:x", None, 3.0, 4.0)
+
+    assert settled == [True, False]
