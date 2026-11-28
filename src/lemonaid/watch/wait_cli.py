@@ -40,7 +40,7 @@ def run(args: argparse.Namespace) -> int:
         args.push
         and not thread
         and not args.channel.startswith("claude:")
-        and not sessions.hosted_codex_home()  # an OpenClaw session's thread isn't its own
+        and not sessions.hosted()  # an OpenClaw session's thread isn't its own
     ):
         thread = os.environ.get("CODEX_THREAD_ID", "")  # run by a Codex lemon itself
     if problem:

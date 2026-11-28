@@ -50,7 +50,7 @@ def terminal() -> interface.Terminal:
     return interface.Terminal(
         name=NAME,
         workspace_key="",
-        here=lambda: sessions.hosted_codex_home() is not None,  # a command the gateway runs
+        here=sessions.hosted,  # a command the gateway runs
         show=lambda metadata, config, on_resume=None: False,
         exists=lambda tty, instance=None, not_after=None: None,
     )

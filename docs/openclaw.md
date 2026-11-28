@@ -22,6 +22,8 @@ lemonaid openclaw register --session-key 'agent:main:matrix:channel:!room:server
 
 The session's inbox row is `openclaw:<session key>`. A shell command OpenClaw runs carries the Codex thread underneath the session (`CODEX_THREAD_ID`) but nothing naming the session, so registering records that thread, and `--self` commands from the session find their lemon by it. OpenClaw starts a new thread after a reset or compaction; `--self` then refuses with a reminder to register again, rather than mistaking the session for a Codex lemon.
 
+A gateway that passes the session key in each command's environment (`OPENCLAW_SESSION_KEY`, from a small patch to the gateway's `exec` tool and Codex harness) needs no registration: `--self` finds the lemon by that key first, whatever model runtime the session uses. Without it, `--self` falls back to the Codex thread. Either way, a session never acts on another row by its id or channel in place of itself.
+
 A lemon that registers another session, such as one it spawned, keeps its own thread: the other session keeps whatever thread it had. If a thread was given to the wrong session, run the command inside the right one with `--claim` to take it back.
 
 ### Starting a lemon from a session

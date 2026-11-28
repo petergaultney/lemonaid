@@ -1,10 +1,10 @@
 """OpenClaw sessions as lemons: an inbox row per session key, found again from inside it.
 
-Nothing in a shell command's environment names its OpenClaw session, only the Codex thread
-running it. So a session registers itself, giving the key its `session_status` tool reports,
-and the row remembers the thread; a later command from the same thread finds the row by it.
-OpenClaw starts a new thread after a reset or compaction, after which the session registers
-again.
+A gateway patched to pass `OPENCLAW_SESSION_KEY` names the session in every shell command's
+environment. Without that, only the Codex thread running it does, so a session registers
+itself, giving the key its `session_status` tool reports, and the row remembers the thread; a
+later command from the same thread finds the row by it. OpenClaw starts a new thread after a
+reset or compaction, after which the session registers again.
 """
 
 import os
@@ -79,7 +79,11 @@ def by_thread(conn: sqlite3.Connection, thread: str) -> str:
 
 
 def self_channel(conn: sqlite3.Connection) -> str:
-    """The caller's channel, when OpenClaw runs it. Raises `NotRegistered`."""
+    """The caller's channel, when OpenClaw runs it: by the session key a patched gateway
+    passes, else by the Codex thread a registration recorded. Raises `NotRegistered`."""
+    if key := sessions.hosted_key():
+        return sessions.channel(key)
+
     thread = os.environ.get("CODEX_THREAD_ID", "")
     found = by_thread(conn, thread) if thread else ""
     if not found:

@@ -1,4 +1,5 @@
-"""An OpenClaw session registers as a lemon and later finds itself from its Codex thread."""
+"""An OpenClaw session finds itself by the session key its gateway passes, or registers as a
+lemon and later finds itself from its Codex thread."""
 
 import argparse
 
@@ -26,6 +27,7 @@ def inside_openclaw(monkeypatch, tmp_path):
     monkeypatch.delenv("LEMONAID_CHANNEL", raising=False)
     monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
     monkeypatch.delenv("TMUX_PANE", raising=False)
+    monkeypatch.delenv(sessions.SESSION_KEY_ENV, raising=False)
     return home
 
 
@@ -72,6 +74,26 @@ def test_self_channel_inside_openclaw_never_falls_back_to_codex(inside_openclaw)
             lemon.self_channel(conn)
 
         assert lemon.self_channel(conn, fallback="fallback") == "fallback"
+
+
+def test_a_session_key_from_the_gateway_needs_no_codex_or_registration(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    for name in ("CODEX_HOME", "CODEX_THREAD_ID", "LEMONAID_CHANNEL", "CLAUDE_CODE_SESSION_ID"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv(sessions.SESSION_KEY_ENV, KEY)
+
+    with db.connect() as conn:
+        assert lemon.self_channel(conn) == f"openclaw:{KEY}"
+
+
+def test_a_session_key_wins_over_a_thread_registered_to_another_session(
+    inside_openclaw, monkeypatch
+):
+    monkeypatch.setenv(sessions.SESSION_KEY_ENV, CHILD_KEY)
+    with db.connect() as conn:
+        lemons.register(conn, FOUND, THREAD, inside_openclaw, "/srv", chat.NAME)
+
+        assert lemon.self_channel(conn) == f"openclaw:{CHILD_KEY}"
 
 
 def test_a_codex_lemon_outside_openclaw_keeps_its_codex_channel(monkeypatch, tmp_path):

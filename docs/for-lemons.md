@@ -1703,16 +1703,6 @@ user adds their conventions in:
 
 Run `lemonaid go <Lemon-ID | channel>` to switch to a lemon's recorded tmux pane or cmux surface; it never resumes a lemon. `lemonaid go <target> --link` prints an OSC 8 hyperlink to `lemonaid://go/<target>` without jumping. In Markdown, use `[go to the lemon](lemonaid://go/<Lemon-ID>)`. A registered URL handler is required for clicks; see [Jump to a lemon](go.md) for macOS setup and the client-selection rule. `--client NAME` chooses an exact attached tmux client when several are available.
 
-## If OpenClaw runs you
-
-Your shell commands carry `CODEX_THREAD_ID`, but you are not a Codex lemon: you are an OpenClaw session. Where `lemonaid openclaw observe` runs, your lemon already knows your thread, so `--self` commands find you. Whenever `--self` says you aren't registered, register, and never act on another row by its id or channel in place of yourself:
-
-```sh
-lemonaid openclaw register --session-key '<the key session_status reports>'
-```
-
-Then attach your brief and run `lemonaid watch --self --push`; batches and mail arrive as new turns in your session. Details: [openclaw.md](openclaw.md#gateway-sessions-as-lemons).
-
 ## Watch everything in your attached brief
 
 Read the current state first, then check `lemonaid watch --self --status`.
