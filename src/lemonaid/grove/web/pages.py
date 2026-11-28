@@ -18,7 +18,7 @@ _FILES = {
     "icon-512.png": "image/png",
     "icon-maskable.png": "image/png",  # Android's: fills the shape it crops an icon to
     "badge.png": "image/png",  # a notification's small icon: Android draws only its shape, in white
-    "sw.js": "text/javascript",  # the service worker, which shows push notifications
+    "sw.js": "text/javascript",  # the service worker: push notifications, and the pages kept offline
 }
 _MANIFEST = "manifest.webmanifest"  # what a phone installs the grove as
 _LINKS = (

@@ -357,14 +357,19 @@ $("log").addEventListener("load", followEnd, true);  // images don't bubble; cap
 // page was asked for, to tell the network from the server from drawing when a page opens slowly.
 let timed = false;
 let stale = "";  // what a failed refresh put in the message line, cleared by the next to succeed
+let talkAt = 0;  // when the conversation shown was read
 const refresh = async () => {
   if (busy) return;
   busy = true;
   const at = {};
   const shown = [
-    call("lemon", [channel, briefColumns()]).then(v => { at.view = performance.now(); showView(v); }),
+    call("lemon", [channel, briefColumns()]).then(v => {
+      at.view = performance.now(); showView(v);
+      window.groveTalks.keepView(channel, v);
+    }),
     call("talk", [channel]).then(c => {
       at.talk = performance.now(); showTalk(c); at.drawn = performance.now();
+      talkAt = Date.now();
       window.groveTalks.keep(channel, c);
       if (!c.error && !c.conversation_problem) seen(c.news);  // what it just drew, if in view
     }),
@@ -372,9 +377,9 @@ const refresh = async () => {
   const failed = (await Promise.allSettled(shown)).find(result => result.status === "rejected");
   busy = false;
   if (failed) {
-    stale = failed.reason instanceof TypeError  // the browser's word for a request nothing answered
-      ? "Can't reach the grove; trying again"
-      : String(failed.reason);
+    stale = !(failed.reason instanceof TypeError) ? String(failed.reason)  // TypeError: a request nothing answered
+      : talkAt ? window.groveTalks.offline(talkAt)
+      : "Can't reach the grove; trying again";
     $("said").textContent = stale;
     if (window.groveNote) window.groveNote("problem", {message: String(failed.reason)});
   } else if (stale && $("said").textContent === stale) {  // a later message (a send's) stays
@@ -494,9 +499,12 @@ const listen = () => {
   told.onmessage = refresh;
   told.onopen = refresh;  // whatever changed while it was closed
 };
-// What this phone kept of the conversation, drawn while the page asks for what changed (talks.js).
+// What this phone kept of the lemon's page, drawn while the page asks for what changed (talks.js).
+const keptView = window.groveTalks.keptView(channel);
+if (keptView) showView(keptView);
+else $("name").textContent = window.groveTalks.keptName(channel);
 const kept = window.groveTalks.kept(channel);
-if (kept) showTalk(kept);
+if (kept) { talkAt = window.groveTalks.keptAt(channel); showTalk(kept); }
 // Drawing a lemon's conversation while in view reads its news up to the report it answers: the inbox marks it read, and its notification goes (sw.js).
 const seen = news => {
   if (document.visibilityState !== "visible") return;
