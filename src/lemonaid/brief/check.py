@@ -28,6 +28,8 @@ def question_problems(text: str) -> list[str]:
     found = now.parse(parts.now)
     return [
         f"`### {label}` in ## Questions has no matching bullet under ### {found.needs_label}"
+        f' (remove it with `lemonaid brief section rm --self "{label}"`, or add a'
+        f" {found.needs_label} bullet starting `{label}:`)"
         for label in questions.unmatched(found.needs, questions.entries(parts.questions))
     ]
 

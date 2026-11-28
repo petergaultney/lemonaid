@@ -89,7 +89,8 @@ def replace_progress(text: str, body: str, replace_all: bool = False) -> str:
         current = layout.render(now_of(text)).rstrip()
         raise EditError(
             f"This would drop {', '.join(f'### {h}' for h in dropped)} from ## Now, which is now:"
-            f"\n\n{current}\n\nChange one line with `lemonaid brief bullet set --self "
+            f"\n\n{current}\n\nTo keep them, include those headings and their bullets in the new body. "
+            "Change one line with `lemonaid brief bullet set --self "
             '"<bullet prefix>" "<new text>"`, or rewrite ## Now with '
             "`lemonaid brief now --self --replace-all -`. Sections outside ## Now stay unchanged."
         )

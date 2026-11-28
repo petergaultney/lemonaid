@@ -1306,7 +1306,8 @@ that isn't archived or waiting for one) reports what is wrong with a brief:
 It exits 1 when it finds anything, and `--json` lists the problems. Every edit verb (`now`,
 `status`, `bullet`, `section`, `pr`, `doc`, `waiter`, `migrate`) runs it on the result and refuses the edit if it finds
 anything, listing what. A brief that already fails takes only an edit that fixes it,
-except for existing unmatched Questions entries. `brief now` preserves omitted legacy
+except for existing unmatched Questions entries. An edit that removes a Needs bullet also
+removes the Questions entry that explained it, and says so. `brief now` preserves omitted legacy
 PRs and Docs tables. It refuses to drop other subheadings and prints the current Now;
 pass `--replace-all` to replace all progress. That flag still preserves omitted subscription
 tables. A supplied legacy PRs or Docs heading replaces its table; use `brief pr rm` or

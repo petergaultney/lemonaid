@@ -131,6 +131,7 @@ def test_check_names_unmatched_questions_but_accepts_matched_ones():
     assert check.structure(matched) == []
     assert check.structure(_BRIEF) == [
         "`### a question no bullet asks` in ## Questions has no matching bullet under ### Needs you"
+        ' (remove it with `lemonaid brief section rm --self "a question no bullet asks"`, or add a Needs you bullet starting `a question no bullet asks:`)'
     ]
 
 
@@ -142,6 +143,7 @@ def test_check_names_the_briefs_own_needs_heading():
 
     assert check.structure(brief) == [
         "`### something else` in ## Questions has no matching bullet under ### Needs Sam"
+        ' (remove it with `lemonaid brief section rm --self "something else"`, or add a Needs Sam bullet starting `something else:`)'
     ]
 
 

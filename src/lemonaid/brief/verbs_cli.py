@@ -29,6 +29,7 @@ from . import (
     now_edit,
     pr,
     pr_table,
+    question_prune,
     status_guide,
     store,
     watching_cli,
@@ -45,8 +46,11 @@ def edit(
 ) -> str:
     """An error, or "" once *change* is written; *written* is as `store.edit` takes it."""
 
+    notices: list[str] = []
+
     def checked(before: str) -> str:
-        after = change(before)
+        after, dropped = question_prune.pruned(before, change(before))
+        notices[:] = [question_prune.notice(dropped)] if dropped else []
         existing_questions = set(
             check.structure(before) if preserve_existing else check.question_problems(before)
         )
@@ -72,6 +76,8 @@ def edit(
         return str(e)
 
     foreign_edit.record(path.resolve(), editor)
+    for line in notices:
+        print(line, file=sys.stderr)
     return ""
 
 
@@ -198,7 +204,9 @@ def _verbs(
 def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     watching_cli.add_parser(brief_subparsers)
     now = command.parser(
-        brief_subparsers, "now", "Replace progress in `## Now`, keeping omitted PRs and Docs tables"
+        brief_subparsers,
+        "now",
+        "Replace progress in `## Now`, keeping omitted PRs and Docs tables",
     )
     now.add_argument("markdown", help="The new section body; - reads it from stdin")
     now.add_argument(
