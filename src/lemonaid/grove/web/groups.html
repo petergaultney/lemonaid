@@ -146,11 +146,13 @@ function draw() {
   const title = b ? named(b) : "lemonaid";
   const nav = DATA.error ? "" : bar(b);
   const body = DATA.error ? `<div class="problem">${esc(DATA.error)}</div>` : b ? lemonRows(b) : groupRows();
-  const page = [title, DATA.summary || "", nav, body].join("\u0000");
+  const page = [title, DATA.summary || "", nav, body, b ? b.color : ""].join("\u0000");
   if (page === drawn) return;
   drawn = page;
   const [t, sum, n, list] = page.split("\u0000");
-  document.getElementById("title").textContent = t;
+  const chip = document.getElementById("title");
+  chip.textContent = t;
+  chip.style.background = b ? b.color : ""; chip.style.color = b ? b.ink : "";  // a group's page is in its color
   document.getElementById("sum").textContent = sum;
   document.getElementById("nav").innerHTML = n;
   document.getElementById("list").innerHTML = list;

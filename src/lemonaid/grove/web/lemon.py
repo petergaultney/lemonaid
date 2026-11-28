@@ -11,13 +11,15 @@ import time
 from collections import abc
 from pathlib import Path
 
-from ... import conversation, front_end, openclaw
+from ... import conversation, front_end, groups, openclaw
 from ...brief import attached, family, identity, pr, render, target
 from ...config import Config
 from ...front_end import chat, interface, pick
+from ...grove import model
 from ...inbox import db, pins, turns
 from ...messages import tell_delivery
 from ...openclaw import gateway, sessions
+from ..draw import colors
 from . import attachments, brief_page
 
 LIMIT = 200  # messages a page shows, with the tool calls among them
@@ -103,12 +105,36 @@ def _brief(
     return str(path), brief_page.drawn(shown, now, config.brief.vaults, width), own
 
 
-def view(channel: str, config: Config, prs: pr.Lookup, width: int = brief_page.WIDTH) -> dict:
+def group_color(blocks: abc.Iterable[model.Block], channel: str) -> str:
+    """The color of the block the grove draws lemon *channel* in, or "" for the block of lemons in
+    no group. A home block holds lemons in no group too, so `view` also checks membership."""
+    return next(
+        (
+            b.color
+            for b in blocks
+            if (b.name or b.home) and any(m.channel == channel for t in b.trees for m in t.lemons)
+        ),
+        "",
+    )
+
+
+def view(
+    channel: str,
+    config: Config,
+    prs: pr.Lookup,
+    width: int = brief_page.WIDTH,
+    color: str = "",
+) -> dict:
     """Everything but the conversation, which is slower to read (`talk`), with the brief drawn
-    *width* characters wide. *prs* answers a PR's state, as a `pr.Cache` does without waiting."""
+    *width* characters wide. *prs* answers a PR's state, as a `pr.Cache` does without waiting.
+    *color* is its group's, as `#rrggbb`, which its name is shown on."""
     with db.connect() as conn:
         row = db.get_by_channel(conn, channel, unread_only=False)
         pinned = pins.is_pinned(conn, channel)
+        grouped = any(  # as the inbox counts it: by its brief's Lemon-ID, or by its channel
+            groups.store.names_of(conn, key)
+            for key in (identity.by_channel(conn).get(channel, ""), channel)
+        )
     if row is None:
         return {"error": f"No live lemon on {channel}"}
 
@@ -122,6 +148,8 @@ def view(channel: str, config: Config, prs: pr.Lookup, width: int = brief_page.W
         "status": own.state if own else "",
         "brief_id": identity.brief_name(own.lemon_id) if own and own.lemon_id else "",
         "pinned": pinned,
+        "color": color if grouped else "",
+        "ink": colors.ink_on(color) if color and grouped else "",
         "working": turns.mid_turn(row, time.time()),
         "brief": brief,
         "how": how,

@@ -56,7 +56,9 @@ class _WebApi(api.Api):
         return super().jump(channel)
 
     def lemon(self, channel: str, width: int = brief_page.WIDTH) -> dict:
-        return lemon.view(channel, self._shared.config, self._prs, int(width))
+        grove = self._shared.grove
+        color = lemon.group_color(grove.blocks, channel) if grove else ""
+        return lemon.view(channel, self._shared.config, self._prs, int(width), color)
 
     def talk(self, channel: str) -> dict:
         return lemon.talk(channel)
