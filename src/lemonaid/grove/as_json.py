@@ -4,6 +4,7 @@ import dataclasses
 from collections import abc
 from typing import Any
 
+from .draw import colors
 from .layout import arrange
 from .model import Block
 
@@ -16,6 +17,7 @@ def grove(found: abc.Iterable[Block], arrangement: arrange.Arrangement) -> dict[
                 "group": block.name,
                 "home": block.home,
                 "color": block.color,
+                "ink": colors.ink_on(block.color),
                 "plot": dataclasses.asdict(arrangement.plots[block.name]),
                 "trees": [
                     {

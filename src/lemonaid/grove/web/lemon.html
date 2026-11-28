@@ -9,11 +9,13 @@ html,body { margin:0; height:100%; overflow:hidden; overscroll-behavior:none; ba
 /* Prose reads in the system font; what is laid out by the character (code, drawn cards, tool calls) stays monospaced. */
 body { font:13px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display:flex; flex-direction:column; }
 a { color:#8ab4f8; }
+:root { --accent:#f2d94e; --accent-ink:#0b0e13; }  /* the lemon's group color, once its page knows it */
 header { display:flex; gap:12px; align-items:center; padding:4px 10px; background:#161b24; white-space:nowrap; overflow:hidden; }
 header .home { display:flex; }
 header .home img { width:22px; height:22px; }
-header .chip { background:#f2d94e; color:#0b0e13; padding:1px 6px; font-weight:800; overflow:hidden; text-overflow:ellipsis; }
-header .status { font-weight:700; }
+header .chip { background:var(--accent); color:var(--accent-ink); padding:1px 6px; font-weight:800; overflow:hidden; text-overflow:ellipsis; }
+header .status { font-weight:700; padding:1px 8px; border-radius:10px; }
+header { border-bottom:3px solid transparent; }  /* in the brief status's color, so it shows from across the room */
 header .bid { color:#7c8696; overflow:hidden; text-overflow:ellipsis; }
 header #edit { margin-left:auto; font:inherit; color:#8ab4f8; background:none; border:1px solid #2d3442; border-radius:6px; padding:2px 10px; }
 /* A phone's buttons, in a bar at the bottom by the thumb; a wider screen keeps the header's icon link. */
@@ -21,21 +23,22 @@ nav.tabs { display:none; gap:10px; padding:8px 10px calc(8px + env(safe-area-ins
 nav.tabs > * { display:flex; align-items:center; justify-content:center; min-height:44px; padding:0 16px; font:inherit; font-size:15px; font-weight:700; background:#2d3442; color:#e6ebf2; border:0; border-radius:8px; text-decoration:none; }
 nav.tabs .home { padding:0 9px; background:none; border:2px solid #2d3442; }
 nav.tabs .home img { width:30px; height:30px; }
-nav.tabs button.on { outline:2px solid #f2d94e; outline-offset:-2px; }
-nav.tabs .send { margin-left:auto; background:#f2d94e; color:#0b0e13; }  /* pressed most: bottom right */
+nav.tabs button.on { outline:2px solid var(--accent); outline-offset:-2px; }
+nav.tabs button[data-tab=brief] { box-shadow:0 0 0 2px var(--status, transparent); }  /* the brief's status, where the brief is */
+nav.tabs .send { margin-left:auto; background:var(--accent); color:var(--accent-ink); }  /* pressed most: bottom right */
 body.brief-tab nav.tabs .send { visibility:hidden; }
 main { flex:1; display:flex; min-height:0; }
 header, form, nav.tabs { flex-shrink:0; }
 #brief { flex:0 0 var(--brief, 42%); overflow:auto; padding:8px 14px; outline:none; }
-#brief:focus { box-shadow:inset 2px 0 0 #f2d94e; }
+#brief:focus { box-shadow:inset 2px 0 0 var(--accent); }
 #divider { flex:0 0 6px; cursor:col-resize; background:#3a4250; touch-action:none; }
-#divider:hover, #divider.dragging { background:#f2d94e; }
+#divider:hover, #divider.dragging { background:var(--accent); }
 #chat { flex:1; display:flex; flex-direction:column; min-width:0; }
 #log { flex:1; overflow:auto; padding:8px 14px 20px; }
 .entry { margin:0 0 10px; overflow-wrap:anywhere; }
 .entry .who { color:#7c8696; font-size:11px; }
 .day { color:#7c8696; font-size:11px; text-align:center; margin:14px 0 8px; border-top:1px solid #262c36; padding-top:4px; }
-.entry.user .body { background:#1f2a3a; border-left:3px solid #f2d94e; padding:4px 8px; }
+.entry.user .body { background:#1f2a3a; border-left:3px solid var(--accent); padding:4px 8px; }
 .entry.pending { opacity:0.55; }
 .entry .sent { color:#f2c14e; }
 .entry.failed .who { color:#e5534b; }
@@ -70,14 +73,14 @@ form { display:flex; flex-direction:column; gap:6px; padding:8px 10px; backgroun
 #how { color:#7c8696; font-size:12px; padding:0 6px; }
 .compose { display:flex; align-items:flex-end; gap:6px; background:#0b0e13; border:1px solid #2d3442; border-radius:20px; padding:4px; transition:border-color .15s; }
 .compose:focus-within { border-color:#5a6270; }
-form.dropping .compose { border-color:#f2d94e; border-style:dashed; }
+form.dropping .compose { border-color:var(--accent); border-style:dashed; }
 textarea { flex:1; box-sizing:border-box; font:inherit; line-height:1.4; background:none; color:#e6ebf2; border:0; outline:none; resize:none; padding:7px 4px; min-height:1.4em; max-height:40vh; overflow-y:auto; }
 textarea::placeholder { color:#6b7484; }
 .compose button { flex:0 0 auto; display:flex; align-items:center; justify-content:center; width:34px; height:34px; border:0; border-radius:50%; padding:0; cursor:pointer; }
 .compose button svg { width:20px; height:20px; }
 .compose .attach { background:none; color:#aab3c2; }
 .compose .attach:hover { background:#1f2633; color:#e6ebf2; }
-.compose .send { background:#f2d94e; color:#0b0e13; }
+.compose .send { background:var(--accent); color:var(--accent-ink); }
 /* Attachments: images as thumbnails, other files as cards, each with a round remove in its corner. */
 #attached { display:flex; gap:10px; overflow-x:auto; padding:8px 4px 2px; scrollbar-width:thin; }
 #attached .tile { position:relative; flex:0 0 auto; height:64px; border-radius:12px; background:#1f2633; border:1px solid #2d3442; }
@@ -300,8 +303,14 @@ $("edit").addEventListener("click", () => window.groveEdit(
 const showView = v => {
   if (v.error) { $("log").innerHTML = `<div class="problem">${escape(v.error)}</div>`; return; }
   document.title = v.name; $("name").textContent = v.name;
+  // "" keeps the yellow
+  document.documentElement.style.setProperty("--accent", v.color || "#f2d94e");
+  document.documentElement.style.setProperty("--accent-ink", v.ink || "#0b0e13");
   $("status").textContent = v.status || "";
-  $("status").style.color = {alert: "#e5534b", blocked: "#f2c14e", merge: "#5fbf6a", approve: "#c58af9", review: "#a8794f", running: "#39b5a8", done: "#5a8dee"}[v.status] || "";
+  const tone = {alert: "#e5534b", blocked: "#f2c14e", merge: "#5fbf6a", approve: "#c58af9", review: "#a8794f", running: "#39b5a8", done: "#5a8dee"}[v.status] || "";
+  $("status").style.color = tone; $("status").style.background = tone && tone + "2e";
+  document.querySelector("header").style.borderBottomColor = tone || "transparent";
+  if (tone) document.documentElement.style.setProperty("--status", tone); else document.documentElement.style.removeProperty("--status");
   $("bid").textContent = v.brief_id || "";
   shownView = v; $("edit").hidden = false;
   $("how").textContent = v.how === "mail" ? v.how_text : "";  // only a message that won't arrive as you says how

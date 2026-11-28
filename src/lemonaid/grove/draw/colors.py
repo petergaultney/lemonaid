@@ -72,3 +72,20 @@ def lemon_glyph(lemon: Lemon) -> str:
 def model_color(lemon: Lemon) -> str:
     """A lemon's model label color, as the inbox colors it by provider."""
     return provider_color.color(lemon.channel, lemon.provider) or MUTED
+
+
+DARK_INK, LIGHT_INK = "#0b0e13", "#f5f7fa"
+_DARK_LUMINANCE, _LIGHT_LUMINANCE = 0.0043, 0.928  # their WCAG relative luminance
+
+
+def ink_on(color: str) -> str:
+    """Dark or light text, whichever reads better on the `#rrggbb` *color*."""
+    red, green, blue = (int(color[i : i + 2], 16) for i in (1, 3, 5))
+    light = tuple(
+        ((c / 255 + 0.055) / 1.055) ** 2.4 if c / 255 > 0.04045 else c / 255 / 12.92
+        for c in (red, green, blue)
+    )
+    luminance = 0.2126 * light[0] + 0.7152 * light[1] + 0.0722 * light[2]
+    dark_contrast = (luminance + 0.05) / (_DARK_LUMINANCE + 0.05)
+    light_contrast = (_LIGHT_LUMINANCE + 0.05) / (luminance + 0.05)
+    return DARK_INK if dark_contrast > light_contrast else LIGHT_INK

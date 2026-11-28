@@ -6,10 +6,12 @@ import time
 
 import pytest
 
-from lemonaid.brief import attached, pr
+from lemonaid import groups
+from lemonaid.brief import attached, identity, pr
 from lemonaid.brief import store as brief_store
 from lemonaid.config import Config
 from lemonaid.front_end import interface, pick
+from lemonaid.grove import model
 from lemonaid.grove.web import attachments, lemon
 from lemonaid.inbox import db
 from lemonaid.messages import tell_delivery
@@ -227,3 +229,51 @@ def test_an_openclaw_lemon_takes_files_only_over_a_held_gateway_connection(monke
 def test_a_terminal_lemon_always_takes_files(worker, monkeypatch):
     monkeypatch.setattr(lemon.gateway, "_held", None)
     assert lemon.view(CHANNEL, Config(), pr.no_state)["attach"] is True
+
+
+def _block(name, color, *channels, home=""):
+    lemons = tuple(
+        model.Lemon(c, 1, c, "", "", False, False, "", "", "", "", False, 0.0, "", "", False)
+        for c in channels
+    )
+    return model.Block(name, "1", color, (model.Tree("k", "k", lemons, False),), home)
+
+
+def test_a_lemons_group_color_is_its_blocks_unless_it_is_in_no_group():
+    blocks = [
+        _block("", "#c9b79c", "a"),
+        _block("g", "#336699", "b"),
+        _block("", "#aa5500", "c", home="h"),
+    ]
+
+    assert [lemon.group_color(blocks, c) for c in "abc?"] == ["", "#336699", "#aa5500", ""]
+
+
+def _in_group(channel):
+    with db.connect() as conn:
+        groups.store.add(conn, groups.store.create(conn, "g"), [channel])
+
+
+def test_the_name_gets_the_color_with_whichever_text_contrasts_most(worker):
+    _in_group(CHANNEL)
+
+    inks = {
+        c: lemon.view(CHANNEL, Config(), pr.no_state, color=c)["ink"]
+        for c in ("#f2d94e", "#223355", "#00aa00")
+    }
+
+    assert inks == {"#f2d94e": "#0b0e13", "#223355": "#f5f7fa", "#00aa00": "#0b0e13"}
+
+
+def test_a_lemon_in_no_group_keeps_the_default_even_when_drawn_in_a_colored_block(worker):
+    shown = lemon.view(CHANNEL, Config(), pr.no_state, color="#336699")
+
+    assert (shown["color"], shown["ink"]) == ("", "")
+
+
+def test_a_lemon_in_a_group_by_its_briefs_lemon_id_gets_the_color(worker):
+    with db.connect() as conn:
+        lemon_id = identity.ensure(conn, worker)
+        groups.store.add(conn, groups.store.create(conn, "g"), [lemon_id])
+
+    assert lemon.view(CHANNEL, Config(), pr.no_state, color="#336699")["color"] == "#336699"
