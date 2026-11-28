@@ -18,9 +18,9 @@ _SESSION = "0f0e0d0c-1111-2222-3333-444455556666"
 def root(tmp_path, monkeypatch):
     root = tmp_path / "docs"
     doc(root, "packages/core.md", {"package-for": [{}]})
-    doc(root, "packages/oria.md", {"package-for": [{"group": "oria"}]})
+    doc(root, "packages/webapp.md", {"package-for": [{"group": "webapp"}]})
     doc(root, "voice.md", {"package": "core"}, "Write plainly.\n")
-    doc(root, "flaky.md", {"package": "oria"}, "Chase every flaky test.\n")
+    doc(root, "flaky.md", {"package": "webapp"}, "Chase every flaky test.\n")
     doc(
         root,
         "prs.md",
@@ -36,7 +36,7 @@ def root(tmp_path, monkeypatch):
     doc(
         root,
         "rerun.md",
-        {"load-when": [{"command": r"\bgh run rerun\b", "group": "oria", "before": True}]},
+        {"load-when": [{"command": r"\bgh run rerun\b", "group": "webapp", "before": True}]},
         "Don't rerun a flaky test.\n",
     )
     configure([root])
@@ -153,7 +153,7 @@ def test_claude_gets_what_fits_and_the_rest_at_its_next_calls(tmp_path, monkeypa
 
 @pytest.mark.usefixtures("root")
 def test_a_classic_lemon_gets_only_its_group_s_package_and_triggers(monkeypatch):
-    _kin(monkeypatch, groups=["oria"])
+    _kin(monkeypatch, groups=["webapp"])
 
     started = _run("SessionStart", source="startup")
     assert "Chase every flaky test." in started.context
@@ -179,10 +179,10 @@ def test_a_package_joined_mid_session_and_a_doc_new_to_it_arrive_at_the_next_cal
     _run("SessionStart", source="startup")
     assert _run("PreToolUse", **_bash("ls")).context == ""
 
-    _kin(monkeypatch, groups=["oria"])
+    _kin(monkeypatch, groups=["webapp"])
     assert "Chase every flaky test." in _run("PreToolUse", **_bash("ls")).context
 
-    doc(root, "uploads.md", {"package": "oria"}, "Retry uploads twice.\n")
+    doc(root, "uploads.md", {"package": "webapp"}, "Retry uploads twice.\n")
     later = _run("PreToolUse", **_bash("ls"))
     assert "Retry uploads twice." in later.context and "Chase" not in later.context
 
@@ -192,7 +192,7 @@ def test_under_reaches_a_lead_s_whole_tree(monkeypatch, root):
     doc(root, "packages/lead.md", {"package-for": [{"under": "MilkyWay"}]})
     doc(root, "lead-rule.md", {"package": "lead"}, "The lead's rule.\n")
     index.build([root], paths.index())
-    _kin(monkeypatch, ancestors=["SweetShy.oria-upload", "MilkyWay.oria-lead"])
+    _kin(monkeypatch, ancestors=["SweetShy.webapp-upload", "MilkyWay.webapp-lead"])
 
     assert "The lead's rule." in _run("SessionStart", source="startup").context
 
@@ -241,11 +241,11 @@ def test_a_package_doc_just_over_what_a_response_holds_is_named_not_deferred_for
 
 @pytest.mark.usefixtures("root")
 def test_a_doc_only_logged_still_reaches_a_lemon_that_joins_its_group(monkeypatch, root):
-    doc(root, "both.md", {"package": ["core", "oria"]}, "A rule for both.\n")
+    doc(root, "both.md", {"package": ["core", "webapp"]}, "A rule for both.\n")
     index.build([root], paths.index())
     assert "A rule for both." not in _run("SessionStart", source="startup").context
 
-    _kin(monkeypatch, groups=["oria"])
+    _kin(monkeypatch, groups=["webapp"])
 
     assert "A rule for both." in _run("PreToolUse", **_bash("ls")).context
 
@@ -255,11 +255,16 @@ def test_a_trigger_only_logged_doesn_t_hide_the_same_doc_from_a_group_trigger(mo
     doc(
         root,
         "team.md",
-        {"load-when": [{"command": "^echo shadow"}, {"command": "^echo actual", "group": "oria"}]},
+        {
+            "load-when": [
+                {"command": "^echo shadow"},
+                {"command": "^echo actual", "group": "webapp"},
+            ]
+        },
         "A team rule.\n",
     )
     index.build([root], paths.index())
-    _kin(monkeypatch, groups=["oria"])
+    _kin(monkeypatch, groups=["webapp"])
     _run("SessionStart", source="startup")
 
     assert _run("PreToolUse", **_bash("echo shadow")).context == ""

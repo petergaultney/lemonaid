@@ -90,7 +90,7 @@ class Section:
     needs_text: str = ""  # Markdown: what Now says the lemon needs, as written
     questions: tuple["questions.Item", ...] = ()  # Needs as items, when an entry explains one
     unmatched_questions: tuple[str, ...] = ()
-    project: str = ""  # `ds-monorepo: apps/unified-asset`, or "" without a lemon or Area line
+    project: str = ""  # `my-monorepo: apps/checkout-flow`, or "" without a lemon or Area line
     held: str = ""  # the brief's own state, while its lemon is mid-turn and shows `state` instead
     lemon_id: str = ""
     compact: bool = False  # one of a session's later lemons, drawn in fewer lines

@@ -1,4 +1,4 @@
-"""Which project a lemon works in, as the brief card leads with it: `ds-monorepo: apps/unified-asset`."""
+"""Which project a lemon works in, as the brief card leads with it: `my-monorepo: apps/checkout-flow`."""
 
 from collections import abc
 from pathlib import Path

@@ -2,7 +2,7 @@
 
 Each lemon with an attached brief has a stable `Lemon-ID` stored in the brief.
 New IDs combine a brief slug with a short WordyBin suffix, such as
-`mc-tars-no-mops-leases.SkullHen`. The ID is set once and keeps the same value
+`billing-retries.SkullHen`. The ID is set once and keeps the same value
 if the brief is renamed. Its mailbox is the folder
 `~/.lemons/mailbox/<lemon-id>/` (`~/.brief-lemons/inbox/` before `lemonaid home
 migrate`; see `docs/home.md`). The ID and

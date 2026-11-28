@@ -778,7 +778,7 @@ contributors:
 brief-id: brief-yaml-frontmatter.PriceHum
 parent: lemonaid-plan-manager.BlessBar
 status: blocked
-area: apps/unified-asset
+area: apps/checkout-flow
 output-doc: /Users/sam/notes/reviews/r-12.md
 groups:
   - lemonaid
@@ -1152,8 +1152,8 @@ instead (see `tasks.md`). With tasks disabled, omit all three task options: they
 
 The file has frontmatter (see Frontmatter) with its own `brief-id`, `created`, and `parent: <your Lemon-ID>`, then the title and the template's sections. It has no `## Now`; the child
 writes that. `--parent` names a parent other than yourself (a Lemon-ID, channel, or brief), or `parent` for your own parent.
-`--area apps/unified-asset` sets `area`, naming the part of the project the work is
-in; brief cards show it after the project (`ds-monorepo: apps/unified-asset`). A worker
+`--area apps/checkout-flow` sets `area`, naming the part of the project the work is
+in; brief cards show it after the project (`my-monorepo: apps/checkout-flow`). A worker
 without one can add an `Area:` line through `brief now`, or the key by hand.
 `--output-doc <path>` (any template) names the document the work produces. It fills the
 `$output_doc*` placeholders and is recorded as `output-doc: <absolute path>` in the frontmatter, which
@@ -1203,9 +1203,9 @@ Use `running` when nothing waits on your user but you are minding a pipeline run
 process; name it and its tmux `session:window` under `Running`, whose first line its card shows.
 
 New briefs include a name and a readable slug, such as
-`Lemon-ID: SkullHen.mc-tars-no-mops-leases`, generated from two random bytes and
+`Lemon-ID: SkullHen.billing-retries`, generated from two random bytes and
 the brief filename. Older briefs put the slug first
-(`mc-tars-no-mops-leases.SkullHen`) and keep it; lemonaid reads both, telling them
+(`billing-retries.SkullHen`) and keep it; lemonaid reads both, telling them
 apart because a slug is always lowercase letters, digits and `-`, and a name never is. The slug omits the leading date and is trimmed to about
 40 characters at a hyphen boundary. `[brief] name` in the config replaces the
 WordyBin with whatever a command prints; see `docs/config.md`.

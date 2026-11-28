@@ -57,7 +57,7 @@ def add_parsers(grove_subparsers: argparse._SubParsersAction) -> None:
     remote = commands.add_parser(
         "remote", help="Show another machine's web grove (`grove serve`) in a window of its own"
     )
-    remote.add_argument("url", help="The web grove's address, such as http://lemon-grove:8770/")
+    remote.add_argument("url", help="The web grove's address, such as http://grove-host:8770/")
     remote.set_defaults(func=_cmd_remote)
     show = commands.add_parser("show", help="Summon the window, as the tmux key does")
     show.add_argument("--client", default="", help="The tmux client tty to switch on a jump")

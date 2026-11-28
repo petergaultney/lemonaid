@@ -60,10 +60,10 @@ def test_a_package_for_item_that_is_not_a_mapping_matches_nobody():
 
 def test_a_trigger_keeps_the_lemon_keys_that_limit_it():
     parsed = frontmatter.parse(
-        _PATH, {"load-when": [{"command": "rerun", "group": "oria", "before": True}]}
+        _PATH, {"load-when": [{"command": "rerun", "group": "webapp", "before": True}]}
     )
 
     assert parsed is not None
     assert parsed.triggers == (
-        frontmatter.Trigger("command", "rerun", before=True, lemon={"group": "oria"}),
+        frontmatter.Trigger("command", "rerun", before=True, lemon={"group": "webapp"}),
     )

@@ -54,14 +54,14 @@ def test_project_colors_make_brief_age_neutral_but_keep_held_status_color():
 
 
 def test_the_project_leads_the_card_above_the_name():
-    section = dataclasses.replace(_section("blocked"), project="ds-monorepo: apps/web")
+    section = dataclasses.replace(_section("blocked"), project="my-monorepo: apps/web")
     text = brief_detail.header(section, False, 0, 60)
     lines = text.plain.split("\n")
 
-    assert lines[0] == f"{utils.HERE_BAR} ds-monorepo: apps/web"
+    assert lines[0] == f"{utils.HERE_BAR} my-monorepo: apps/web"
     assert lines[1].startswith(f"{utils.HERE_BAR} author")
     assert len(lines) == 7
-    assert utils.ATTENTION_COLOR not in " ".join(_styles(text, "ds-monorepo"))
+    assert utils.ATTENTION_COLOR not in " ".join(_styles(text, "my-monorepo"))
 
 
 def test_the_task_lemon_id_and_parent_come_before_the_status():

@@ -77,11 +77,11 @@ def test_grafting_a_tree_moves_each_lemon_and_back_ungrafts_them():
 def test_moving_out_of_block_0_leaves_the_home_group_and_an_ungrouped_lemon_just_joins():
     homed, loose = _lemon("home-a"), _lemon("home-b")
     with db.connect() as conn:
-        groups.store.add(conn, groups.store.create(conn, "meyer"), [homed])
+        groups.store.add(conn, groups.store.create(conn, "ada"), [homed])
         groups.store.create(conn, "away")
-    assert changes.move(_target("group", homed, loose, block="meyer"), "away") == (
+    assert changes.move(_target("group", homed, loose, block="ada"), "away") == (
         'moved 2 lemons to "away"'
     )
     with db.connect() as conn:
-        assert groups.store.find(conn, "meyer").members == ()
+        assert groups.store.find(conn, "ada").members == ()
         assert set(groups.store.find(conn, "away").members) == {homed, loose}

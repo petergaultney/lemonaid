@@ -13,7 +13,7 @@ EMPTY = {"plots": {}, "trees": {}}
 
 def test_a_second_arrangement_keeps_every_plot_spot_and_letter():
     blocks = (
-        block("oria", "1", tree("a-core"), tree("b-ops")),
+        block("shop", "1", tree("a-core"), tree("b-ops")),
         block("relay", "2", tree("c-wedge")),
     )
     first, saved = arrange(blocks, EMPTY, NOW)
@@ -22,15 +22,15 @@ def test_a_second_arrangement_keeps_every_plot_spot_and_letter():
 
 
 def test_a_new_sibling_does_not_move_or_reletter_a_tree():
-    before, saved = arrange((block("oria", "1", tree("a-core")),), EMPTY, NOW)
-    after, _ = arrange((block("oria", "1", tree("a-core"), tree("a-cache")),), saved, NOW + 60)
-    old, new = before.trees[("oria", "a-core")], after.trees[("oria", "a-core")]
+    before, saved = arrange((block("shop", "1", tree("a-core")),), EMPTY, NOW)
+    after, _ = arrange((block("shop", "1", tree("a-core"), tree("a-cache")),), saved, NOW + 60)
+    old, new = before.trees[("shop", "a-core")], after.trees[("shop", "a-core")]
     assert (old.cx, old.cy, old.letter) == (new.cx, new.cy, new.letter)
 
 
 def test_the_lead_tree_reads_l_whatever_letter_it_was_given():
-    found, _ = arrange((block("oria", "1", tree("hq", lead=True)),), EMPTY, NOW)
-    assert found.trees[("oria", "hq")].letter == "l"
+    found, _ = arrange((block("shop", "1", tree("hq", lead=True)),), EMPTY, NOW)
+    assert found.trees[("shop", "hq")].letter == "l"
 
 
 ROOMY = {
@@ -103,9 +103,9 @@ def test_a_returning_tree_keeps_its_spot_when_an_older_new_tree_arrives_with_it(
 
 
 def test_a_tree_saved_with_the_lead_letter_gets_another_once_it_is_not_the_lead():
-    saved = {"plots": {}, "trees": {"oria": {"hq": {"x": 10, "y": 5, "letter": "l"}}}}
-    found, _ = arrange((block("oria", "1", tree("hq")),), saved, NOW)
-    assert found.trees[("oria", "hq")].letter not in ("l", "")
+    saved = {"plots": {}, "trees": {"shop": {"hq": {"x": 10, "y": 5, "letter": "l"}}}}
+    found, _ = arrange((block("shop", "1", tree("hq")),), saved, NOW)
+    assert found.trees[("shop", "hq")].letter not in ("l", "")
 
 
 def test_trees_grow_no_further_than_keeps_them_clear_of_each_other():

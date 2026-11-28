@@ -34,7 +34,7 @@ def read(
         cards={},
         memberships=memberships,
         groups=[
-            Group(1, "oria", 10.0, (), color="#6495ed"),
+            Group(1, "shop", 10.0, (), color="#6495ed"),
             Group(2, "relay", 20.0, (), color="#2fb5a5"),
         ],
         pinned=frozenset(),
@@ -48,9 +48,9 @@ def read(
 
 
 def test_lemons_in_one_terminal_session_share_a_tree():
-    rows = [notification("claude:a", "tars/core"), notification("codex:b", "tars/core")]
-    (oria,) = blocks.blocks(read(rows, {"claude:a": ("oria",), "codex:b": ("oria",)}), {})
-    assert [len(t.lemons) for t in oria.trees] == [2]
+    rows = [notification("claude:a", "billing/core"), notification("codex:b", "billing/core")]
+    (shop,) = blocks.blocks(read(rows, {"claude:a": ("shop",), "codex:b": ("shop",)}), {})
+    assert [len(t.lemons) for t in shop.trees] == [2]
 
 
 def _wezterm(channel: str, workspace: str, socket: str = "/tmp/gui") -> db.Notification:
@@ -68,8 +68,8 @@ def _wezterm(channel: str, workspace: str, socket: str = "/tmp/gui") -> db.Notif
 
 def test_wezterm_lemons_share_a_tree_by_workspace_not_by_directory():
     rows = [_wezterm("claude:a", "w1"), _wezterm("codex:b", "w1"), _wezterm("claude:c", "w2")]
-    (oria,) = blocks.blocks(read(rows, {row.channel: ("oria",) for row in rows}), {})
-    assert sorted((t.label, len(t.lemons)) for t in oria.trees) == [("w1", 2), ("w2", 1)]
+    (shop,) = blocks.blocks(read(rows, {row.channel: ("shop",) for row in rows}), {})
+    assert sorted((t.label, len(t.lemons)) for t in shop.trees) == [("w1", 2), ("w2", 1)]
 
 
 def test_equal_names_in_tmux_and_two_wezterm_instances_stay_three_trees():
@@ -78,27 +78,27 @@ def test_equal_names_in_tmux_and_two_wezterm_instances_stay_three_trees():
         _wezterm("claude:w", "work"),
         _wezterm("claude:v", "work", "/tmp/other-gui"),
     ]
-    (oria,) = blocks.blocks(read(rows, {row.channel: ("oria",) for row in rows}), {})
-    assert sorted(t.label for t in oria.trees) == ["work", "work", "work"]
-    assert [t.key for t in oria.trees if t.lemons[0].session] == ["work"]
+    (shop,) = blocks.blocks(read(rows, {row.channel: ("shop",) for row in rows}), {})
+    assert sorted(t.label for t in shop.trees) == ["work", "work", "work"]
+    assert [t.key for t in shop.trees if t.lemons[0].session] == ["work"]
 
 
 def test_a_lemon_in_two_groups_stands_in_the_first():
     rows = [notification("claude:a", "x")]
-    found = blocks.blocks(read(rows, {"claude:a": ("relay", "oria")}), {})
+    found = blocks.blocks(read(rows, {"claude:a": ("relay", "shop")}), {})
     assert [(b.name, b.digit) for b in found] == [("relay", "1")]
 
 
 def test_lemons_in_no_group_stand_in_block_zero():
     rows = [notification("claude:a", "x"), notification("claude:b", "y")]
-    found = blocks.blocks(read(rows, {"claude:a": ("oria",)}), {})
-    assert [(b.name, b.digit) for b in found] == [("oria", "1"), ("", "0")]
+    found = blocks.blocks(read(rows, {"claude:a": ("shop",)}), {})
+    assert [(b.name, b.digit) for b in found] == [("shop", "1"), ("", "0")]
 
 
 def test_numbered_from_1_the_lemons_in_no_group_are_block_1_and_the_groups_follow():
     rows = [notification("claude:a", "x"), notification("claude:b", "y")]
-    found = blocks.blocks(read(rows, {"claude:a": ("oria",)}), {}, first=1)
-    assert [(b.name, b.digit) for b in found] == [("oria", "2"), ("", "1")]
+    found = blocks.blocks(read(rows, {"claude:a": ("shop",)}), {}, first=1)
+    assert [(b.name, b.digit) for b in found] == [("shop", "2"), ("", "1")]
 
 
 def test_hq_leads_the_packhouse_though_its_children_are_in_groups():
@@ -107,7 +107,7 @@ def test_hq_leads_the_packhouse_though_its_children_are_in_groups():
         notification("claude:x", "x"),
         notification("claude:kid", "k"),
     ]
-    found = blocks.blocks(read(rows, {"claude:kid": ("oria",)}, {"claude:kid": "claude:hq"}), {})
+    found = blocks.blocks(read(rows, {"claude:kid": ("shop",)}, {"claude:kid": "claude:hq"}), {})
     packhouse = found[-1]
     assert [t.lead for t in packhouse.trees if t.key == "hq"] == [True]
 
@@ -155,20 +155,20 @@ def test_a_grafted_lemon_hangs_after_its_hosts_tree_mates_until_its_host_goes():
         notification("claude:guest", "window"),
     ]
     found = dataclasses.replace(
-        read(rows, {row.channel: ("oria",) for row in rows}),
+        read(rows, {row.channel: ("shop",) for row in rows}),
         lemon_ids={"claude:host": "SillyOil.richer"},
         grafts={"claude:guest": "SillyOil.richer"},
     )
-    (oria,) = blocks.blocks(found, {})
-    assert [(t.key, [m.channel for m in t.lemons]) for t in oria.trees] == [
+    (shop,) = blocks.blocks(found, {})
+    assert [(t.key, [m.channel for m in t.lemons]) for t in shop.trees] == [
         ("richer", ["claude:host", "codex:mate", "claude:guest"])
     ]
-    assert oria.trees[0].lemons[2].grafted_onto == "SillyOil.richer"
+    assert shop.trees[0].lemons[2].grafted_onto == "SillyOil.richer"
 
     gone = dataclasses.replace(found, rows=rows[1:])
-    (oria,) = blocks.blocks(gone, {})
-    assert sorted(t.key for t in oria.trees) == ["richer", "window"]
-    assert not any(m.grafted_onto for t in oria.trees for m in t.lemons)
+    (shop,) = blocks.blocks(gone, {})
+    assert sorted(t.key for t in shop.trees) == ["richer", "window"]
+    assert not any(m.grafted_onto for t in shop.trees for m in t.lemons)
 
 
 def test_a_grafted_lead_comes_after_its_hosts_own_so_the_tree_still_renames_its_session():
@@ -178,7 +178,7 @@ def test_a_grafted_lead_comes_after_its_hosts_own_so_the_tree_still_renames_its_
         notification("claude:child", "lead"),
     ]
     found = dataclasses.replace(
-        read(rows, {row.channel: ("oria",) for row in rows}, {"claude:child": "claude:lead"}),
+        read(rows, {row.channel: ("shop",) for row in rows}, {"claude:child": "claude:lead"}),
         grafts={"claude:lead": "claude:host"},
     )
     grove = blocks.blocks(found, {})
@@ -186,22 +186,22 @@ def test_a_grafted_lead_comes_after_its_hosts_own_so_the_tree_still_renames_its_
     assert host.lead and [m.channel for m in host.lemons] == ["claude:host", "claude:lead"]
 
     arrangement, _ = arrange.arrange(grove, {"plots": {}, "trees": {}}, NOW)
-    letter = arrangement.trees[("oria", "host")].letter
+    letter = arrangement.trees[("shop", "host")].letter
     _, _, rename = press("tab", "1", "$", letter, "r", blocks=grove, arrangement=arrangement)
     assert (rename.channel, rename.name) == ("", "host")
 
 
 def test_a_home_group_joins_block_zero_under_its_name_and_color_and_leads_it():
     rows = [
-        notification("claude:meyer", "m"),
+        notification("claude:ada", "m"),
         notification("claude:kid", "k"),
         notification("claude:loose", "l"),
         notification("claude:r", "r"),
     ]
-    memberships = {"claude:meyer": ("oria",), "claude:kid": ("oria",), "claude:r": ("relay",)}
-    found = blocks.blocks(read(rows, memberships, {"claude:kid": "claude:meyer"}), {}, home="oria")
-    assert [(b.name, b.digit, b.home) for b in found] == [("relay", "1", ""), ("", "0", "oria")]
+    memberships = {"claude:ada": ("shop",), "claude:kid": ("shop",), "claude:r": ("relay",)}
+    found = blocks.blocks(read(rows, memberships, {"claude:kid": "claude:ada"}), {}, home="shop")
+    assert [(b.name, b.digit, b.home) for b in found] == [("relay", "1", ""), ("", "0", "shop")]
     zero = found[-1]
-    assert (zero.title, zero.color) == ("oria", "#6495ed")
+    assert (zero.title, zero.color) == ("shop", "#6495ed")
     assert {t.key for t in zero.trees} == {"m", "k", "l"}
     assert [t.key for t in zero.trees if t.lead] == ["m"]

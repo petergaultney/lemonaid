@@ -292,12 +292,12 @@ test("a lemon hanging in a crown is a tap target of its own on a touch screen on
 
 for (const many of [12, 20]) test(`each of ${many} lemons in a tree opened on a short touch screen has its own row on the screen to tap`, () => {
   const lemons = Array.from({length: many}, (_, i) => ({channel: `claude:${i}`, name: `lemon ${i}`, status: "merge"}));
-  const tree = {key: "t", label: "mops", letter: "t", lemons};
+  const tree = {key: "t", label: "billing", letter: "t", lemons};
   const context = {
     W: () => 500, H: () => 269, RH: 18, CW: 9, BG: "#000", TEXT: "#fff", TAG: "#333", STATUS: {}, ASKS: ["merge"],
     view: {treeZ: 1}, hits: [], focus: {digit: "6", key: "t"},
     ctx: {fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}},
-    focused: () => ({b: {digit: "6", group: many === 20 ? "mops" : ""}, t: tree, each: () => tree}),
+    focused: () => ({b: {digit: "6", group: many === 20 ? "billing" : ""}, t: tree, each: () => tree}),
     crownExtent: () => ({left: -4, right: 4, top: -6, bottom: 0}), crownShape: () => ({}),
     drawTree: (b, t, cx, cy) => ({groundY: cy + 18 * context.view.treeZ, fruit: []}),
     fruitHits: () => {}, txtAt: () => {}, mix: c => c,

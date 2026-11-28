@@ -232,11 +232,11 @@ default = "claude"
 |-----|---------|-------------|
 | `named_processes` | `[]` | Console-script or application names to show by themselves in the tmux status line when they run behind Python, Node, or another recognized interpreter. |
 
-For example, to show `mops-console` instead of its working-directory name:
+For example, to show `queue-console` instead of its working-directory name:
 
 ```toml
 [tmux-window]
-named_processes = ["mops-console"]
+named_processes = ["queue-console"]
 ```
 
 The name may come from the interpreter's command line or the pane title. Add
@@ -401,7 +401,7 @@ time of its last message, its project, and its branch. The project is the
 `[[places.roots]]` entry its cwd sits under, named by the root's `name` or its
 directory. A [per-root `project_name` hook](#project-names-within-a-root) can
 replace that label. The `Area:` from its brief follows if it has one
-(`ds-monorepo: apps/unified-asset`). Outside every root, the project is the
+(`my-monorepo: apps/checkout-flow`). Outside every root, the project is the
 cwd's directory name. With no root and no branch either, the line shows the
 cwd as before. When the line doesn't fit, the branch is cut first, then the
 area, and then the time is dropped, so the project's name stays whole wherever
@@ -413,12 +413,12 @@ A group's header fill and rail take a color from the same generated palette as p
 
 There are two ways to choose one. A group chosen either way keeps that color, and the others keep clear of it.
 
-- **Save it from lemonaid:** `lemonaid group color oria "#e0a227"` (or a CSS name such as `teal`), or `C` on the group in the inbox. It's stored in the database, drawn at once without a restart, and follows the group when it's renamed. `lemonaid group color oria --clear` forgets it.
+- **Save it from lemonaid:** `lemonaid group color webapp "#e0a227"` (or a CSS name such as `teal`), or `C` on the group in the inbox. It's stored in the database, drawn at once without a restart, and follows the group when it's renamed. `lemonaid group color webapp --clear` forgets it.
 - **Set it in the config** by name:
 
   ```toml
   [tui.group_colors]
-  oria = "#e0a227"
+  webapp = "#e0a227"
   ```
 
   A value that isn't `#rrggbb` is reported at start-up and ignored.
@@ -763,8 +763,8 @@ non-empty line containing the project name, without terminal formatting.
 
 ```toml
 [[places.roots]]
-path = "~/work/ds-monorepo"
-name = "ds-monorepo"
+path = "~/work/my-monorepo"
+name = "my-monorepo"
 project_name = "python3 ~/.local/bin/project-name.py {dir}"
 ```
 
@@ -774,8 +774,8 @@ ancestor with a `pyproject.toml`, relative to the nearest ancestor containing
 
 If no project is found below the checkout top, it uses the first directory
 component under the configured root as a project prefix. For a checkout at
-`mops/topic`, it looks for `*/mops/pyproject.toml` inside that checkout and returns
-its project directory, such as `libs/mops`; without a match, it returns `mops`.
+`billing/topic`, it looks for `*/billing/pyproject.toml` inside that checkout and returns
+its project directory, such as `libs/billing`; without a match, it returns `billing`.
 The `main` checkout returns nothing when no project is found. This layout policy
 lives in the user's script; lemonaid runs it as an opaque command.
 
@@ -797,7 +797,7 @@ if top is not None:
         print(project.parent.relative_to(top) if project else prefix)
 ```
 
-A result such as `tools/obsidian-relay` replaces `ds-monorepo` in both inbox
+A result such as `tools/obsidian-relay` replaces `my-monorepo` in both inbox
 layouts, history, and snoozed rows. A brief's `Area:` still follows after a colon;
 `project_name_colors` uses the hook's name. Brief documents keep their own labels.
 

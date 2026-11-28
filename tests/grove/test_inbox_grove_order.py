@@ -23,7 +23,7 @@ def test_a_zoomed_blocks_rows_group_by_tree_with_the_lead_tree_first():
 
     ordered = inbox_keys.in_grove_order(_rows(*shuffled), grove, "1")
 
-    letters = {k: ARRANGEMENT.trees[("oria-postgres", k)].letter for k in by_tree}
+    letters = {k: ARRANGEMENT.trees[("shop-postgres", k)].letter for k in by_tree}
     later = sorted((BIG.key, PAIR.key), key=letters.get)
     assert [r.notification.channel for r in ordered] == [
         *by_tree[LEAD.key],
@@ -63,7 +63,7 @@ def test_zooming_into_a_block_keeps_its_lemons_reply_rows():
         folded=[],
         hidden=frozenset(),
         emojis={},
-        groups=[Group(1, "oria-postgres", 1.0, ())],
+        groups=[Group(1, "shop-postgres", 1.0, ())],
         wordybins={},
         other=[],
         numbers={},

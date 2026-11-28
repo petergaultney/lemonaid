@@ -77,9 +77,7 @@ def groups(db_path: str) -> None:
         names = [r[0] for r in conn.execute("SELECT name FROM lemon_groups ORDER BY position")]
         title = f"{len(names)} groups in {db_path}"
     else:
-        names = (
-            "oria mops relay watchers lemonaid protostellar eval infra docs ml tars lint".split()
-        )
+        names = "webapp billing relay watchers lemonaid protostellar eval infra docs ml api lint".split()
         title = f"{len(names)} sample group names"
     given = palette.assign_groups(names, {})
     print(f"\n{title}:")

@@ -1,8 +1,8 @@
 """Short tree labels and their letters.
 
 A tree is named by the words that tell it apart within its block: the group's own words and
-words most of its trees share are dropped, so the trees of `oria-postgres` read `core`, `ops` and
-`roles` rather than `tars/postgres-core`. Its letter comes from those words when it can.
+words most of its trees share are dropped, so the trees of `webapp-postgres` read `core`, `ops` and
+`roles` rather than `billing/postgres-core`. Its letter comes from those words when it can.
 """
 
 import re
@@ -35,14 +35,14 @@ def labels(group: str, keys: abc.Sequence[str]) -> dict[str, str]:
 
     def short(key: str) -> str:
         kept = " ".join(word for word in words(leaves[key]) if word not in dropped)
-        # Too short and it stops saying which tree it is: `oria-hq` would be `hq`, like HQ's own.
+        # Too short and it stops saying which tree it is: `webapp-hq` would be `hq`, like HQ's own.
         return kept if len(kept) >= _SHORTEST else " ".join(words(leaves[key])) or key
 
     return {key: short(key) for key in keys}
 
 
 def without_group(group: str, name: str) -> str:
-    """*name* without the group's own words at its start, as `Oria chat error` in `oria` reads
+    """*name* without the group's own words at its start, as `Webapp chat error` in `webapp` reads
     `chat error`; all of *name* when nothing else is left.
     """
     group_words = set(words(group))

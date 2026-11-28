@@ -12,9 +12,9 @@ from lemonaid.openclaw import lemons, sessions, sync
 
 NOW = 1_800_000_000_000
 DAY = 86_400_000
-MEYER = sync.Agent("main", "Ada", "/srv/agent-home", True)
+AGENT = sync.Agent("main", "Ada", "/srv/agent-home", True)
 BARN = sync.Agent("garden", "garden", "/srv/garden", False)
-AGENTS = {"main": MEYER, "garden": BARN}
+AGENTS = {"main": AGENT, "garden": BARN}
 ROOM = "agent:main:matrix:channel:!r00mA1b2:grove.example"
 SIGNAL = "agent:main:signal:direct:uuid:abc"
 BARN_ROOM = "agent:garden:matrix:channel:!g4rd3n:grove.example"

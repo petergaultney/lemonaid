@@ -72,30 +72,32 @@ def test_the_default_branch_check_runs_in_the_session_s_folder(tmp_path):
 
 def test_group_and_under_match_a_lemon_s_groups_and_ancestors(repo):
     docs = [
-        _package("oria", {"group": "oria"}),
+        _package("webapp", {"group": "webapp"}),
         _package("lead", {"under": "MilkyWay"}),
         _package("hq", {"under": "HqDesk.control-center"}),
     ]
-    lemon = lemons.Lemon(repo, groups=("oria",), ancestors=("MilkyWay.oria-lead",))
+    lemon = lemons.Lemon(repo, groups=("webapp",), ancestors=("MilkyWay.webapp-lead",))
 
-    assert lemons.packages(docs, lemon) == ["oria", "lead"]
+    assert lemons.packages(docs, lemon) == ["webapp", "lead"]
     assert lemons.packages(docs, lemons.Lemon(repo)) == []
 
 
 def test_scoped_only_takes_the_packages_for_a_group_or_a_lead(repo):
-    docs = [_package("core", {}), _package("oria", {"group": "oria"})]
+    docs = [_package("core", {}), _package("webapp", {"group": "webapp"})]
 
-    assert lemons.packages(docs, lemons.Lemon(repo, groups=("oria",)), scoped_only=True) == ["oria"]
+    assert lemons.packages(docs, lemons.Lemon(repo, groups=("webapp",)), scoped_only=True) == [
+        "webapp"
+    ]
 
 
 def test_kin_reads_groups_and_ancestors_from_the_database():
     with db.connect() as conn:
-        groups.store.add(conn, groups.store.create(conn, "oria"), ["SweetShy.upload"])
-        links.set_parent(conn, "SweetShy.upload", "MilkyWay.oria-lead")
-        links.set_parent(conn, "MilkyWay.oria-lead", "HqDesk.control-center")
+        groups.store.add(conn, groups.store.create(conn, "webapp"), ["SweetShy.upload"])
+        links.set_parent(conn, "SweetShy.upload", "MilkyWay.webapp-lead")
+        links.set_parent(conn, "MilkyWay.webapp-lead", "HqDesk.control-center")
 
     assert lemons.kin("SweetShy.upload") == (
-        ("oria",),
-        ("MilkyWay.oria-lead", "HqDesk.control-center"),
+        ("webapp",),
+        ("MilkyWay.webapp-lead", "HqDesk.control-center"),
     )
     assert lemons.kin("") == ((), ())

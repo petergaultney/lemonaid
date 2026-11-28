@@ -596,7 +596,7 @@ Lemonaid will find it in the interpreter command line and show it by itself:
 
 ```toml
 [tmux-window]
-named_processes = ["mops-console"]
+named_processes = ["queue-console"]
 ```
 
 ### Customization

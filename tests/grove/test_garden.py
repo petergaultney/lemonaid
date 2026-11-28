@@ -33,20 +33,20 @@ def _grab(name: str, at: tuple[int, int]) -> garden.Drag:
 
 
 def test_the_middle_of_a_block_moves_it_and_its_edge_resizes_it():
-    x0, y0, x1, y1 = _screen_box("oria")
-    middle = _grab("oria", ((x0 + x1) // 2, (y0 + y1) // 2))
-    edge = _grab("oria", (x1 - 1, (y0 + y1) // 2))
+    x0, y0, x1, y1 = _screen_box("shop")
+    middle = _grab("shop", ((x0 + x1) // 2, (y0 + y1) // 2))
+    edge = _grab("shop", (x1 - 1, (y0 + y1) // 2))
     assert middle.sides == frozenset() and edge.sides == {"right"}
 
-    plot = GROVE.arrangement.plots["oria"]
+    plot = GROVE.arrangement.plots["shop"]
     wider = drop.dragged(GROVE, dataclasses.replace(edge, moved=(4, 0))).arrangement
-    assert wider.plots["oria"] == dataclasses.replace(plot, w=plot.w + 4)
+    assert wider.plots["shop"] == dataclasses.replace(plot, w=plot.w + 4)
 
 
 def test_a_block_dropped_on_another_is_refused():
-    oria, relay = GROVE.arrangement.plots["oria"], GROVE.arrangement.plots["relay"]
+    shop, relay = GROVE.arrangement.plots["shop"], GROVE.arrangement.plots["relay"]
     drag = dataclasses.replace(
-        _grab("oria", (0, 0)), sides=frozenset(), moved=(relay.x - oria.x, relay.y - oria.y)
+        _grab("shop", (0, 0)), sides=frozenset(), moved=(relay.x - shop.x, relay.y - shop.y)
     )
     assert drop.refused(GROVE, drag) == "another block's ground is there"
 
@@ -89,9 +89,9 @@ def test_dragging_a_block_saves_where_it_was_dropped():
 
 
 def test_a_block_dragged_to_nothing_still_draws_and_is_refused():
-    plot = GROVE.arrangement.plots["oria"]
-    _x0, y0, x1, y1 = _screen_box("oria")
-    drag = dataclasses.replace(_grab("oria", (x1 - 1, (y0 + y1) // 2)), moved=(-plot.w - 3, 0))
+    plot = GROVE.arrangement.plots["shop"]
+    _x0, y0, x1, y1 = _screen_box("shop")
+    drag = dataclasses.replace(_grab("shop", (x1 - 1, (y0 + y1) // 2)), moved=(-plot.w - 3, 0))
     render(drop.dragged(GROVE, drag), keys.Where(), *_SIZE, 0.0)
     assert drop.refused(GROVE, drag) == "a block needs at least 12 columns and 5 rows"
 
@@ -126,7 +126,7 @@ def test_a_drop_checks_the_saved_layout_not_the_one_it_was_dragged_on():
 
     state.save(saved)
     relay = arrangement.plots["relay"]
-    state.update(lambda s: edit.move(s, "oria", relay.x - 60, relay.y + 10))
+    state.update(lambda s: edit.move(s, "shop", relay.x - 60, relay.y + 10))
     with pytest.raises(edit.EditError, match="another block's ground"):
         state.update(drop.drop(old, drag, NOW))
     assert state.load()["plots"]["relay"]["x"] == relay.x
@@ -135,16 +135,16 @@ def test_a_drop_checks_the_saved_layout_not_the_one_it_was_dragged_on():
 def test_a_drop_is_refused_when_a_tree_arrived_in_its_block_during_the_drag():
     arrangement, saved = arrange.arrange(BLOCKS, {"plots": {}, "trees": {}}, NOW)
     old = Grove(BLOCKS, arrangement, saved)
-    _x0, y0, x1, y1 = _screen_box("oria")
-    drag = dataclasses.replace(_grab("oria", (x1 - 1, (y0 + y1) // 2)), moved=(-2, 0))
+    _x0, y0, x1, y1 = _screen_box("shop")
+    drag = dataclasses.replace(_grab("shop", (x1 - 1, (y0 + y1) // 2)), moved=(-2, 0))
     assert drop.refused(old, drag) == ""
 
     newer = (dataclasses.replace(BLOCKS[0], trees=(*BLOCKS[0].trees, tree("new-one"))), *BLOCKS[1:])
     _, saved = arrange.arrange(newer, saved, NOW)
-    width = saved["plots"]["oria"]["w"]
+    width = saved["plots"]["shop"]["w"]
     with pytest.raises(edit.EditError, match="changed while you dragged"):
         drop.drop(old, drag, NOW)(saved)
-    assert saved["plots"]["oria"]["w"] == width
+    assert saved["plots"]["shop"]["w"] == width
 
 
 def test_a_tree_dropped_by_its_blocks_edge_is_taken_though_its_tag_reaches_past():
@@ -324,7 +324,7 @@ def test_every_resize_a_drag_accepts_is_dropped_at_that_size():
 
 
 def test_open_ground_is_grabbed_and_dragged_like_a_block():
-    plot = dataclasses.replace(GROVE.arrangement.plots["oria"], x=150, y=44)
+    plot = dataclasses.replace(GROVE.arrangement.plots["shop"], x=150, y=44)
     grove = dataclasses.replace(
         GROVE, arrangement=dataclasses.replace(GROVE.arrangement, open=(plot,))
     )
@@ -360,7 +360,7 @@ def _saved_with_open(*plots: tuple[str, Plot]) -> dict:
 
 
 def test_a_dropped_open_ground_is_found_again_by_what_it_was_not_its_index():
-    a = dataclasses.replace(GROVE.arrangement.plots["oria"], x=150, y=40, seed=1)
+    a = dataclasses.replace(GROVE.arrangement.plots["shop"], x=150, y=40, seed=1)
     b = dataclasses.replace(a, x=150, y=52, seed=2)
     grove = dataclasses.replace(
         GROVE, arrangement=dataclasses.replace(GROVE.arrangement, open=(a, b))

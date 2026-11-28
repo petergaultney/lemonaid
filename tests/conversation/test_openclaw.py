@@ -106,12 +106,12 @@ def test_a_spawned_session_starts_with_its_spawners_task(tmp_path):
         {"role": "user", "content": "[Subagent Task] check the pump", "__openclaw": {"seq": 1}},
         {"role": "user", "content": "how is it going?", "__openclaw": {"seq": 7}},
     ]
-    answer = {"messages": messages, "sessionInfo": {"spawnedBy": "agent:main:matrix:room"}}
+    answer = {"messages": messages, "sessionInfo": {"spawnedBy": "agent:main:chat:room"}}
 
-    found = openclaw.read(KEY, _cli(tmp_path, answer), 10, {"agent:main:matrix:room": "Meyer"}.get)
+    found = openclaw.read(KEY, _cli(tmp_path, answer), 10, {"agent:main:chat:room": "Ada"}.get)
 
     assert [(each.role, each.sender) for each in found] == [
-        (entry.OTHER, "Meyer"),
+        (entry.OTHER, "Ada"),
         (entry.USER, ""),
     ]
 

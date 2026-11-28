@@ -137,7 +137,7 @@ meanwhile, and `packages` again once they are back.
 
 ## Rules for a group or a lead's lemons
 
-A package for `group: oria` reaches every lemon in that group, and a child joins its
+A package for `group: webapp` reaches every lemon in that group, and a child joins its
 parent's groups when it starts. `under: <Lemon-ID>` reaches a lead's whole tree when it
 has no group. Classic lemons get these packages and triggers too, since the always-loaded
 docs don't carry them; a Claude lemon gets the packages in its system prompt, beside the

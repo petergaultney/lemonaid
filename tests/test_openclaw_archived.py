@@ -7,8 +7,8 @@ from lemonaid.inbox import db, ended
 from lemonaid.openclaw import archived, lemons, sessions, sync
 
 NOW = 1_800_000_000_000
-MEYER = sync.Agent("main", "Ada", "/srv/agent-home", True)
-AGENTS = {"main": MEYER}
+AGENT = sync.Agent("main", "Ada", "/srv/agent-home", True)
+AGENTS = {"main": AGENT}
 SIGNAL = "agent:main:signal:direct:uuid:abc"
 ROOM = "agent:main:matrix:channel:!r00mA1b2:grove.example"
 

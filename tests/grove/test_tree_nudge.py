@@ -9,8 +9,8 @@ from lemonaid.grove.tui.screen import GroveScreen
 
 from .test_frame import GROVE
 
-_TREE = "tars/slow-first-queries"
-_SPOT = GROVE.arrangement.trees[("oria", _TREE)]
+_TREE = "billing/slow-first-queries"
+_SPOT = GROVE.arrangement.trees[("shop", _TREE)]
 
 
 def test_arrows_step_one_unit_and_shift_five():
@@ -55,7 +55,7 @@ def test_arrows_move_a_tree_chosen_whole_and_save_it_once_they_stop():
             await pilot.pause()
 
     asyncio.run(run())
-    assert state.load()["trees"]["oria"][_TREE]["x"] == _SPOT.cx + 2
+    assert state.load()["trees"]["shop"][_TREE]["x"] == _SPOT.cx + 2
 
 
 def test_a_mouse_drop_after_a_keyboard_move_is_not_undone_by_its_save():
@@ -85,4 +85,4 @@ def test_a_mouse_drop_after_a_keyboard_move_is_not_undone_by_its_save():
             await pilot.pause()
 
     asyncio.run(run())
-    assert state.load()["trees"]["oria"][_TREE]["x"] == _SPOT.cx + 3
+    assert state.load()["trees"]["shop"][_TREE]["x"] == _SPOT.cx + 3

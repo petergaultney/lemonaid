@@ -41,7 +41,7 @@ def test_a_codex_packages_lemon_gets_only_its_mode(tmp_path):
 
 @pytest.mark.usefixtures("root")
 def test_a_classic_lemon_in_a_group_gets_only_the_group_s_package(tmp_path):
-    started = _prepare(tmp_path, wanted="", kin=launch.Kin(groups=("oria",)))
+    started = _prepare(tmp_path, wanted="", kin=launch.Kin(groups=("webapp",)))
 
     assert mode.ENV not in started.environment
     assert "--settings" not in started.claude_flags

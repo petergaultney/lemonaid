@@ -94,8 +94,8 @@ def chosen(name: str) -> str:
 def split_id(brief_id: str) -> tuple[str, str]:
     """A Brief-ID's name and description; the name is "" for an older ID without one.
 
-    New IDs put the name first (`SkullHen.mc-tars`), older ones last
-    (`mc-tars.SkullHen`). A description is a lowercase slug and a name never
+    New IDs put the name first (`SkullHen.billing-retries`), older ones last
+    (`billing-retries.SkullHen`). A description is a lowercase slug and a name never
     is, which tells the two orders apart.
     """
     name, dot, description = brief_id.partition(".")

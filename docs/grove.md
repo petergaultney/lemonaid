@@ -231,7 +231,7 @@ The window only reads the grove, every 3 seconds, and writes it only when you dr
 ### Another machine's grove
 
 ```sh
-lemonaid grove window remote http://lemon-grove:8770/
+lemonaid grove window remote http://grove-host:8770/
 ```
 
 opens the web grove another machine serves (`lemonaid grove serve`, above) in a window of its own. It shows that server's own pages, as a browser does, so it always matches the server's version and look. Gardening there changes that machine's grove, and the window redraws as soon as its server says the grove changed. Opening a lemon shows its page in the same window, and going back (its `grove` link, or the prefix key twice) returns to the grove as you left it. A chat room or PR a page links to opens in your browser.
@@ -246,7 +246,7 @@ lemonaid grove show 2            # draw block 2 zoomed in
 lemonaid grove show --plain      # characters only
 lemonaid grove show --json       # blocks, trees, spots, letters, lemons, roads and the stream
 lemonaid grove move 2 40 10      # put block 2's top-left corner at column 40, row 10
-lemonaid grove resize oria 60 18 # by digit or by group name
+lemonaid grove resize webapp 60 18 # by digit or by group name
 lemonaid grove reshape 2 6       # 2 rounds its corners most, 12 squares them
 lemonaid grove plant 2 c 30 8    # stand tree 2c at 30,8 in its block's plot
 lemonaid grove move open:0 40 10 # open ground is open:N; resize takes it too
@@ -255,7 +255,7 @@ lemonaid grove clear-open open:1 # or just one
 lemonaid grove graft StoveHub --onto SillyOil  # draw a lemon on another lemon's tree
 lemonaid grove ungraft StoveHub  # and back on its own
 lemonaid grove grafts            # every graft; --json for lemons
-lemonaid grove home Meyer        # draw Meyer's group as block 0; "" for none
+lemonaid grove home Ada          # draw Ada's group as block 0; "" for none
 ```
 
 The grove is 210 columns by 60 rows at full size. A larger grove is drawn smaller to fit the screen. `show --json` is meant for lemons.

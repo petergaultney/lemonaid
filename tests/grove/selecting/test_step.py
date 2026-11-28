@@ -78,7 +78,7 @@ def test_a_one_lemon_tree_is_edited_through_its_lemon():
 
 def test_c_recolors_the_chosen_trees_block():
     _, _, target = press("tab", "1", CORE, "c")
-    assert (target.action, target.block, target.tree) == ("color", "oria", "")
+    assert (target.action, target.block, target.tree) == ("color", "shop", "")
 
 
 def test_another_letter_with_a_choice_says_what_letters_do():
