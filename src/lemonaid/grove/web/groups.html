@@ -54,6 +54,9 @@ const rank = l => ORDER.indexOf(STATUS[l.status] ? l.status : "");
 const remember = name => { try { name === null ? sessionStorage.removeItem(OPEN) : sessionStorage.setItem(OPEN, name); } catch {} };
 const remembered = () => { try { return sessionStorage.getItem(OPEN); } catch { return null; } };
 let DATA = null, PINS = [], drawn = "", inBar = [];  // inBar: the bar's lemons as last drawn  // PINS: the inbox's pinned channels, in its order
+// The last groups the server sent, kept on this phone to draw at once and while it can't be reached.
+const KEPT = "lemonaid-groups";
+let keptAt = 0, offline = false;  // keptAt: when the groups shown were read
 
 function opened() {
   const name = new URLSearchParams(location.hash.slice(1)).get("group");
@@ -108,7 +111,8 @@ function draw() {
     ({html: nav, lemons: inBar} = window.groveBar.draw(DATA.blocks, PINS, b ? "the groups" : last ? "the last lemon" : ""));
   }
   const body = DATA.error ? `<div class="problem">${esc(DATA.error)}</div>` : b ? lemonRows(b) : groupRows();
-  const page = [title, DATA.summary || "", nav, body, b ? b.color : ""].join("\u0000");
+  const summary = offline ? window.groveTalks.offline(keptAt) : DATA.summary || "";
+  const page = [title, summary, nav, body, b ? b.color : ""].join("\u0000");
   if (page === drawn) return;
   drawn = page;
   const [t, sum, n, list] = page.split("\u0000");
@@ -120,18 +124,28 @@ function draw() {
   document.getElementById("list").innerHTML = list;
 }
 
+// The group last shown in this tab, once the groups are known.
+function reopen() {
+  if (DATA && !location.hash && remembered() !== null && DATA.blocks.some(b => named(b) === remembered())) {
+    history.replaceState(null, "", `#group=${encodeURIComponent(remembered())}`);
+  }
+}
+
 async function refresh() {
   try {
     const ask = name => fetch(`api/${name}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: "[]"});
     const [r, p] = await Promise.all([ask("data"), ask("pins")]);
-    if (r.ok) DATA = await r.json();
+    if (!r.ok) throw new Error(`data: HTTP ${r.status}`);
+    DATA = await r.json();
     if (p.ok) PINS = await p.json();
+    offline = false;
+    keptAt = Date.now();
+    if (!DATA.error) { try { localStorage.setItem(KEPT, JSON.stringify({data: DATA, pins: PINS, at: keptAt})); } catch {} }
   } catch (e) {
+    offline = Boolean(DATA);
     if (window.groveNote) window.groveNote("problem", {message: String(e)});
   }
-  if (DATA && !location.hash && remembered() !== null && DATA.blocks.some(b => named(b) === remembered())) {
-    history.replaceState(null, "", `#group=${encodeURIComponent(remembered())}`);
-  }
+  reopen();
   draw();
   readAhead();
   sweep();
@@ -139,7 +153,7 @@ async function refresh() {
 
 // Closes the notifications of lemons read since, which a push couldn't clear while the phone was off.
 function sweep() {
-  if (!DATA || DATA.error || !("serviceWorker" in navigator)) return;
+  if (!DATA || DATA.error || offline || !("serviceWorker" in navigator)) return;
   const read = new Set(DATA.blocks.flatMap(lemonsOf).filter(l => !l.unread).map(l => l.channel));
   navigator.serviceWorker.getRegistration().then(r => r ? r.getNotifications() : [])
     .then(ns => ns.filter(n => read.has(n.tag)).forEach(n => n.close())).catch(() => {});
@@ -148,7 +162,7 @@ function sweep() {
 // The bar's lemons and the lemon last opened, read ahead so their pages draw at once (talks.js).
 let reading = false;
 async function readAhead() {
-  if (reading || !DATA || DATA.error) return;
+  if (reading || !DATA || DATA.error || offline) return;
   reading = true;
   let last = "";
   try { last = new URLSearchParams(localStorage.getItem("lemonaid-last-lemon") || "").get("channel") || ""; } catch {}
@@ -183,6 +197,10 @@ window.groveHold(el => {
   const l = DATA && DATA.blocks.flatMap(lemonsOf).find(l => l.channel === el.dataset.channel);
   if (l) window.groveEdit({channel: l.channel, name: l.name, pinned: PINS.includes(l.channel)});
 });
+try {
+  const kept = JSON.parse(localStorage.getItem(KEPT));
+  if (kept) { DATA = kept.data; PINS = kept.pins || []; keptAt = kept.at; reopen(); draw(); }
+} catch {}
 const changes = new EventSource("api/changes");  // the server says when the grove changed (changes.py)
 changes.onmessage = refresh;
 changes.onopen = refresh;
