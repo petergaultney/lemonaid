@@ -9,42 +9,30 @@ forced). Each `<new>` it finds is kept, newest last, in `<writer dir>/pushes`.
 import itertools
 import pathlib
 import re
-import shlex
 from collections import abc
 
-from . import own_edits
+from . import own_edits, shell_lines
 
 _KEEP = 50
 _UPDATED_REF = re.compile(
     r"^\s*\+?\s*[0-9a-f]{7,40}\.\.\.?([0-9a-f]{7,40})\s+\S+\s+->\s+\S+", re.MULTILINE
 )
-_PUSH_COMMAND = re.compile(r"\bgit(?:\s+-[Cc]\s+\S+|\s+-{1,2}[\w-]+(?:=\S+)?)*\s+push\b")
+# git's own options that can take their value as the next word
+_VALUED_OPTIONS = frozenset(
+    {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--attr-source"}
+)
+_PUSH_COMMAND = re.compile(
+    r"\bgit(?:\s+(?:"
+    + "|".join(map(re.escape, sorted(_VALUED_OPTIONS)))
+    + r")\s+\S+|\s+-{1,2}[\w-]+(?:=\S+)?)*\s+push\b"
+)
 
 
 def is_push(command: str) -> bool:
     return bool(_PUSH_COMMAND.search(command))
 
 
-_SEPARATORS = frozenset({";", "|", "||", "&&", "&"})
 _QUIET_FLAG = re.compile(r"--quiet|-[A-Za-z]*q[A-Za-z]*")
-
-
-def _segments(command: str) -> abc.Iterator[list[str]]:
-    """The shell words of each simple command in *command*; quoted text stays one word."""
-    for line in command.splitlines():
-        lexer = shlex.shlex(line, posix=True, punctuation_chars=True)
-        lexer.whitespace_split = True
-        try:
-            words = list(lexer)
-        except ValueError:  # unbalanced quotes
-            continue
-        segment: list[str] = []
-        for word in [*words, ";"]:
-            if word in _SEPARATORS:
-                yield segment
-                segment = []
-            else:
-                segment.append(word)
 
 
 def _hides_stderr(words: list[str]) -> bool:
@@ -58,14 +46,27 @@ def _hides_stderr(words: list[str]) -> bool:
     )
 
 
+def _push_at(words: list[str]) -> int | None:
+    """Where `push` is in *words* when they run `git push`, with only git's own options
+    between, so `git stash push` is not a push."""
+    if "git" not in words:
+        return None
+
+    at = words.index("git") + 1
+    while at < len(words) and words[at].startswith("-"):
+        at += 2 if words[at] in _VALUED_OPTIONS else 1
+    return at if words[at : at + 1] == ["push"] else None
+
+
 def hides_heads(command: str) -> bool:
     """Whether a `git push` in *command* prints no updated refs: it is quiet, or its stderr,
     where git prints them, goes to /dev/null."""
-    for words in _segments(command):
-        if "git" not in words or "push" not in words[words.index("git") :]:
+    for words in shell_lines.segments(command):
+        at = _push_at(words)
+        if at is None:
             continue
 
-        after = words[words.index("push", words.index("git")) + 1 :]
+        after = words[at + 1 :]
         if _hides_stderr(after) or any(_QUIET_FLAG.fullmatch(word) for word in after):
             return True
 
@@ -86,21 +87,22 @@ def _without_quiet(word: str) -> str:
 
 def _expected(words: list[str]) -> list[str]:
     """*words* as they should be once each `git push` stops being quiet."""
-    if "git" not in words or "push" not in words[words.index("git") :]:
+    at = _push_at(words)
+    if at is None:
         return words
 
-    at = words.index("push", words.index("git")) + 1
-    return [*words[:at], *filter(lambda w: w not in ("", "-"), map(_without_quiet, words[at:]))]
+    return [
+        *words[: at + 1],
+        *filter(lambda w: w not in ("", "-"), map(_without_quiet, words[at + 1 :])),
+    ]
 
 
 def loud(command: str) -> str | None:
     """*command* with each `git push`'s `-q`/`--quiet` removed, so it prints its heads; None
     when that isn't enough (stderr sent to /dev/null) or would change any other word."""
-    segments = list(_segments(command))
+    segments = list(shell_lines.segments(command))
     if any(
-        _hides_stderr(words[words.index("push", words.index("git")) + 1 :])
-        for words in segments
-        if "git" in words and "push" in words[words.index("git") :]
+        _hides_stderr(words[at + 1 :]) for words in segments if (at := _push_at(words)) is not None
     ):
         return None
 
@@ -108,14 +110,22 @@ def loud(command: str) -> str | None:
         rest = (match[1] or "") + (match[2] or "")
         return f" -{rest}" if rest else ""
 
+    lines = shell_lines.spans(command)
     pieces, at = [], 0
     for match in _PUSH_COMMAND.finditer(command):
+        if not any(start <= match.start() < end for start, end in lines):
+            continue  # heredoc text, which stays as it is
+
         found = _SEGMENT_END.search(command, match.end())
         end = found.start() if found else len(command)
         pieces += [command[at : match.end()], _QUIET_WORD.sub(drop, command[match.end() : end])]
         at = end
     rewritten = "".join([*pieces, command[at:]])
-    return rewritten if list(_segments(rewritten)) == [_expected(w) for w in segments] else None
+    return (
+        rewritten
+        if list(shell_lines.segments(rewritten)) == [_expected(w) for w in segments]
+        else None
+    )
 
 
 def heads_in(output: str) -> list[str]:
