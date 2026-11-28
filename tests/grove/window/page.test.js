@@ -323,7 +323,7 @@ test("the browser's back button closes an open tree, then the block, and the pag
   const context = {history, window: {addEventListener: (n, f) => { listeners[n] = f; }}, zoomed: null, focus: null};
   context.goTo = d => { context.zoomed = d; };
   vm.createContext(context);
-  vm.runInContext(page.match(/let leaving = false;[^]*?\n\}\);/)[0] + "\nfunction draw() { inHistory(); }", context);
+  vm.runInContext(page.match(/let leaving = false;[^]*?\n\}\);(?=\nfunction back)/)[0] + "\nfunction draw() { inHistory(); }", context);
   const at = () => [vm.runInContext("zoomed", context), Boolean(vm.runInContext("focus", context)), stack.length];
 
   vm.runInContext('zoomed = "6"; draw(); focus = {digit: "6", key: "t"}; draw()', context);
@@ -334,4 +334,25 @@ test("the browser's back button closes an open tree, then the block, and the pag
   assert.deepEqual(at(), [null, false, 1]);
   vm.runInContext('zoomed = "6"; draw(); zoomed = null; draw()', context);  // a tap back out to the whole grove
   assert.deepEqual(at(), [null, false, 1]);
+});
+
+for (const loaded of [true, false]) test(`a home key return ${loaded ? "to a restored page" : "before its data arrives"} shows the whole grove and keeps the zoom's history entry as a plain one`, () => {
+  const listeners = {}, stack = [null, {grove: "inside"}], store = {"lemonaid-grove-home": "1"}, calls = [];
+  const history = {
+    get state() { return stack[stack.length - 1]; },
+    replaceState: s => { stack[stack.length - 1] = s; },
+    back: () => calls.push("back"),
+  };
+  const sessionStorage = {getItem: k => store[k] ?? null, removeItem: k => { delete store[k]; }};
+  const context = {history, sessionStorage, window: {addEventListener: (n, f) => { listeners[n] = f; }}, DATA: loaded ? {} : null, zoomed: "6", focus: null};
+  context.wholeGrove = () => { context.zoomed = null; calls.push("whole"); };
+  context.draw = () => calls.push("draw");
+  vm.createContext(context);
+  vm.runInContext(page.match(/let leaving = false;[^]*?\n\}\);(?=\nfunction back)/)[0], context);
+  listeners.pageshow();
+  assert.deepEqual(calls, loaded ? ["whole", "draw"] : []);
+  assert.equal(history.state, null);
+  assert.equal(store["lemonaid-grove-home"], undefined);
+  listeners.pageshow();  // an ordinary restore afterwards leaves the grove as it is
+  assert.deepEqual(calls, loaded ? ["whole", "draw"] : []);
 });

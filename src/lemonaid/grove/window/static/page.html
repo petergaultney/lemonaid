@@ -1056,6 +1056,16 @@ function inHistory() {
   if (inside && !held) history.pushState({grove: "inside"}, "");
   else if (!inside && held && !leaving) { leaving = true; history.back(); }
 }
+// Coming back by a home key shows the whole grove, from a restored page or a reloaded one. The history
+// entry the zoom held is kept as a plain one: giving it back would go on past the grove.
+window.addEventListener("pageshow", () => {
+  let home = false;
+  try { home = sessionStorage.getItem("lemonaid-grove-home") === "1"; sessionStorage.removeItem("lemonaid-grove-home"); } catch {}
+  if (!home) return;
+
+  if (history.state?.grove === "inside") history.replaceState(null, "");
+  if (DATA) { wholeGrove(); draw(); }
+});
 window.addEventListener("popstate", () => {
   if (leaving) { leaving = false; return; }
 

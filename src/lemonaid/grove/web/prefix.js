@@ -11,6 +11,9 @@
   const onLemon = location.pathname.endsWith("/lemon");
   if (onLemon) { try { localStorage.setItem(lastKey, location.search); } catch {} }
   window.groveHome = () => {
+    // The desktop grove page reads this when it comes back, to show the whole grove rather than the
+    // block it was left in.
+    try { sessionStorage.setItem("lemonaid-grove-home", "1"); sessionStorage.setItem("lemonaid-grove-zoomed", ""); } catch {}
     // Back, when this page was opened from the grove, so the browser shows that page as it was
     // rather than loading it again.
     const from = document.referrer ? new URL(document.referrer) : null;
