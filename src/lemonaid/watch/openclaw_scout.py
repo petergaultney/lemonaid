@@ -3,17 +3,19 @@
 Each batch becomes one agent turn in the session through the gateway, so the lemon wakes
 for its mail and events the way a Codex lemon does through `codex queue`. No batch goes while
 the session is mid-turn, so a busy lemon gets one turn for everything that arrived meanwhile,
-not a queue of them, and a body change it made during its turn doesn't wake it.
+not a queue of them. A body change it made doesn't wake it: lemonaid's OpenClaw plugin records
+each tool call's edits, as Claude's and Codex's hooks do, and without the plugin any change
+seen during its turn counts as its own.
 """
 
-import threading
 import time
 import typing as ty
 from collections import abc
 from pathlib import Path
 
+from ..inbox import db
 from ..log import LOG_PATH, get_logger
-from ..openclaw import sessions
+from ..openclaw import plugin_install, run_records, sessions
 from . import (
     batch_text,
     deaf_waiter,
@@ -31,33 +33,19 @@ _log = get_logger("watch.openclaw_scout")
 _NEXT = "delivers the next batch as another turn in this session"
 _ACCEPT_TIMEOUT_MS = 60_000
 _LIST_EVERY = 60.0  # seconds between the scout's checks that its session still exists
-_SENT_RUNS_FOR = 5.0  # seconds a sent turn counts as running, before the observer records it
 
 
-def _sent_counts_as_running(
-    send: delivery.Deliver, latest: turns.Turns, within: float
-) -> tuple[delivery.Deliver, turns.Turns]:
-    """*send* and *latest*, with the session counted as mid-turn for *within* seconds after a
-    send, until the observer's record of the turn can say so itself."""
-    sent = float("-inf")
-    lock = threading.Lock()
+def _recording_sends(send: delivery.Deliver, session_key: str) -> delivery.Deliver:
+    """*send*, recording the session as mid-turn once the gateway accepts the turn, before
+    anything that reports turns has seen it start."""
 
     def sending(message: str) -> None:
-        nonlocal sent
+        at = time.time()
         send(message)
-        with lock:
-            sent = time.monotonic()
+        with db.connect() as conn:
+            run_records.sent(conn, session_key, at)
 
-    def latest_turn() -> turns.Turn | None:
-        with lock:
-            recent = time.monotonic() - sent < within
-        turn = latest()
-        if not recent:
-            return turn
-
-        return turns.Turn(True, turn.started if turn else 0, turn.ended if turn else 0)
-
-    return sending, latest_turn
+    return sending
 
 
 class Harness(ty.NamedTuple):
@@ -65,6 +53,7 @@ class Harness(ty.NamedTuple):
     alive: abc.Callable[[], bool]
     writer: str
     latest_turn: turns.Turns
+    edits_by_turn: bool  # no plugin records own edits per tool call, so a turn's changes count
 
 
 def harness(channel: str) -> Harness:
@@ -78,10 +67,13 @@ def harness(channel: str) -> Harness:
         lambda m: batch_text.compose(m, _NEXT),
         until_final=False,
     )
-    deliver, latest_turn = _sent_counts_as_running(
-        send, sessions.recorded_turns(key), _SENT_RUNS_FOR
+    return Harness(
+        _recording_sends(send, key),
+        lambda: exists(key) is not False,
+        f"openclaw-{key}",
+        sessions.recorded_turns(key),
+        not plugin_install.installed(),
     )
-    return Harness(deliver, lambda: exists(key) is not False, f"openclaw-{key}", latest_turn)
 
 
 def _serves(lemon_id: str, channel: str) -> bool:

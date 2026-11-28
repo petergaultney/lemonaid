@@ -154,6 +154,7 @@ def wait(
     pacing: waits.Waits = waits.TIMERS,
     harness: tuple[abc.Iterable[Path], abc.Iterable[int]] = ((), ()),
     latest_turn: turns.Turns | None = None,
+    edits_by_turn: bool = False,
 ) -> bool:
     """Deliver one batch; True instead when a restart was requested.
 
@@ -161,7 +162,8 @@ def wait(
     pending, and undelivered mailbox messages stay on disk for it. With nothing pending, a
     loop with event *pacing* sleeps until its brief, mailbox, a detector or the *harness* files
     and pids change, or `waits.idle` passes. With *latest_turn*, nothing is delivered while the
-    lemon is mid-turn; what arrives meanwhile goes in the next batch.
+    lemon is mid-turn; what arrives meanwhile goes in the next batch. With *edits_by_turn* too, a
+    doc's body change seen during a turn counts as the lemon's own edit.
     """
     config = load_config()
     vaults = tuple(config.brief.vaults)
@@ -214,7 +216,7 @@ def wait(
                 notes,
                 pacing,
                 wake,
-                latest_turn,
+                latest_turn if edits_by_turn else None,
             )
             if _collect(output, running, pending):
                 since = time.monotonic()

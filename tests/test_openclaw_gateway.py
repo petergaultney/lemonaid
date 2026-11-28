@@ -13,7 +13,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from websockets import exceptions as websocket_errors
 
-from lemonaid.openclaw import gateway, turns
+from lemonaid.openclaw import failures, gateway, turns
 
 
 class _Socket:
@@ -88,8 +88,8 @@ def test_a_held_connection_keeps_the_turns_its_events_say_failed(monkeypatch):
 
     gateway._Held().call("chat.history", {"sessionKey": "k"}, 5)
 
-    assert turns.failed("agent:main:failing") == [
-        turns.Failure(1795671692929, "Auth profile unavailable")
+    assert failures.read("agent:main:failing") == [
+        failures.Failure(1795671692929, "Auth profile unavailable")
     ]
 
 

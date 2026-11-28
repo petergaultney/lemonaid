@@ -54,7 +54,7 @@ import pathlib
 import sys
 
 from ..doc_plugins import configured
-from ..openclaw import sessions
+from ..openclaw import plugin_install, sessions
 from . import (
     brief_record,
     cursors,
@@ -143,6 +143,7 @@ def run(a: argparse.Namespace) -> int:
         else own_edits.writer_from_env(os.environ, a.codex_thread)
     )
     latest_turn = sessions.recorded_turns(a.openclaw_session) if a.openclaw_session else None
+    edits_by_turn = not plugin_install.installed()  # the plugin records them per tool call
     watch = (  # before the lock, so a held lock means the baseline is taken
         None
         if a.watch_list
@@ -155,7 +156,7 @@ def run(a: argparse.Namespace) -> int:
             a.quiet,
             writer,
             cursor_key=cursor_key,
-            latest_turn=latest_turn,
+            latest_turn=latest_turn if edits_by_turn else None,
             plugins=configured.plugins(),
         )
     )
@@ -216,6 +217,7 @@ def run(a: argparse.Namespace) -> int:
                     latest_turn,
                     writer,
                     plugins=configured.plugins(),
+                    edits_by_turn=edits_by_turn,
                 )
             else:
                 doc_wait.wait_doc(watch, deliver, once, a.interval, latest_turn)

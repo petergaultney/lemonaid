@@ -56,13 +56,15 @@ To keep it current, run
 lemonaid openclaw observe [--days 90] [--every 60]
 ```
 
-on the machine running the gateway, as a systemd user service beside the gateway's. It syncs once a minute until stopped, and logs a sync that fails rather than exiting. It also keeps a connection to the gateway open and records each session's turn from its events, so every grove shows an OpenClaw lemon as working from its turn's first event until it ends or fails; a dropped connection is opened again on the next round. When a turn ends or fails, its lemon's row goes unread, as a Claude lemon's does when it stops, unless the turn's final message matches `[inbox] auto_read`; either way the lemon's age counts from then. The same final message goes through the end-of-turn rule check (see [rules.md](rules.md#openclaw-lemons)). This needs the `openclaw` extra. Nothing else runs the sync: the web grove (`lemonaid grove serve`) shows what it finds, but serving the grove doesn't start it, and observing doesn't need the grove.
+on the machine running the gateway, as a systemd user service beside the gateway's. It syncs once a minute until stopped, and logs a sync that fails rather than exiting. Without [lemonaid's plugin](#lemonaids-plugin), it also keeps a connection to the gateway open and records each session's turn from its events, so every grove shows an OpenClaw lemon as working from its turn's first event until it ends or fails; a dropped connection is opened again on the next round. With the plugin installed, the plugin reports turns and the observer only syncs. When a turn ends or fails, its lemon's row goes unread, as a Claude lemon's does when it stops, unless the turn's final message matches `[inbox] auto_read`; either way the lemon's age counts from then. The same final message goes through the end-of-turn rule check (see [rules.md](rules.md#openclaw-lemons)). This needs the `openclaw` extra. Nothing else runs the sync: the web grove (`lemonaid grove serve`) shows what it finds, but serving the grove doesn't start it, and observing doesn't need the grove.
 
 ### Briefs, mail and watchers
 
 Once registered, the session uses briefs like any lemon: `lemonaid brief attach --self <brief>`, `lemonaid brief id --self`, and the rest. `lemonaid watch --self --push` starts its scout in the scout host, which turns each batch (mail, doc comments, PR events, children) into one gateway turn in the session. `lemonaid tell` to the lemon starts the scout if none runs.
 
-OpenClaw runs a session's turns one at a time, and no hook records the files a turn writes. So the scout holds every batch while the session is mid-turn (as `lemonaid openclaw observe` records it, and from the moment the scout sends a turn); without the observer running, nothing holds the batches, and sends one turn for everything that arrived once the session is idle. A doc body change the scout sees appear while a turn runs is recorded as the lemon's own edit, as Claude Code's hooks record one, so it wakes nobody, even after later turns; a change made by someone else during the turn counts as the lemon's too.
+OpenClaw runs a session's turns one at a time, so the scout holds every batch while the session is mid-turn, as the plugin or the observer records it, and from the moment the gateway accepts a turn the scout sent. With neither running, nothing holds the batches. Each batch that arrives while the lemon is busy goes in one turn once it is idle.
+
+A lemon's own edits to a doc it watches don't wake it. With the plugin, they are recorded per tool call, as Claude Code's and Codex's hooks record them, so someone else's edit during the lemon's turn still wakes it. Without the plugin, any body change the scout sees appear while a turn runs counts as the lemon's own, someone else's included.
 
 When the command that starts the scout host runs inside a systemd service (as the gateway's shell commands do), the host gets a transient user unit of its own, so a gateway restart doesn't stop it.
 
@@ -70,6 +72,25 @@ When the command that starts the scout host runs inside a systemd service (as th
 ### Ending a lemon
 
 `lemonaid lemon end <Lemon-ID>` ends an OpenClaw lemon whose brief says `done`, as it does any other: its inbox card is archived and its brief goes to the attic. It has no harness process or pane of its own to stop, since the gateway runs a session only during a turn. Instead its doc watches stop, and its session is archived in OpenClaw (`openclaw sessions archive`), never deleted, so the transcript stays. A new message in the session restores it and brings the lemon back. Run it on the gateway's machine; if the gateway can't archive the session, the rest still happens and the output says so.
+
+### Lemonaid's plugin
+
+OpenClaw's gateway runs typed plugin hooks for a session's turns and tool calls. Lemonaid ships a small plugin that hands each of them to `lemonaid openclaw hook`, as Claude Code and Codex run `lemonaid hooks`:
+
+- `llm_input` records the session's turn as running, renewed at most once a minute from its tool calls.
+- `agent_end` records the turn as over. It marks the lemon unread unless the final message matches `[inbox] auto_read`, runs the end-of-turn rule check, and keeps a failed turn for the lemon's page.
+- `before_tool_call` and `after_tool_call` record a tool call's edits to a doc the lemon watches, and refuse a quiet `git push`, as lemonaid's Codex hook does. They start lemonaid only for a call that names a watched doc or a push.
+- `gateway_start` ends every OpenClaw lemon's turn, since a gateway that has just started runs none.
+
+On the machine running the gateway, run
+
+```sh
+lemonaid openclaw plugin install
+```
+
+It copies the plugin to `$LEMONAID_STATE_DIR/openclaw-plugin/` (default `~/.local/state/lemonaid/openclaw-plugin/`), links it into OpenClaw with `openclaw plugins install --link --force` (`--force` confirms a local source), and sets `plugins.entries.lemonaid.hooks.allowConversationAccess`, which `llm_input` and `agent_end` need. Then it reloads the plugin. Run it again after upgrading lemonaid: it reloads the plugin only if the copy changed. `lemonaid openclaw plugin status` says whether the gateway runs a plugin from another lemonaid version, which each hook call reports, and `lemonaid openclaw plugin uninstall` removes it.
+
+OpenClaw doesn't promise to deliver every hook. A missed `agent_end` leaves the lemon working until its next turn ends, or for 20 minutes. A missed `llm_input` shows it idle until a tool call renews the turn, and a missed tool call's edit wakes the lemon once, as when Claude Code's hooks miss one.
 
 ## How It Works
 
@@ -90,7 +111,7 @@ From within your OpenClaw TUI session, run:
 
 This registers the current session with lemonaid and captures the TTY for tmux pane switching. You only need to do this once per session.
 
-**Why this works:** OpenClaw's `!` prefix runs shell commands as a child of the TUI process, which means the command inherits the TUI's terminal context (TTY). Gateway-based hooks can't capture this because they run in a separate process.
+**Why this works:** OpenClaw's `!` prefix runs shell commands as a child of the TUI process, which means the command inherits the TUI's terminal context (TTY). Hooks that run in the gateway can't capture the TTY, because they run in a separate process; turns and tool calls are another matter (see [Lemonaid's plugin](#lemonaids-plugin)).
 
 ### Hook-Based Registration (Optional)
 

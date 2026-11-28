@@ -11,14 +11,14 @@ import time
 from collections import abc
 from pathlib import Path
 
-from ... import conversation, front_end, groups, openclaw
+from ... import conversation, front_end, groups
 from ...brief import attached, family, identity, pr, render, target
 from ...config import Config
 from ...front_end import chat, interface, pick
 from ...grove import model
 from ...inbox import db, pins, turns
 from ...messages import tell_delivery
-from ...openclaw import gateway, sessions
+from ...openclaw import failures, gateway, sessions
 from ..draw import colors
 from . import attachments, brief_page
 
@@ -54,7 +54,7 @@ def _mark(row: db.Notification) -> str:
     conversation. Raises OSError when it can't be learned."""
     if row.channel.startswith(sessions.PREFIX):
         key = sessions.session_key(row.channel)
-        failed = openclaw.turns.failed(key)
+        failed = failures.read(key)
         return (
             f"{conversation.openclaw.mark(key, sessions.cli())}:{failed[-1].at_ms if failed else 0}"
         )

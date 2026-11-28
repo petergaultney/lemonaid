@@ -19,7 +19,7 @@ from ..conversation import openclaw as conversation
 from ..front_end import chat
 from ..inbox import db
 from ..log import get_logger
-from . import gateway, sessions, sync, turns
+from . import failures, gateway, plugin_install, sessions, sync, turns
 
 _log = get_logger("openclaw.observe")
 
@@ -38,7 +38,7 @@ def _settle(session_key: str, cli: str, started: float) -> None:
     """Runs on a thread of its own: it asks the gateway, whose answer the connection's reader,
     which saw the turn end, would have to read. The rest runs in `openclaw hook turn-end`,
     whose main thread the rule check's regex time limit needs."""
-    failed = any(f.at_ms >= started * 1000 for f in turns.failed(session_key))
+    failed = any(f.at_ms >= started * 1000 for f in failures.read(session_key))
     config = load_config()
     said = ""
     if (config.inbox.auto_read or config.rules.patterns) and not failed:
@@ -65,7 +65,11 @@ def _settle(session_key: str, cli: str, started: float) -> None:
 
 def _recorder(cli: str) -> turns.Record:
     def record(session_key: str, at: float | None, started: float, ended: float) -> None:
-        """Runs on the gateway connection's reader, which a raise would end."""
+        """Runs on the gateway connection's reader, which a raise would end. Where lemonaid's
+        plugin is installed, it reports turns instead."""
+        if plugin_install.installed():
+            return
+
         try:
             with db.connect() as conn:
                 db.record_turn_times(conn, sessions.channel(session_key), at, started, ended)
